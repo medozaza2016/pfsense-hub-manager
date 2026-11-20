@@ -83,7 +83,7 @@ The initial deployment is a Docker Compose application on the existing Proxmox L
 2. **Backend API:** Node.js and TypeScript service exposing the manager's REST API. It owns authentication and authorization enforcement once selected, input validation, device orchestration, firewall API calls, and safe response shaping.
 3. **Polling execution:** Initially a backend module/process responsibility, not a separate distributed service. It performs scheduled per-device collection with independent timeouts, bounded concurrency, and backoff. A separate worker container may be considered only if measured workload or operational isolation justifies it.
 
-This is a logical starting topology, not a final Compose file or a decision about the backend HTTP framework. Do not add a cache, message broker, identity provider, reverse proxy, or secret-management product until its requirement and operational cost are documented and approved.
+The initial Compose topology is implemented with separate web, API, and PostgreSQL containers. This remains an initial development topology, not a production security sign-off. Do not add a cache, message broker, identity provider, reverse proxy, or secret-management product until its requirement and operational cost are documented and approved.
 
 ### Container communication and exposure
 
@@ -201,3 +201,8 @@ Metrics labels must be bounded. Never label by arbitrary device IP, raw path wit
 ## API specification maintenance
 
 The OpenAPI JSON is the upstream contract reference. The application must use a controlled subset of operations through typed provider methods, not a generic pass-through proxy. Validate live responses at runtime. When the source specification changes, regenerate the matrix and review added, removed, and changed operations before changing application behavior.
+
+
+## Initial scaffold implementation status
+
+The repository now includes React/Vite frontend and Fastify API workspaces, PostgreSQL migrations and poll-run persistence, Docker Compose, separate frontend/backend Dockerfiles, a server-side pfSense API client with exactly eight fixed GET routes, runtime envelope validation, strict TLS verification with optional private CA trust, Docker-secret API-key injection, an internal metrics endpoint, health/readiness routes, and a loopback-bound web entry point. The frontend can trigger a read-only overview collection. Manager-user authentication is not implemented; loopback-only exposure is a deliberate temporary security boundary. See DEPLOYMENT.md for setup and limitations.
