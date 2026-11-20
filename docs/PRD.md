@@ -158,3 +158,23 @@ As of 2026-11-19 (America/New_York), the manager LXC named pfsense-hub-manager s
 The API key and firewall serial/Netgate identifiers are intentionally not included in this repository. The diagnostic TLS bypass and public-hostname timeout are documented in docs/INTEGRATION-STATUS.md. The 172.10.x.x addressing is being retained for now at the user's direction. The second pfSense CE firewall connection is deferred until the user is ready.
 
 The frontend stack (React, TypeScript, Vite) and separate Node.js/TypeScript REST backend have been approved. The application scaffold is the next implementation step. See docs/ROADMAP.md for the remaining work and docs/DECISIONS.md for confirmed decisions versus open architecture choices.
+
+
+## 15. Confirmed backend and API documentation requirements
+
+The backend HTTP framework is **Fastify** (DEC-015). The approved application stack is React + TypeScript + Vite, a separate Node.js + TypeScript + Fastify REST backend, and PostgreSQL in Docker Compose.
+
+The supplied pfSense REST API OpenAPI 3.0 JSON document is the upstream API reference. Its metadata reports title "pfSense REST API Documentation" and version "unknown". Preserve the original specification as `specs/pfsense-openapi.json` when added to the repository. Do not label its unknown version as a verified package version.
+
+The project shall maintain a generated **pfSense REST API Matrix** from that specification. The matrix must record category/tag, path, HTTP method, operation ID, summary/description, authentication, required privileges, required packages, request/response schema references, immediate-apply behavior, cache behavior, and application coverage status. Coverage statuses must distinguish:
+- Present in upstream specification.
+- Verified against a specific real firewall and package version.
+- Implemented in the backend.
+- Exposed in the frontend.
+- Automated-test status.
+
+The initial release remains read-only. A method being present in the upstream specification does not authorize its implementation or use. Write operations remain disabled until the later safety and authorization requirements in this PRD are met.
+
+Application observability is separate from the pfSense API matrix. Backend metrics shall cover HTTP request volume/latency/errors, per-device polling attempts/results/duration, device reachability, and process uptime. Metrics must not include credentials, API keys, raw URLs containing secrets, or high-cardinality labels such as arbitrary IPs and error messages.
+
+See `API-SPECIFICATION.md`, `API-MATRIX.md`, `API-COMPATIBILITY.md`, `METRICS.md`, `MONITORING.md`, and `SECURITY.md`.
