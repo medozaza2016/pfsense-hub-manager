@@ -5,7 +5,7 @@
  */
 import { readFile, writeFile } from "node:fs/promises";
 
-const source = "specs/pfsense-openapi.json";
+const source = "docs/reference/pfsense-openapi.json";
 const output = "docs/API-MATRIX.generated.md";
 const spec = JSON.parse(await readFile(source, "utf8"));
 const methods = new Set(["get", "post", "put", "patch", "delete", "options", "head", "trace"]);
@@ -72,7 +72,7 @@ rows.sort((a, b) => a.tag.localeCompare(b.tag) || a.path.localeCompare(b.path) |
 const lines = [
   "# Generated pfSense REST API Operation Inventory",
   "",
-  "> Generated file. Do not edit manually. Source: `specs/pfsense-openapi.json`.",
+  "> Generated file. Do not edit manually. Source: `docs/reference/pfsense-openapi.json`.",
   "",
   `- OpenAPI version: ${clean(spec.openapi)}`,
   `- Specification title: ${clean(spec.info?.title)}`,
