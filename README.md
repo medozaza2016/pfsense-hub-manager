@@ -35,7 +35,9 @@ See [Integration Status](docs/INTEGRATION-STATUS.md) for the exact test record a
 
 ## Product direction
 
-The product will begin with secure, read-only monitoring. Configuration changes, remote command execution, and other write operations are out of scope until separately specified and secured.
+The long-term product goal is a full-featured, centralized pfSense management platform, not a read-only monitoring tool. It is intended to grow to support firewall rules, aliases, NAT, interfaces, routing, services, and other supported configuration areas, subject to per-device API capabilities and security controls. Development will proceed in stages: read-only monitoring first, then carefully governed write capabilities. Remote command execution is not assumed to be required.
+
+The connection method between the hub and each firewall is intentionally undecided. The architecture must support multiple firewalls and allow the transport mechanism to be selected later without rewriting management features.
 
 The integration must account for differences by pfSense edition, release, API package version, and hardware architecture. The community pfSense REST API is unofficial and is not a Netgate-supported API.
 
