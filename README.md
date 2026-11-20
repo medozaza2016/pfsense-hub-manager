@@ -2,7 +2,7 @@
 
 A centralized management and monitoring platform for multiple pfSense firewalls, designed to support mixed **pfSense Plus** and **pfSense CE** environments.
 
-> **Project status:** Discovery and first-device read-only API connectivity validation completed. Application implementation has not started.
+ > **Project status:** Initial application foundation scaffolded. Runtime build and firewall connectivity validation are pending on the Proxmox LXC.
 
 ## Why this project exists
 
@@ -43,7 +43,7 @@ The integration must account for differences by pfSense edition, release, API pa
 
 ## Deployment
 
-The application will run on the existing Proxmox LXC `pfsense-hub-manager`, with Docker Compose managing the application containers. Cloudflare Workers and Cloudflare hosting are not used for this project. The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript REST service. PostgreSQL is approved as the application database and will run as a dedicated Docker Compose service. The backend HTTP framework, administrator authentication, and secret storage remain undecided. The firewall-to-hub connection method is also deferred. See [Architecture](docs/ARCHITECTURE.md) and [Decision Log](docs/DECISIONS.md).
+The application runs on the existing Proxmox LXC `pfsense-hub-manager` using Docker Compose. The initial stack contains a React/Vite web frontend, a Fastify/TypeScript API, and PostgreSQL. The API key is mounted as a Docker secret, TLS verification is enforced, and the web port is bound to 127.0.0.1. Manager-user authentication is not implemented yet, so do not expose the UI publicly. The firewall-to-hub transport beyond the current tested LAN path remains deferred. See [Architecture](docs/ARCHITECTURE.md) and [Decision Log](docs/DECISIONS.md).
 
 ## Repository guide
 
@@ -55,6 +55,9 @@ The application will run on the existing Proxmox LXC `pfsense-hub-manager`, with
 - [Integration status and verified tests](docs/INTEGRATION-STATUS.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Decision log](docs/DECISIONS.md)
+- [Deployment guide](docs/DEPLOYMENT.md)
+- [Metrics](docs/METRICS.md)
+- [Monitoring](docs/MONITORING.md)
 
 ## Security
 
@@ -62,7 +65,7 @@ Never commit firewall credentials, API keys, tokens, private keys, configuration
 
 ## Development
 
-The approved frontend and backend stack is recorded in docs/DECISIONS.md. The application scaffold is the next implementation task. PostgreSQL is approved for the Docker Compose stack. Authentication and secret storage will not be introduced until their decisions are approved.
+See [Deployment](docs/DEPLOYMENT.md). Copy .env.example to .env, create the local API key file described in secrets/README.md, and configure a trusted CA if required. Run docker compose config, then docker compose up -d --build. The initial UI is available on the LXC at http://127.0.0.1:8080. The eight upstream GET operations are implemented behind a fixed allowlist; no write routes or arbitrary proxy exist. Manager-user authentication and multi-device administration remain future work.
 
 ## License
 
