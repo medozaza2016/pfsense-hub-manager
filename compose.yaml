@@ -54,10 +54,28 @@ services:
       timeout: 5s
       retries: 3
     security_opt: [no-new-privileges:true]
-networks:
-  backend: {driver: bridge}
+  code-server:
+    image: codercom/code-server:latest
+    restart: unless-stopped
+    environment:
+      DOCKER_USER: coder
+    entrypoint: ["/bin/sh", "-c"]
+    command: 'PASSWORD="$$(cat /run/secrets/code_server_password)" exec code-server --bind-addr 0.0.0.0:8080 --auth password --disable-telemetry /home/coder/project'
+    ports: ["127.0.0.1:${CODE_SERVER_PORT:-8443}:8080"]
+    volumes:
+      - ./workspace:/home/coder/project
+      - code_server_config:/home/coder/.config
+      - code_server_data:/home/coder/.local/share/code-server
+    secrets: [code_server_password]
+    security_opt: [no-new-privileges:true]
 volumes:
   postgres_data:
+  code_server_config:
+  code_server_data:
+networks:
+  backend: {driver: bridge}
 secrets:
   pfsense_api_key:
     file: ./secrets/pfsense_api_key
+  code_server_password:
+    file: ./secrets/code_server_password
