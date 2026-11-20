@@ -53,22 +53,13 @@ This document distinguishes confirmed constraints from proposals and open questi
 
 ### DEC-010, Defer firewall connection method
 
-**Status:** Deferred by user  
-**Decision:** Do not select or implement the firewall-to-hub connection method yet. Keep the transport replaceable and decide later based on site connectivity and security requirements.  
-**Rationale:** The user explicitly stated that the connection approach can be decided at a later point.
+**Status:** Deferred  
+**Decision:** Do not select or implement the firewall-to-hub connection method yet. Keep the transport replaceable until a separate decision is made.
 
-## Proposals not yet approved
+### DEC-011, Application deployment environment
 
-- React + TypeScript frontend.
-- Next.js as a possible framework.
-- Cloudflare Workers as management/API layer.
-- Netlify frontend with self-hosted Node.js/TypeScript backend on Proxmox.
-- A database or specific persistence product.
-- A specific administrator identity provider.
-- A specific secrets manager.
-- A specific polling interval.
-
-These remain options or discussions until the user explicitly selects one.
+**Status:** Accepted  
+**Decision:** Deploy pfSense Hub Manager on the existing Proxmox LXC named `pfsense-hub-manager`, using Docker Compose to manage the application containers. Do not use Cloudflare Workers or Cloudflare hosting for this project.
 
 ## Open decisions
 
