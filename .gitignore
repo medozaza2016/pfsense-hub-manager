@@ -10,3 +10,4 @@ workspace/*
 !workspace/.gitkeep
 *.log
 .DS_Store
+certs/pfsense-ca.pem
