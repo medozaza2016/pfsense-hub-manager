@@ -43,7 +43,7 @@ The integration must account for differences by pfSense edition, release, API pa
 
 ## Deployment
 
-The application will run on the existing Proxmox LXC `pfsense-hub-manager`, with Docker Compose managing the application containers. Cloudflare Workers and Cloudflare hosting are not used for this project. The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript REST service. The backend HTTP framework, database, administrator authentication, and secret storage remain undecided. The firewall-to-hub connection method is also deferred. See [Architecture](docs/ARCHITECTURE.md) and [Decision Log](docs/DECISIONS.md).
+The application will run on the existing Proxmox LXC `pfsense-hub-manager`, with Docker Compose managing the application containers. Cloudflare Workers and Cloudflare hosting are not used for this project. The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript REST service. PostgreSQL is approved as the application database and will run as a dedicated Docker Compose service. The backend HTTP framework, administrator authentication, and secret storage remain undecided. The firewall-to-hub connection method is also deferred. See [Architecture](docs/ARCHITECTURE.md) and [Decision Log](docs/DECISIONS.md).
 
 ## Repository guide
 
@@ -62,7 +62,7 @@ Never commit firewall credentials, API keys, tokens, private keys, configuration
 
 ## Development
 
-The approved frontend and backend stack is recorded in docs/DECISIONS.md. The application scaffold is the next implementation task. Database, authentication, and secret storage will not be introduced until their decisions are approved.
+The approved frontend and backend stack is recorded in docs/DECISIONS.md. The application scaffold is the next implementation task. PostgreSQL is approved for the Docker Compose stack. Authentication and secret storage will not be introduced until their decisions are approved.
 
 ## License
 
