@@ -27,7 +27,7 @@ Use controlled error classes such as timeout, tls, authentication, authorization
 - Avoid high-cardinality labels.
 
 ## Initial implementation
-Expose Prometheus-format metrics from Fastify at `/metrics`, restricted to the internal monitoring network or otherwise protected. Do not expose it publicly by default.
+Expose Prometheus-format metrics from Fastify at `/metrics`. It is available only on the internal Docker network, is not proxied by the web container, and is not published to the LXC host.
 
 Prometheus is optional for the first scaffold. Add it when historical time-series, alerting, or external dashboards justify it. PostgreSQL stores application data and selected operational history, not every scrape sample.
 
