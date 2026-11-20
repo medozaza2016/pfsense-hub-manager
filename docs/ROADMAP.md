@@ -23,12 +23,14 @@
 ## M1, Architecture and application foundation
 
 - [x] Use the existing Proxmox LXC `pfsense-hub-manager` with Docker Compose for application deployment.
-- [ ] Approve frontend framework and backend runtime.
+- [x] Approve React, TypeScript, and Vite frontend.
+- [x] Approve separate Node.js and TypeScript REST backend.
+- [ ] Select backend HTTP framework.
 - [ ] Approve database and retention policy.
 - [ ] Approve administrator authentication and authorization model.
 - [ ] Approve secret storage mechanism.
 - [ ] Define normalized device, health, gateway, interface, service, and observation types.
-- [ ] Scaffold application and establish lint, type-check, test, and build commands.
+- [ ] Scaffold frontend and backend workspaces, then establish lint, type-check, test, and build commands.
 - [ ] Add secure configuration loading and validation.
 
 ## M2, Read-only integration
