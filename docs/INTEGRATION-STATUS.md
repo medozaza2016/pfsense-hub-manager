@@ -76,3 +76,10 @@ Do not copy a real key into shell history, source files, issue comments, logs, o
 ## Network addressing note
 
 The existing 172.10.x.x addressing is intentionally being left unchanged for this project at the user's direction. Do not make subnet renumbering a prerequisite for current development. Revisit routing implications only if an actual conflict or connectivity failure is observed.
+
+
+## Initial manager application implementation
+
+The repository now contains an initial Fastify backend provider wired to exactly the eight GET paths above. The manager API's read-only overview route invokes these operations sequentially, records per-operation outcome and duration in PostgreSQL, and emits bounded Prometheus metrics. ARP and firewall-state response rows are reduced to counts when the upstream data is an array; the raw rows are not returned or stored. System, gateway, interface, and service payloads are not exposed as raw records by the provider; only collection indicators/counts are returned. The state-size and version responses are included for initial inspection.
+
+This is code implementation, not yet a successful live application run. The CI workflow has verified TypeScript, unit tests, and frontend/backend builds on GitHub Actions. Docker Compose image build validation and deployment on the target LXC are still pending. TLS verification is enforced, but the manager's trust of the firewall certificate has not yet been verified.
