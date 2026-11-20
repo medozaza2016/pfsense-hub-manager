@@ -78,3 +78,8 @@ If a key or password is exposed:
 3. Review logs and repository history for exposure.
 4. Determine whether other credentials or systems were affected.
 5. Record the incident and remediation without copying the secret into the incident record.
+
+
+## OpenAPI and API-operation safety
+
+The upstream OpenAPI JSON includes read and write operations. Its presence does not authorize implementation or invocation. The initial release is read-only. Do not create a generic arbitrary-path proxy to the firewall API. Any future write capability must meet the explicit preview, authorization, backup/recovery, audit, confirmation, and post-apply verification requirements above.
