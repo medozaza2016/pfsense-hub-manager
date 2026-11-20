@@ -103,8 +103,8 @@ No write endpoint is part of the initial integration contract.
 
 The user supplied an OpenAPI 3.0 JSON document titled **pfSense REST API Documentation**. Its metadata identifies [pfSense-pkg-RESTAPI](https://github.com/pfrest/pfSense-pkg-RESTAPI), the Apache 2.0 license, and `info.version: unknown`. The snapshot contains 267 paths, 694 operations, and 186 component schemas. The exact installed API package version on the first firewall remains unrecorded.
 
-Preserve the original JSON unchanged at `specs/pfsense-openapi.json`. The source file still needs to be copied into that repository path. Record a SHA-256 checksum and date obtained when committing it.
+Preserve the original JSON unchanged at `docs/reference/pfsense-openapi.json`. The original source is already committed at this path. Do not duplicate or relocate it. The generator reads this exact file.
 
 The specification is an upstream contract reference, not proof that every operation exists on every pfSense Plus or CE release. Verify each supported operation against each firewall and its installed package version. The specification includes both read and write operations. The initial application release remains read-only, and no write operation is approved merely because it appears in the JSON.
 
-Use the specification to generate `docs/API-MATRIX.generated.md` with `scripts/generate-api-matrix.mjs`. Keep device compatibility evidence in `docs/API-COMPATIBILITY.md`.
+Use the specification to generate `docs/API-MATRIX.generated.md` with `node scripts/generate-api-matrix.mjs`. Keep device compatibility evidence in `docs/API-COMPATIBILITY.md`.
