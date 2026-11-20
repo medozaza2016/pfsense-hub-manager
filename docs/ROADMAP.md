@@ -83,10 +83,10 @@ The exact firewall-to-hub connection method remains deferred. The transport abst
 
 - [x] Capture the supplied pfSense REST API OpenAPI specification metadata and identify it as a separate artifact from application metrics.
 - [ ] Add the supplied source file as `specs/pfsense-openapi.json` (retain the original source unchanged).
-- [ ] Add and maintain the generated `docs/API-MATRIX.md` from the OpenAPI source.
-- [ ] Add API compatibility records per firewall edition, release, architecture, and REST API package version.
-- [ ] Add metrics definitions and monitoring/runbook documentation.
-- [ ] Add the security baseline for credentials, TLS, access control, and future write operations.
+- [x] Add `docs/API-MATRIX.md` and the generator; the complete 694-operation generated output is available as a working artifact, pending addition of the original source JSON to the repository.
+- [x] Add API compatibility records per firewall edition, release, architecture, and REST API package version.
+- [x] Add metrics definitions and monitoring/runbook documentation.
+- [x] Add the security baseline for credentials, TLS, access control, and future write operations.
 - [ ] Add CI validation that checks the OpenAPI JSON and detects an out-of-date generated API matrix.
 
 ## M1, Backend implementation update
