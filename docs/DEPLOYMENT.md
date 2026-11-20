@@ -17,6 +17,7 @@ This is an initial development deployment. Manager-user authentication has not b
 
 ```bash
 cp .env.example .env
+chmod 600 .env
 openssl rand -hex 32
 ```
 
