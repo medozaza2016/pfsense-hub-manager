@@ -18,25 +18,22 @@ A key challenge is that pfSense Plus and CE, and their REST API package versions
 
 ## 3. Goals
 
-1. Provide a central dashboard for multiple pfSense devices and locations.
-2. Support mixed pfSense Plus and pfSense CE deployments.
-3. Establish secure, reliable communication with each firewall.
-4. Present device reachability, health, and supported operational information in one interface.
-5. Isolate edition- and version-specific behavior behind a compatibility-aware integration layer.
-6. Start with read-only access and establish a secure foundation before enabling changes.
-7. Remain independent of Netgate Nexus.
+1. Provide a central application to monitor and manage multiple pfSense devices across locations.
+2. Support mixed pfSense Plus and pfSense CE deployments, with room for additional devices and supported editions/releases.
+3. Establish secure, reliable communication with each firewall, while deferring the exact connection method.
+4. Present device reachability, health, configuration, and operational information in one interface.
+5. Support the full lifecycle of supported firewall configuration, including creating, editing, reviewing, applying, and deleting rules and related objects, subject to device capabilities and safety controls.
+6. Isolate edition- and version-specific behavior behind a compatibility-aware integration layer.
+7. Deliver functionality incrementally, starting read-only and introducing write operations only after authorization, validation, audit, and recovery controls are implemented.
+8. Remain independent of Netgate Nexus.
 
-## 4. Non-goals for the initial milestone
+## 4. Scope boundaries
 
-- Replacing pfSense firewall functionality.
-- Requiring or integrating with Netgate Nexus.
-- Assuming every REST API operation is supported on every edition or release.
-- Exposing firewall management interfaces publicly by default.
-- Making firewall configuration changes before authorization, audit, and rollback requirements are designed.
-- Remote shell access or arbitrary command execution.
-- Automatic firmware upgrades.
+The long-term product is a management application, not merely a monitoring dashboard. Planned management domains include firewall rules and aliases, NAT, interfaces and VLANs, routing and gateways, DHCP and DNS services, VPN-related capabilities where supported, certificates, and other pfSense configuration areas exposed by a compatible API.
 
-These items may be reconsidered through explicit requirements and security review.
+The initial milestone remains read-only. Write operations will be introduced in stages after capability checks, least-privilege authorization, configuration backup/recovery, change previews, explicit confirmation, audit logging, and post-apply verification are designed and tested.
+
+The product does not replace pfSense itself, require Netgate Nexus, assume every API operation exists on every edition/release, or expose firewall management APIs publicly by default. Remote shell access and arbitrary command execution are not assumed to be product requirements. Automatic firmware upgrades are not in the initial scope.
 
 ## 5. Users and primary use case
 
@@ -46,7 +43,7 @@ These items may be reconsidered through explicit requirements and security revie
 
 Additional user roles and multi-user collaboration requirements have not yet been specified.
 
-## 6. Initial functional requirements
+## 6. Functional requirements and phased delivery
 
 ### FR-1: Managed devices
 
@@ -74,7 +71,19 @@ The system shall communicate authentication failures, network failures, timeouts
 
 ### FR-7: Auditability
 
-The initial release shall log security-relevant access and operational errors without recording secrets. If write operations are introduced later, a complete action audit trail is mandatory.
+The read-only release shall log security-relevant access and operational errors without recording secrets. Before any write capability is enabled, the system shall provide an immutable or tamper-evident action history recording actor, target firewall, requested change, before/after or change reference, confirmation, result, timestamp, and correlation ID.
+
+### FR-8: Configuration management (later phase)
+
+The product is intended to support creating, viewing, editing, and deleting supported firewall configuration objects, including rules, aliases, NAT mappings, interfaces, routing, and service configuration. Each operation must be gated by the capability matrix for the target firewall and API version. Unsupported operations must be clearly identified rather than silently emulated.
+
+### FR-9: Safe change workflow (before write release)
+
+For consequential changes, the application shall validate input, show a human-readable change preview, identify the target firewall, require explicit confirmation, preserve a recoverable configuration backup or equivalent rollback path where available, apply changes through documented API operations, and verify the resulting state. Risky changes that could cut off management access require additional safeguards.
+
+### FR-10: Extensible device onboarding
+
+Administrators shall be able to add further supported pfSense firewalls without a fixed device-count assumption. Each device shall have independent credentials, connectivity settings, compatibility detection, and health state.
 
 ## 7. Initial non-functional requirements
 
