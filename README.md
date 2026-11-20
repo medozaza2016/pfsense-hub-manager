@@ -2,56 +2,65 @@
 
 A centralized management and monitoring platform for multiple pfSense firewalls, designed to support mixed **pfSense Plus** and **pfSense CE** environments.
 
-> **Project status:** Foundation and requirements phase. The application has not yet been implemented.
+> **Project status:** Discovery and first-device read-only API connectivity validation completed. Application implementation has not started.
 
 ## Why this project exists
 
-The initial use case is to manage firewalls at two locations from one place:
-- One location runs pfSense Plus.
-- One location runs pfSense CE.
+The initial use case is to manage firewalls at multiple locations from one place:
+- One location runs pfSense Plus, currently verified on a Netgate 2100.
+- One location runs pfSense CE, connection and compatibility validation deferred until the user is ready.
+- The architecture must support more than two devices.
 
 The goal is a unified operational view without making the product dependent on Netgate Nexus.
 
-## Planned direction
+## Verified progress
 
-The initial technology direction discussed is:
-- **Frontend:** React + TypeScript
-- **Management/API layer:** Cloudflare Workers
-- **Firewall integration:** pfSense REST API, subject to release and platform compatibility verification
+The Proxmox LXC named pfsense-hub-manager can reach the first firewall at 172.10.50.1:10443 and authenticate using an API key belonging to the dedicated regular pfSense account pfsense_hub.
 
-These are planning decisions, not a completed implementation. Database, identity/authentication provider, deployment topology, and private connectivity design remain to be finalized.
+All eight initial read-only endpoints returned HTTP 200:
+- System status
+- Gateway status
+- Interface status
+- Service status
+- pfSense version
+- ARP table
+- Firewall states
+- Firewall state table size
 
-## Initial scope
+The tested firewall reported pfSense Plus 26.07.2-RELEASE. The API key is not stored in this repository.
 
-The first milestone should establish secure, read-only connectivity and visibility:
-- Register and identify managed firewall instances.
-- Report device reachability and basic system status.
-- Retrieve supported information through the REST API.
-- Show per-device connection and API compatibility status.
-- Handle unavailable devices and partial failures without taking down the whole dashboard.
+**Important:** The test used a self-signed certificate and temporarily bypassed certificate verification with curl -k. This is diagnostic only. Verified TLS must be completed before production use.
 
-Configuration changes, remote command execution, and other write operations are out of the initial scope until separately specified and secured.
+See [Integration Status](docs/INTEGRATION-STATUS.md) for the exact test record and limitations.
 
-## Important integration note
+## Product direction
 
-The community pfSense REST API is unofficial and is not a Netgate-supported API. Compatibility depends on the pfSense edition, release, API package version, and platform architecture. Verify the compatibility matrix and endpoint documentation before installing or calling it. Do not assume every operation is available on both CE and Plus.
+The product will begin with secure, read-only monitoring. Configuration changes, remote command execution, and other write operations are out of scope until separately specified and secured.
+
+The integration must account for differences by pfSense edition, release, API package version, and hardware architecture. The community pfSense REST API is unofficial and is not a Netgate-supported API.
+
+## Technology choices
+
+React + TypeScript, Next.js, Cloudflare Workers, and a self-hosted Node.js/TypeScript backend have been discussed. The final frontend framework, backend runtime, database, identity provider, deployment topology, and private connectivity design are not yet approved. See [Architecture](docs/ARCHITECTURE.md) and [Decision Log](docs/DECISIONS.md).
 
 ## Repository guide
 
 - [Agent instructions](AGENTS.md)
 - [Product requirements](docs/PRD.md)
-- [Architecture](docs/ARCHITECTURE.md) (planned)
-- [Security](docs/SECURITY.md) (planned)
-- [Roadmap](docs/ROADMAP.md) (planned)
-- [Decision log](docs/DECISIONS.md) (planned)
-
-## Development
-
-No application scaffold or runnable development environment has been committed yet. Setup instructions will be added after the architecture and initial stack are approved.
+- [Architecture](docs/ARCHITECTURE.md)
+- [Security](docs/SECURITY.md)
+- [API specification](docs/API-SPECIFICATION.md)
+- [Integration status and verified tests](docs/INTEGRATION-STATUS.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Decision log](docs/DECISIONS.md)
 
 ## Security
 
-Never commit firewall credentials, API keys, tokens, private keys, configuration backups, or sensitive network information. Use private connectivity or a VPN for firewall management access wherever possible. See [AGENTS.md](AGENTS.md) for mandatory engineering and security constraints.
+Never commit firewall credentials, API keys, tokens, private keys, configuration backups, or real customer/network data. Keep credentials server-side, use least privilege, prefer private connectivity, and validate TLS certificates. Do not expose a firewall management API directly to the public internet by default.
+
+## Development
+
+The application scaffold has not yet been committed. Before implementation, approve the remaining architecture decisions, then establish the application structure, configuration validation, linting, type checking, tests, and build workflow.
 
 ## License
 
