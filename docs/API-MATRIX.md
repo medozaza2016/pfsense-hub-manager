@@ -1,6 +1,6 @@
 # pfSense REST API Matrix
 
-The operation-level inventory is generated from `specs/pfsense-openapi.json` by `scripts/generate-api-matrix.mjs`. Do not maintain the generated table manually.
+The operation-level inventory is generated from `docs/reference/pfsense-openapi.json` by `scripts/generate-api-matrix.mjs`. Do not maintain the generated table manually.
 
 ## Source snapshot summary
 
@@ -27,7 +27,7 @@ These eight GET calls returned HTTP 200 against the Netgate 2100 running pfSense
 
 | Method | Path | Device | Backend | Frontend | Automated tests |
 |---|---|---|---|---|
-| GET | `/api/v2/status/system` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/status/system` | Verified | Implemented | Aggregate check | Not tested |
 | GET | `/api/v2/status/gateways` | Verified | Implemented | Not exposed | Not tested |
 | GET | `/api/v2/status/interfaces` | Verified | Implemented | Not exposed | Not tested |
 | GET | `/api/v2/status/services` | Verified | Implemented | Not exposed | Not tested |
@@ -37,7 +37,7 @@ These eight GET calls returned HTTP 200 against the Netgate 2100 running pfSense
 | GET | `/api/v2/firewall/states/size` | Verified | Implemented | Not exposed | Not tested |
 
 ## Generate the full inventory
-After adding the original JSON to `specs/pfsense-openapi.json`, run:
+With the original JSON already committed at `docs/reference/pfsense-openapi.json`, run:
 
 ```bash
 node scripts/generate-api-matrix.mjs
