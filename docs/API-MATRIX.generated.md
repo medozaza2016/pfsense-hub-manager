@@ -1,6 +1,6 @@
 # Generated pfSense REST API Operation Inventory
 
- > Generated file. Do not edit manually. Source: `docs/reference/pfsense-openapi.json`.
+> Generated file. Do not edit manually. Source: `docs/reference/pfsense-openapi.json`.
 
 - OpenAPI version: 3.0.0
 - Specification title: pfSense REST API Documentation
