@@ -100,7 +100,7 @@ Quantitative availability, performance, and retention targets remain open.
 
 The application will be deployed on the existing Proxmox LXC `pfsense-hub-manager`, using Docker Compose to manage application containers. Cloudflare Workers and Cloudflare hosting are not used for this project.
 
-The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript service exposing a REST API. PostgreSQL is approved as the application database, deployed as a dedicated Docker Compose service. Fastify is the selected backend HTTP framework. Administrator authentication and secret storage mechanism remain undecided. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
+The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript Fastify service exposing a REST API. PostgreSQL runs as a dedicated Docker Compose service. The initial API key is mounted as a Docker secret. Manager-user authentication and roles remain undecided; therefore, the initial web UI is loopback-only and must not be publicly exposed. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
 
 ## 9. Integration constraints and risks
 
@@ -177,3 +177,8 @@ The initial release remains read-only. A method being present in the upstream sp
 Application observability is separate from the pfSense API matrix. Backend metrics shall cover HTTP request volume/latency/errors, per-device polling attempts/results/duration, device reachability, and process uptime. Metrics must not include credentials, API keys, raw URLs containing secrets, or high-cardinality labels such as arbitrary IPs and error messages.
 
 See `API-SPECIFICATION.md`, `API-MATRIX.md`, `API-COMPATIBILITY.md`, `METRICS.md`, `MONITORING.md`, and `SECURITY.md`.
+
+
+## 16. Initial application foundation implementation
+
+The repository now contains a first executable scaffold: React/Vite frontend, Fastify/TypeScript backend, PostgreSQL container and initial migration, fixed read-only provider for the eight previously verified GET routes, HTTPS certificate validation with optional private CA trust, runtime configuration validation, file-mounted API-key secret, device/poll inventory persistence, internal metrics endpoint, liveness/readiness checks, and CI build/test workflow. The UI can request a read-only collection. This scaffold has not yet been built and exercised on the target Proxmox LXC. Endpoint-specific response mapping, automatic polling, manager authentication, multi-device onboarding, and production backup/restore remain incomplete.
