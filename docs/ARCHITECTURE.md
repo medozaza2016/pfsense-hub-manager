@@ -188,7 +188,7 @@ Record each approved choice in `DECISIONS.md` before implementation depends on i
 
 **Fastify is the selected Node.js HTTP framework** (DEC-015). Implement the manager-facing REST API in TypeScript using Fastify. Keep the framework behind the backend application boundary so domain services and the pfSense provider interface do not depend on Fastify request/reply objects.
 
-The supplied upstream pfSense OpenAPI 3.0 JSON specification is the source for endpoint discovery and schema references. Preserve it at `specs/pfsense-openapi.json` when committed. Its `info.version` is `unknown`, so record a source checksum and retrieval/receipt date separately, and do not treat it as the installed package version on any firewall.
+The supplied upstream pfSense OpenAPI 3.0 JSON specification is the source for endpoint discovery and schema references. Preserve it at `docs/reference/pfsense-openapi.json`, where the original source is already committed. Do not duplicate it. Its `info.version` is `unknown`, so record a source checksum and retrieval/receipt date separately, and do not treat it as the installed package version on any firewall.
 
 Generate `docs/API-MATRIX.md` from the specification using `scripts/generate-api-matrix.mjs`. The generated matrix is an inventory, not a compatibility guarantee. Device compatibility must be recorded separately for each edition, release, architecture, and installed API package version. The eight successful GET calls on the first Plus device remain the only currently documented live endpoint verification.
 
