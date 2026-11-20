@@ -2,7 +2,7 @@
 
 A centralized management and monitoring platform for multiple pfSense firewalls, designed to support mixed **pfSense Plus** and **pfSense CE** environments.
 
-> **Project status:** Initial application foundation scaffolded. GitHub CI passed type checks, tests, frontend/backend builds, API-matrix generation verification, Compose validation, and Docker image builds. Live deployment and firewall connectivity validation on the Proxmox LXC remain pending.
+> **Project status:** Initial application foundation scaffolded. GitHub CI passed the initial application checks and image builds. The four-service Compose stack now includes browser-based VS Code through code-server. Updated-stack CI and live deployment/runtime validation on the Proxmox LXC remain pending.
 
 ## Why this project exists
 
@@ -41,9 +41,11 @@ The connection method between the hub and each firewall is intentionally undecid
 
 The integration must account for differences by pfSense edition, release, API package version, and hardware architecture. The community pfSense REST API is unofficial and is not a Netgate-supported API.
 
-## Deployment
+## Deployment and development environment
 
-The application runs on the existing Proxmox LXC `pfsense-hub-manager` using Docker Compose. The initial stack contains a React/Vite web frontend, a Fastify/TypeScript API, and PostgreSQL. The API key is mounted as a Docker secret, TLS verification is enforced, and the web port is bound to 127.0.0.1. Manager-user authentication is not implemented yet, so do not expose the UI publicly. The firewall-to-hub transport beyond the current tested LAN path remains deferred. See [Architecture](docs/ARCHITECTURE.md) and [Decision Log](docs/DECISIONS.md).
+Docker Compose runs the React/Vite web application, Fastify API, PostgreSQL, and code-server. code-server provides VS Code in a browser at http://127.0.0.1:8443 on the LXC, with password authentication and persistent workspace, settings, and extension storage. The pfSense Hub application remains at http://127.0.0.1:8080. Both ports are loopback-bound by default, use SSH tunnels for workstation access, and do not expose either service directly to the internet.
+
+The editor workspace is ./workspace. The code-server container is isolated from the application backend network and does not mount the Docker socket. See [Deployment](docs/DEPLOYMENT.md) for setup, SSH forwarding, secrets, and security details.
 
 ## Repository guide
 
@@ -65,7 +67,7 @@ Never commit firewall credentials, API keys, tokens, private keys, configuration
 
 ## Development
 
-See [Deployment](docs/DEPLOYMENT.md). Copy .env.example to .env, create the local API key file described in secrets/README.md, and configure a trusted CA if required. Run docker compose config, then docker compose up -d --build. The initial UI is available on the LXC at http://127.0.0.1:8080. The eight upstream GET operations are implemented behind a fixed allowlist; no write routes or arbitrary proxy exist. Manager-user authentication and multi-device administration remain future work.
+See [Deployment](docs/DEPLOYMENT.md). Copy .env.example to .env, create the local API key and code-server password files described there, and configure a trusted CA if required. Run docker compose config, then docker compose up -d --build. The initial application UI and VS Code editor are exposed only on localhost ports 8080 and 8443 respectively. The eight upstream GET operations are implemented behind a fixed allowlist; no write routes or arbitrary proxy exist. Manager-user authentication and multi-device administration remain future work.
 
 ## License
 
