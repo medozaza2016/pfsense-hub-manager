@@ -36,9 +36,11 @@ export class PfSenseProvider{
     else if(operation==="firewallStateSize")results.firewallStateSize=response.data;
    }catch(error){outcome="failure";failures++;errorClass=classifyError(error);}
    const duration=Date.now()-started;onResult(groups[operation],outcome,errorClass??undefined,duration);
-   await this.pool.query(`INSERT INTO poll_runs(id,device_id,operation_group,outcome,started_at,completed_at,duration_ms,error_class)
-    VALUES($1,$2,$3,$4,now()-($5::text||' milliseconds')::interval,now(),$5,$6)`,
-    [pollId,deviceId,groups[operation],outcome,duration,errorClass]);
+       await this.pool.query(
+      `INSERT INTO poll_runs(id,device_id,operation_group,outcome,started_at,completed_at,duration_ms,error_class)
+       VALUES($1,$2,$3,$4,now()-($5::integer * interval '1 millisecond'),now(),$5,$6)`,
+      [pollId,deviceId,groups[operation],outcome,duration,errorClass]
+    );
   }
   return {results,failedOperations:failures};
  }
