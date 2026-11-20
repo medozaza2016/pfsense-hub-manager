@@ -41,9 +41,9 @@ The connection method between the hub and each firewall is intentionally undecid
 
 The integration must account for differences by pfSense edition, release, API package version, and hardware architecture. The community pfSense REST API is unofficial and is not a Netgate-supported API.
 
-## Technology choices
+## Deployment
 
-React + TypeScript, Next.js, Cloudflare Workers, and a self-hosted Node.js/TypeScript backend have been discussed. The final frontend framework, backend runtime, database, identity provider, deployment topology, and private connectivity design are not yet approved. See [Architecture](docs/ARCHITECTURE.md) and [Decision Log](docs/DECISIONS.md).
+The application will run on the existing Proxmox LXC `pfsense-hub-manager`, with Docker Compose managing the application containers. Cloudflare Workers and Cloudflare hosting are not used for this project. The frontend framework, backend runtime, database, administrator authentication, and secret storage remain undecided. The firewall-to-hub connection method is also deferred. See [Architecture](docs/ARCHITECTURE.md) and [Decision Log](docs/DECISIONS.md).
 
 ## Repository guide
 
