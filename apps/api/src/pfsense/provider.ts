@@ -26,9 +26,14 @@ export class PfSenseProvider{
    const started=Date.now();const pollId=randomUUID();let outcome:"success"|"failure"="success";let errorClass:string|null=null;
    try{
     const response=await this.client.get(operation);
-    if(operation==="arpTable")results.arpEntryCount=recordCount(response.data);
+    if(operation==="system")results.system={received:true};
+    else if(operation==="gateways")results.gateways={recordCount:recordCount(response.data)};
+    else if(operation==="interfaces")results.interfaces={recordCount:recordCount(response.data)};
+    else if(operation==="services")results.services={recordCount:recordCount(response.data)};
+    else if(operation==="version")results.version=response.data;
+    else if(operation==="arpTable")results.arpEntryCount=recordCount(response.data);
     else if(operation==="firewallStates")results.firewallStateEntryCount=recordCount(response.data);
-    else results[operation]=response.data;
+    else if(operation==="firewallStateSize")results.firewallStateSize=response.data;
    }catch(error){outcome="failure";failures++;errorClass=classifyError(error);}
    const duration=Date.now()-started;onResult(groups[operation],outcome,errorClass??undefined,duration);
    await this.pool.query(`INSERT INTO poll_runs(id,device_id,operation_group,outcome,started_at,completed_at,duration_ms,error_class)
