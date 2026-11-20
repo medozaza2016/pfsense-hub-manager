@@ -83,7 +83,7 @@ The exact firewall-to-hub connection method remains deferred. The transport abst
 ## Documentation and API inventory work
 
 - [x] Capture the supplied pfSense REST API OpenAPI specification metadata and identify it as a separate artifact from application metrics.
-- [ ] Add the supplied source file as `specs/pfsense-openapi.json` (retain the original source unchanged).
+- [x] Confirm the original source file is already committed unchanged at `docs/reference/pfsense-openapi.json`; do not duplicate it.
 - [x] Add `docs/API-MATRIX.md` and the generator; the complete 694-operation generated output is available as a working artifact, pending addition of the original source JSON to the repository.
 - [x] Add API compatibility records per firewall edition, release, architecture, and REST API package version.
 - [x] Add metrics definitions and monitoring/runbook documentation.
@@ -93,7 +93,7 @@ The exact firewall-to-hub connection method remains deferred. The transport abst
 ## M1, Backend implementation update
 
 - [x] Select Fastify as the Node.js backend HTTP framework (DEC-015).
-- [ ] Scaffold the Fastify + TypeScript backend.
+- [x] Scaffold the Fastify + TypeScript backend.
 - [x] Implement an internal-only `/metrics` endpoint with bounded labels defined in `METRICS.md`.
 - [ ] Keep Prometheus deployment optional until historical metrics, alerting, or dashboard requirements justify it.
 
