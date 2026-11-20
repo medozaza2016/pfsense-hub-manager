@@ -12,7 +12,7 @@ This reference is based on the firewall-generated OpenAPI export supplied for th
 - Schema components: 186
 - API areas: AUTH, DIAGNOSTICS, FIREWALL, GRAPHQL, INTERFACE, ROUTING, SERVICES, STATUS, SYSTEM, USER, VPN
 
-The original OpenAPI export remains the detailed machine-readable contract. Preserve it unchanged in this repository as `docs/reference/pfsense-openapi.json` when its source file can be committed. This document is the human-readable navigation and safety guide, not a replacement for the OpenAPI definitions.
+The firewall-generated OpenAPI JSON supplied for this project is the machine-readable reference specification. Its intended repository path is `docs/reference/pfsense-openapi.json`. Keep that export unchanged when committing it. This document is the human-readable navigation and safety guide, not a replacement for the OpenAPI definitions. The JSON was supplied in this conversation; its presence in GitHub must be verified before treating it as committed.
 
 ## Important distinction
 
@@ -23,7 +23,7 @@ An operation being documented or appearing in the firewall permission inventory 
 3. **Implemented**, supported by a specific manager adapter capability.
 4. **Enabled**, explicitly allowed by manager policy and firewall permissions.
 
-The current manager milestone is read-only. The firewall service account and manager integration are currently limited to the eight tested GET endpoints listed below. The account does not automatically gain access to other documented endpoints. When a feature adds an endpoint, update both sides deliberately: grant the firewall service account only the exact required permission, and update the manager backend's fixed route/method allowlist, device capability metadata, and caller authorization. The backend must enforce its own endpoint and capability allowlist. The frontend is not a security boundary. Do not implement a generic proxy that accepts arbitrary upstream paths, HTTP methods, or payloads.
+The current manager milestone is read-only. The dedicated `pfsense_hub` firewall API account and manager integration are currently limited to the eight tested GET endpoints listed below. The account does not automatically gain access to other documented endpoints. When a feature adds an endpoint, update both sides deliberately: grant the firewall account only the exact required endpoint/method privilege, and update the manager backend's fixed route/method allowlist, device capability metadata, and caller authorization. The backend must enforce its own endpoint and capability allowlist. The frontend is not a security boundary. Do not implement a generic proxy that accepts arbitrary upstream paths, HTTP methods, or payloads.
 
 ## Adding a future endpoint
 
@@ -38,6 +38,20 @@ Use this sequence for every new integration operation:
 7. Update this reference and the integration status with the test evidence. Keep unsupported devices or versions explicitly marked unsupported.
 
 Never automatically expand the service account's permissions or the manager's allowlist merely because the OpenAPI export changes.
+
+## Adding a future endpoint
+
+Use this sequence for every new integration operation:
+
+1. Select the feature and exact endpoint/method from the OpenAPI export.
+2. Verify the route and schema against the actual target firewall, recording pfSense edition/release, architecture, and installed REST API package version. A documented route is not proof of runtime support.
+3. Review the operation's security impact and obtain feature approval. For the current read-only milestone, only GET operations may be considered.
+4. Add only the required firewall-side permission to the dedicated `pfsense_hub` account. Do not grant broad permissions or write privileges for convenience.
+5. Update manager-side authentication/authorization and the backend allowlist, including device capability declarations and user/role checks. Firewall permission and manager permission are separate gates, both must allow the operation.
+6. Add sanitized contract fixtures and tests for success, malformed responses, denied permissions, timeouts, and per-device compatibility.
+7. Update this reference and the integration status with the test evidence. Keep unsupported devices or versions explicitly marked unsupported.
+
+Never automatically expand the firewall account's permissions or the manager's allowlist merely because the OpenAPI export changes.
 
 ## API area index
 
