@@ -1,5 +1,3 @@
-# Local deployment secrets
-
 Create the API key file before starting Compose:
 
 ```bash
@@ -8,5 +6,4 @@ umask 077
 printf '%s' 'PASTE_THE_PFSENSE_API_KEY_HERE' > secrets/pfsense_api_key
 chmod 600 secrets/pfsense_api_key
 ```
-
-Replace the placeholder locally. Never commit this file. The API container receives it read-only at /run/secrets/pfsense_api_key. Do not paste the key into chat, source code, Compose environment variables, or logs.
+Replace the placeholder locally. This file is git-ignored and mounted read-only at /run/secrets/pfsense_api_key. Never commit or paste the key into source code or logs.

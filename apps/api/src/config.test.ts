@@ -1,0 +1,4 @@
+import {describe,expect,it} from "vitest";
+import {loadConfig} from "./config.js";
+const valid={NODE_ENV:"test",HOST:"127.0.0.1",PORT:"3000",DATABASE_URL:"postgres://user:pass@localhost:5432/db",PFSENSE_DEVICE_ID:"00000000-0000-4000-8000-000000000001",PFSENSE_DEVICE_NAME:"Test firewall",PFSENSE_DEVICE_LOCATION:"Test",PFSENSE_EDITION:"plus",PFSENSE_API_BASE_URL:"https://firewall.example.test:10443",PFSENSE_API_KEY_FILE:"./secret",PFSENSE_API_TIMEOUT_MS:"10000"};
+describe("configuration validation",()=>{it("accepts a complete HTTPS configuration",()=>{expect(loadConfig(valid).PORT).toBe(3000);});it("rejects HTTP firewall origins",()=>{expect(()=>loadConfig({...valid,PFSENSE_API_BASE_URL:"http://firewall.example.test"})).toThrow(/HTTPS/);});it("rejects missing required settings",()=>{expect(()=>loadConfig({})).toThrow(/Invalid application configuration/);});});

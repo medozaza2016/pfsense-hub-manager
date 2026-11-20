@@ -1,16 +1,1 @@
-{
-  "name": "pfsense-hub-manager",
-  "private": true,
-  "version": "0.1.0",
-  "workspaces": ["apps/web", "apps/api"],
-  "scripts": {
-    "dev": "concurrently -k \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:api": "npm --workspace @pfsense-hub/api run dev",
-    "dev:web": "npm --workspace @pfsense-hub/web run dev",
-    "build": "npm run build --workspace @pfsense-hub/api && npm run build --workspace @pfsense-hub/web",
-    "typecheck": "npm run typecheck --workspace @pfsense-hub/api && npm run typecheck --workspace @pfsense-hub/web",
-    "test": "npm run test --workspace @pfsense-hub/api",
-    "db:migrate": "npm run db:migrate --workspace @pfsense-hub/api"
-  },
-  "devDependencies": { "concurrently": "^9.1.2", "typescript": "^5.8.3" }
-}
+{"name":"pfsense-hub-manager","private":true,"version":"0.1.0","workspaces":["apps/web","apps/api"],"scripts":{"dev":"concurrently -k \"npm:dev:api\" \"npm:dev:web\"","dev:api":"npm --workspace @pfsense-hub/api run dev","dev:web":"npm --workspace @pfsense-hub/web run dev","build":"npm run build --workspace @pfsense-hub/api && npm run build --workspace @pfsense-hub/web","typecheck":"npm run typecheck --workspace @pfsense-hub/api && npm run typecheck --workspace @pfsense-hub/web","test":"npm run test --workspace @pfsense-hub/api"},"devDependencies":{"concurrently":"^9.1.2","typescript":"^5.8.3"}}
