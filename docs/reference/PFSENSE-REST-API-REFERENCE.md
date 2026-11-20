@@ -12,7 +12,7 @@ This reference is based on the firewall-generated OpenAPI export supplied for th
 - Schema components: 186
 - API areas: AUTH, DIAGNOSTICS, FIREWALL, GRAPHQL, INTERFACE, ROUTING, SERVICES, STATUS, SYSTEM, USER, VPN
 
-The firewall-generated OpenAPI JSON supplied for this project is the machine-readable reference specification. Its intended repository path is `docs/reference/pfsense-openapi.json`. Keep that export unchanged when committing it. This document is the human-readable navigation and safety guide, not a replacement for the OpenAPI definitions. The JSON was supplied in this conversation; its presence in GitHub must be verified before treating it as committed.
+The complete firewall-generated OpenAPI JSON is included in this repository at [`docs/reference/pfsense-openapi.json`](./pfsense-openapi.json). Treat that file as the machine-readable source reference and preserve the export unchanged. This document is the human-readable navigation and safety guide, not a replacement for the OpenAPI definitions.
 
 ## Important distinction
 
@@ -23,7 +23,7 @@ An operation being documented or appearing in the firewall permission inventory 
 3. **Implemented**, supported by a specific manager adapter capability.
 4. **Enabled**, explicitly allowed by manager policy and firewall permissions.
 
-The current manager milestone is read-only. The dedicated `pfsense_hub` firewall API account and manager integration are currently limited to the eight tested GET endpoints listed below. The account does not automatically gain access to other documented endpoints. When a feature adds an endpoint, update both sides deliberately: grant the firewall account only the exact required endpoint/method privilege, and update the manager backend's fixed route/method allowlist, device capability metadata, and caller authorization. The backend must enforce its own endpoint and capability allowlist. The frontend is not a security boundary. Do not implement a generic proxy that accepts arbitrary upstream paths, HTTP methods, or payloads.
+The current manager milestone is read-only. The dedicated `pfsense_hub` firewall API account currently has only the eight endpoint/method privileges listed below. It does not automatically gain access to other operations in the full OpenAPI specification. When a feature adds an endpoint, update both sides deliberately: grant the firewall account only the exact required endpoint/method privilege, and update the manager backend's fixed route/method allowlist, device capability metadata, and caller authorization. The backend must enforce its own endpoint and capability allowlist. The frontend is not a security boundary. Do not implement a generic proxy that accepts arbitrary upstream paths, HTTP methods, or payloads.
 
 ## Adding a future endpoint
 
