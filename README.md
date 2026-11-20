@@ -2,7 +2,7 @@
 
 A centralized management and monitoring platform for multiple pfSense firewalls, designed to support mixed **pfSense Plus** and **pfSense CE** environments.
 
-> **Project status:** Initial application foundation scaffolded. Runtime build and firewall connectivity validation are pending on the Proxmox LXC.
+> **Project status:** Initial application foundation scaffolded. GitHub CI passed type checks, tests, frontend/backend builds, API-matrix generation verification, Compose validation, and Docker image builds. Live deployment and firewall connectivity validation on the Proxmox LXC remain pending.
 
 ## Why this project exists
 
