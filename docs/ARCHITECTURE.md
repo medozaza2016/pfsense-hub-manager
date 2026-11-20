@@ -48,7 +48,7 @@ The adapter should:
 
 The application will be deployed on the existing Proxmox LXC named `pfsense-hub-manager`. Docker Compose will manage the application containers. Cloudflare Workers and Cloudflare hosting are not part of this project.
 
-The frontend framework, backend runtime, database, administrator identity provider, and secret storage mechanism remain undecided. See `DECISIONS.md` for the authoritative decision record.
+The approved frontend is React with TypeScript and Vite. The backend is a separate Node.js and TypeScript service exposing a REST API. The backend HTTP framework, database, administrator identity provider, and secret storage mechanism remain undecided. See `DECISIONS.md` for the authoritative decision record.
 
 ## Network architecture
 
@@ -66,7 +66,7 @@ A firewall outage must not make the whole manager unavailable. Poll each device 
 
 ## Open architecture decisions
 
-- Frontend framework and backend runtime.
+- Backend HTTP framework.
 - Database, administrator authentication, and secret storage.
 - Firewall-to-hub transport: VPN/overlay, site-to-site tunnel, private connector/agent, or another private path. This decision is explicitly deferred.
 - Whether a private connector/agent is needed for remote sites.
