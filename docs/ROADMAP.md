@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Discovery completed. Initial application foundation scaffolded; container build and live runtime validation remain pending.**
+**Discovery completed. Initial application foundation scaffolded; CI and Docker image builds passed. Live runtime validation on the Proxmox LXC remains pending.**
 
 ## M0, Discovery and environment validation
 
