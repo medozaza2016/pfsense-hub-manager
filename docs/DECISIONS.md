@@ -77,7 +77,7 @@ This document records confirmed architectural decisions. Proposals and open ques
 
 ### DEC-016, Upstream pfSense API specification
 **Status:** Accepted  
-**Decision:** Treat the user-supplied pfSense REST API OpenAPI 3.0 JSON document as the upstream reference contract. Preserve the source unchanged at `specs/pfsense-openapi.json` in the repository. Its metadata reports `info.version: unknown`; this is not the installed API package version for the tested firewall.
+**Decision:** Treat the user-supplied pfSense REST API OpenAPI 3.0 JSON document as the upstream reference contract. Preserve the source unchanged at `docs/reference/pfsense-openapi.json` in the repository. This file is already committed; do not create a duplicate. Its metadata reports `info.version: unknown`; this is not the installed API package version for the tested firewall.
 
 ### DEC-017, Generated API coverage matrix
 **Status:** Accepted  
@@ -90,3 +90,8 @@ This document records confirmed architectural decisions. Proposals and open ques
 ### DEC-019, Initial read-only safety boundary
 **Status:** Accepted  
 **Decision:** Keep all pfSense configuration-changing operations disabled in the initial release, even when the OpenAPI specification documents them. Implement only explicitly approved read-only provider operations until the separate write-safety requirements are met.
+
+
+### DEC-020, Local-only initial UI exposure
+**Status:** Accepted as an implementation safety boundary
+**Decision:** Until manager-user authentication and authorization are selected and implemented, publish the web UI only on the LXC loopback address (127.0.0.1). Do not expose the application through a public reverse proxy or public interface. Access it remotely through an authenticated administrative tunnel such as SSH. The API and database remain unpublished to the host network.
