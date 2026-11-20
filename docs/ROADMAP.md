@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Discovery and first-device connectivity validation completed.** Application implementation has not yet been started.
+**Discovery completed. Initial application foundation scaffolded; container build and live runtime validation remain pending.**
 
 ## M0, Discovery and environment validation
 
@@ -30,19 +30,20 @@
 - [ ] Define PostgreSQL schema, migrations, retention, and backup/restore policy.
 - [ ] Approve administrator authentication and authorization model.
 - [ ] Approve secret storage mechanism.
-- [ ] Define normalized device, health, gateway, interface, service, and observation types.
-- [ ] Scaffold frontend and backend workspaces, then establish lint, type-check, test, and build commands.
-- [ ] Add secure configuration loading and validation.
+- [x] Establish initial device inventory and poll-run persistence model; detailed normalized observation mapping remains pending.
+- [x] Scaffold React/Vite frontend and Fastify/TypeScript backend workspaces with build, type-check, and test commands.
+- [x] Add runtime configuration validation and HTTPS-origin enforcement.
+- [x] Mount the pfSense API key as a Docker secret, not a frontend or ordinary API environment variable.
 
 ## M2, Read-only integration
 
-- [ ] Implement server-side pfSense API client.
-- [ ] Implement certificate-verified TLS.
-- [ ] Implement runtime response validation.
-- [ ] Implement per-device provider/adapter and capability detection.
-- [ ] Implement device reachability and classified errors.
-- [ ] Implement polling with timeouts, bounded retries, and backoff.
-- [ ] Test authentication failure, timeout, TLS failure, malformed responses, and unsupported endpoints.
+- [x] Implement server-side pfSense API client with a fixed eight-route GET allowlist.
+- [x] Enforce certificate and hostname verification, with optional private CA trust. Live trust validation remains pending.
+- [x] Validate the common upstream JSON response envelope at runtime; endpoint-specific data schemas remain pending.
+- [x] Implement initial configured-device provider and capability inventory; multi-device onboarding and per-edition validation remain pending.
+- [x] Classify timeout, TLS, authentication, authorization, unsupported, rate-limit, remote-server, invalid-response, and unknown failures.
+- [x] Implement user-triggered read-only collection with per-request timeouts and independent operation outcomes. Scheduled polling, retry/backoff policy, and concurrency controls remain pending.
+- [ ] Expand automated tests for authentication, timeout, TLS, malformed responses, and unsupported endpoints.
 - [ ] Keep write operations disabled.
 
 ## M3, Dashboard
@@ -93,5 +94,12 @@ The exact firewall-to-hub connection method remains deferred. The transport abst
 
 - [x] Select Fastify as the Node.js backend HTTP framework (DEC-015).
 - [ ] Scaffold the Fastify + TypeScript backend.
-- [ ] Implement a protected/restricted `/metrics` endpoint with the metric names and labels defined in `METRICS.md`.
+- [x] Implement an internal-only `/metrics` endpoint with bounded labels defined in `METRICS.md`.
 - [ ] Keep Prometheus deployment optional until historical metrics, alerting, or dashboard requirements justify it.
+
+
+## Initial foundation implementation record
+
+The initial application scaffold is committed: React/Vite web app, Fastify API, PostgreSQL Compose service, initial SQL migration, Dockerfiles, local-only web exposure, Docker-secret API-key mount, strict HTTPS client, fixed allowlist for the eight previously verified GET endpoints, per-operation poll records, health/readiness endpoints, Prometheus-format metrics, and CI workflow. The first UI can trigger a read-only collection and show the result. ARP rows and individual firewall state rows are reduced to aggregate counts and are not persisted.
+
+This is not a production release. The manager has no user login or role model yet. Only one firewall is configured through environment variables. The live TLS trust chain, Compose build on the LXC, API response compatibility, and CI run must be verified before calling the foundation operational. No write API, shell execution, reboot, halt, apply, or arbitrary upstream proxy is implemented.
