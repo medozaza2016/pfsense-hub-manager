@@ -56,10 +56,14 @@ This document records confirmed architectural decisions. Proposals and open ques
 **Status:** Accepted  
 **Decision:** Use a separate Node.js and TypeScript backend, exposing a REST API to the frontend. Keep firewall integration server-side and behind a provider/transport abstraction.
 
+### DEC-014, Application database
+**Status:** Accepted  
+**Decision:** Use PostgreSQL as the application database, deployed as a dedicated service in the project's Docker Compose stack. Keep it on a private Compose network with a persistent data volume. Do not expose the database port publicly by default. Schema design, migrations, retention, backup/restore, and encryption requirements must be completed before production use.
+
 ## Open decisions
 
 1. Backend HTTP framework.
-2. Database, data model, retention, and backup policy.
+2. PostgreSQL schema, migrations, retention, and backup/restore policy.
 3. Manager administrator authentication and roles.
 4. Server-side secret storage and key rotation.
 5. First dashboard metrics and polling frequency.
