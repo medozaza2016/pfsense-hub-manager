@@ -77,3 +77,21 @@ The product direction includes configuration management. Write functionality is 
 - [ ] Add safeguards for changes that can interrupt connectivity or lock out the administrator.
 
 The exact firewall-to-hub connection method remains deferred. The transport abstraction must be preserved until that decision is made.
+
+
+## Documentation and API inventory work
+
+- [x] Capture the supplied pfSense REST API OpenAPI specification metadata and identify it as a separate artifact from application metrics.
+- [ ] Add the supplied source file as `specs/pfsense-openapi.json` (retain the original source unchanged).
+- [ ] Add and maintain the generated `docs/API-MATRIX.md` from the OpenAPI source.
+- [ ] Add API compatibility records per firewall edition, release, architecture, and REST API package version.
+- [ ] Add metrics definitions and monitoring/runbook documentation.
+- [ ] Add the security baseline for credentials, TLS, access control, and future write operations.
+- [ ] Add CI validation that checks the OpenAPI JSON and detects an out-of-date generated API matrix.
+
+## M1, Backend implementation update
+
+- [x] Select Fastify as the Node.js backend HTTP framework (DEC-015).
+- [ ] Scaffold the Fastify + TypeScript backend.
+- [ ] Implement a protected/restricted `/metrics` endpoint with the metric names and labels defined in `METRICS.md`.
+- [ ] Keep Prometheus deployment optional until historical metrics, alerting, or dashboard requirements justify it.
