@@ -16,11 +16,14 @@ The application should be structured around these logical boundaries, independen
 
 1. Web client: device inventory, health overview, device details, and administrative controls.
 2. Application API: authenticated manager-facing API, authorization, validation, and orchestration.
-3. Firewall provider/adapter: isolates REST API package, edition, release, and endpoint differences.
-4. Polling and health service: per-device collection, timeouts, bounded retries, last-success timestamps, and partial-failure handling.
-5. Persistence layer: device inventory, normalized observations, and audit events only after retention and data-minimization requirements are approved.
-6. Secret boundary: server-side storage and injection of per-device credentials.
-7. Observability: structured logs and metrics with secret and sensitive-payload redaction.
+3. Transport/connection abstraction: provides a replaceable path between the manager and each firewall. The concrete choice (for example, site-to-site VPN, overlay network, private connector, or another controlled route) is deliberately deferred.
+4. Firewall provider/adapter: isolates REST API package, edition, release, and endpoint differences, and exposes per-device capabilities for both read and write operations.
+5. Management services: implement domain workflows for rules, aliases, NAT, interfaces, routing, services, and other supported configuration areas without embedding transport details.
+6. Polling and health service: per-device collection, timeouts, bounded retries, last-success timestamps, and partial-failure handling.
+7. Persistence layer: device inventory, normalized observations, configuration/change metadata, and audit events under an approved retention policy.
+8. Secret boundary: server-side storage and injection of per-device credentials.
+9. Change safety service: validation, change previews, confirmation, backup/recovery coordination, apply orchestration, and post-change verification.
+10. Observability: structured logs and metrics with secret and sensitive-payload redaction.
 
 ## Multi-device model
 
@@ -49,7 +52,11 @@ No framework, database, identity provider, deployment topology, or final network
 
 ## Network architecture
 
-The manager must reach each firewall through a controlled private management path where possible. The Plus test currently uses the direct LAN address 172.10.50.1 and port 10443.
+The exact firewall-to-hub connection method is an open decision and is intentionally not selected at this stage. The logical design must not depend on a specific VPN, tunnel, agent, public endpoint, or LAN route. Keep transport behind a connection abstraction so the chosen method can be changed without changing firewall management domain logic.
+
+Candidate approaches to evaluate later include a hub-initiated private VPN/overlay connection, a site-to-site tunnel, or a site-local connector that establishes outbound connectivity. The decision should account for NAT, firewall rules, site count, operational complexity, key rotation, availability, and whether inbound access to a site is prohibited.
+
+The manager must reach each firewall through a controlled private management path. Do not expose the pfSense management API directly to the public internet by default. The Plus test currently uses the direct LAN address 172.10.50.1 and port 10443.
 
 The manager could not reach the public hostname on port 443 in the captured test, while the user's XPS-13 could. Investigate only if the final design requires that route. The user has explicitly chosen to leave the 172.10.x.x addressing unchanged for now.
 
@@ -61,6 +68,7 @@ A firewall outage must not make the whole manager unavailable. Poll each device 
 
 - Final frontend framework, including whether to use Next.js.
 - Backend runtime and hosting topology.
+- Firewall-to-hub transport: VPN/overlay, site-to-site tunnel, private connector/agent, or another private path. This decision is explicitly deferred.
 - Whether a private connector/agent is needed for remote sites.
 - Database and retention policy.
 - Administrator authentication and role model.
