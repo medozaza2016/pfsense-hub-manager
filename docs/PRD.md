@@ -100,7 +100,7 @@ Quantitative availability, performance, and retention targets remain open.
 
 The application will be deployed on the existing Proxmox LXC `pfsense-hub-manager`, using Docker Compose to manage application containers. Cloudflare Workers and Cloudflare hosting are not used for this project.
 
-The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript service exposing a REST API. PostgreSQL is approved as the application database, deployed as a dedicated Docker Compose service. The backend HTTP framework, administrator authentication, and secret storage mechanism remain undecided. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
+The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript service exposing a REST API. PostgreSQL is approved as the application database, deployed as a dedicated Docker Compose service. Fastify is the selected backend HTTP framework. Administrator authentication and secret storage mechanism remain undecided. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
 
 ## 9. Integration constraints and risks
 
@@ -129,8 +129,7 @@ The first milestone is acceptable when:
 1. What exact read-only information should the first dashboard show?
 2. How will the manager reach each firewall site?
 3. Will the backend require a private connector/agent?
-4. Which backend HTTP framework will be used?
-6. Which authentication method will administrators use to sign in?
+4. Which authentication method will administrators use to sign in?
 7. Where will firewall API credentials be stored, rotated, and revoked?
 8. PostgreSQL is approved for device inventory, status history, users, and audit records. The schema, retention, and backup policy still need to be designed.
 9. What are the exact CE release, Plus release, API package versions, and architectures at both locations?
