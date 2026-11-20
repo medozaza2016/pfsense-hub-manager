@@ -22,8 +22,8 @@
 
 ## M1, Architecture and application foundation
 
-- [ ] Approve frontend framework and application structure.
-- [ ] Approve backend runtime and deployment topology.
+- [x] Use the existing Proxmox LXC `pfsense-hub-manager` with Docker Compose for application deployment.
+- [ ] Approve frontend framework and backend runtime.
 - [ ] Approve database and retention policy.
 - [ ] Approve administrator authentication and authorization model.
 - [ ] Approve secret storage mechanism.
