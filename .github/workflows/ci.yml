@@ -4,7 +4,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  concurrency:
+concurrency:
+  group: pfsense-app-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build-test:
