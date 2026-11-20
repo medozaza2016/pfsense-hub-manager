@@ -26,7 +26,8 @@
 - [x] Approve React, TypeScript, and Vite frontend.
 - [x] Approve separate Node.js and TypeScript REST backend.
 - [ ] Select backend HTTP framework.
-- [ ] Approve database and retention policy.
+- [x] Select PostgreSQL as the application database, running in the Docker Compose stack.
+- [ ] Define PostgreSQL schema, migrations, retention, and backup/restore policy.
 - [ ] Approve administrator authentication and authorization model.
 - [ ] Approve secret storage mechanism.
 - [ ] Define normalized device, health, gateway, interface, service, and observation types.
