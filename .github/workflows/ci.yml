@@ -16,6 +16,10 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+      - name: Verify generated API matrix is current
+        run: |
+          node scripts/generate-api-matrix.mjs
+          git diff --exit-code -- docs/API-MATRIX.generated.md
       - name: Validate Compose and build container images
         run: |
           cp .env.example .env
