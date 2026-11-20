@@ -1,0 +1,83 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PFSENSE_DEVICE_ID: ${PFSENSE_DEVICE_ID:?Set PFSENSE_DEVICE_ID}
+      PFSENSE_DEVICE_NAME: ${PFSENSE_DEVICE_NAME:?Set PFSENSE_DEVICE_NAME}
+      PFSENSE_DEVICE_LOCATION: ${PFSENSE_DEVICE_LOCATION:-}
+      PFSENSE_EDITION: ${PFSENSE_EDITION:-unknown}
+      PFSENSE_API_BASE_URL: ${PFSENSE_API_BASE_URL:?Set PFSENSE_API_BASE_URL}
+      PFSENSE_API_KEY_FILE: /run/secrets/pfsense_api_key
+      PFSENSE_API_TIMEOUT_MS: ${PFSENSE_API_TIMEOUT_MS:-10000}
+      PFSENSE_POLL_INTERVAL_MS: ${PFSENSE_POLL_INTERVAL_MS:-300000}
+    secrets:
+      - pfsense_api_key
+    expose: ["3000"]
+    networks: [backend]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
+    networks: [backend]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  backend:
+    driver: bridge
+    internal: false
+
+volumes:
+  postgres_data:
+
+secrets:
+  pfsense_api_key:
+    file: ./secrets/pfsense_api_key
