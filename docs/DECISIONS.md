@@ -62,8 +62,7 @@ This document records confirmed architectural decisions. Proposals and open ques
 
 ## Open decisions
 
-1. Backend HTTP framework.
-2. PostgreSQL schema, migrations, retention, and backup/restore policy.
+1. PostgreSQL schema, migrations, retention, and backup/restore policy.
 3. Manager administrator authentication and roles.
 4. Server-side secret storage and key rotation.
 5. First dashboard metrics and polling frequency.
