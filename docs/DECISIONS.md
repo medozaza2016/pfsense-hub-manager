@@ -40,6 +40,23 @@ This document distinguishes confirmed constraints from proposals and open questi
 **Status:** Accepted  
 **Decision:** Defer connecting the second pfSense CE firewall until the user is ready. Design the application for multiple devices now.
 
+### DEC-008, Full management product direction
+
+**Status:** Accepted  
+**Decision:** The long-term product is a full pfSense management application, not a read-only monitoring dashboard. It is intended to support creation and management of firewall rules and broader supported firewall configuration. Delivery will be phased, with read-only first and write operations introduced only after security and recovery controls are implemented.  
+**Rationale:** The user explicitly clarified that the application should grow into a full-featured firewall management hub.
+
+### DEC-009, Extensible firewall inventory
+
+**Status:** Accepted  
+**Decision:** The hub must support adding additional pfSense firewalls over time. Do not hard-code the current two locations or devices.
+
+### DEC-010, Defer firewall connection method
+
+**Status:** Deferred by user  
+**Decision:** Do not select or implement the firewall-to-hub connection method yet. Keep the transport replaceable and decide later based on site connectivity and security requirements.  
+**Rationale:** The user explicitly stated that the connection approach can be decided at a later point.
+
 ## Proposals not yet approved
 
 - React + TypeScript frontend.
@@ -63,4 +80,4 @@ These remain options or discussions until the user explicitly selects one.
 6. Server-side secret storage and key rotation.
 7. First dashboard metrics and polling frequency.
 8. Supported Plus/CE and API package compatibility matrix.
-9. Whether any write capabilities will ever be required.
+9. Exact rollout order and supported scope of write capabilities, including which configuration domains are included in each release.
