@@ -70,3 +70,24 @@ This document records confirmed architectural decisions. Proposals and open ques
 6. Supported Plus/CE and API package compatibility matrix.
 7. Exact rollout order and supported scope of write capabilities.
 8. Firewall-to-hub transport and whether a private connector/agent is required.
+
+
+### DEC-015, Backend HTTP framework
+**Status:** Accepted  
+**Decision:** Use Fastify for the Node.js + TypeScript backend REST API. Keep domain services and the pfSense provider/adapter independent of Fastify-specific request and response types.
+
+### DEC-016, Upstream pfSense API specification
+**Status:** Accepted  
+**Decision:** Treat the user-supplied pfSense REST API OpenAPI 3.0 JSON document as the upstream reference contract. Preserve the source unchanged at `specs/pfsense-openapi.json` in the repository. Its metadata reports `info.version: unknown`; this is not the installed API package version for the tested firewall.
+
+### DEC-017, Generated API coverage matrix
+**Status:** Accepted  
+**Decision:** Maintain `docs/API-MATRIX.md` as a generated inventory from the OpenAPI JSON, not as a manually curated endpoint list. Track specification presence, live-device verification, backend implementation, frontend exposure, and automated test status as separate fields. Presence in the upstream specification does not imply device compatibility or permission to enable a write operation.
+
+### DEC-018, Application metrics
+**Status:** Accepted  
+**Decision:** Define application-level HTTP, polling, reachability, and process metrics in `docs/METRICS.md`. Initially expose metrics from the Fastify backend. Prometheus is optional for a later stage and is not a mandatory initial container.
+
+### DEC-019, Initial read-only safety boundary
+**Status:** Accepted  
+**Decision:** Keep all pfSense configuration-changing operations disabled in the initial release, even when the OpenAPI specification documents them. Implement only explicitly approved read-only provider operations until the separate write-safety requirements are met.
