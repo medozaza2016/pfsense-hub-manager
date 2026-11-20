@@ -23,18 +23,18 @@ The supplied OpenAPI 3.0 snapshot contains **267 paths, 694 operations, and 186 
 
 ## Currently verified Plus operations
 
-These eight GET calls returned HTTP 200 against the Netgate 2100 running pfSense Plus 26.07.2-RELEASE. They are device-verified only, not yet implemented in the application.
+These eight GET calls returned HTTP 200 against the Netgate 2100 running pfSense Plus 26.07.2-RELEASE. They are wired into the backend's fixed read-only client allowlist. Endpoint-specific response mapping and automated upstream contract tests remain incomplete.
 
-| Method | Path | Device | Backend | Frontend |
+| Method | Path | Device | Backend | Frontend | Automated tests |
 |---|---|---|---|---|
-| GET | `/api/v2/status/system` | Verified | Not implemented | Not exposed |
-| GET | `/api/v2/status/gateways` | Verified | Not implemented | Not exposed |
-| GET | `/api/v2/status/interfaces` | Verified | Not implemented | Not exposed |
-| GET | `/api/v2/status/services` | Verified | Not implemented | Not exposed |
-| GET | `/api/v2/system/version` | Verified | Not implemented | Not exposed |
-| GET | `/api/v2/diagnostics/arp_table` | Verified | Not implemented | Not exposed |
-| GET | `/api/v2/firewall/states` | Verified | Not implemented | Not exposed |
-| GET | `/api/v2/firewall/states/size` | Verified | Not implemented | Not exposed |
+| GET | `/api/v2/status/system` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/status/gateways` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/status/interfaces` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/status/services` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/system/version` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/diagnostics/arp_table` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/firewall/states` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/firewall/states/size` | Verified | Implemented | Not exposed | Not tested |
 
 ## Generate the full inventory
 After adding the original JSON to `specs/pfsense-openapi.json`, run:
