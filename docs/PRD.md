@@ -96,9 +96,11 @@ Administrators shall be able to add further supported pfSense firewalls without 
 
 Quantitative availability, performance, and retention targets remain open.
 
-## 8. Technology direction discussed
+## 8. Deployment and technology decisions
 
-React + TypeScript, Next.js, Cloudflare Workers, and a self-hosted Node.js/TypeScript backend on Proxmox have been discussed at different points. No final framework or hosting architecture has been approved. The database, authentication/identity provider, secrets-management approach, deployment topology, and network path to the firewalls also remain open. See docs/ARCHITECTURE.md and docs/DECISIONS.md.
+The application will be deployed on the existing Proxmox LXC `pfsense-hub-manager`, using Docker Compose to manage application containers. Cloudflare Workers and Cloudflare hosting are not used for this project.
+
+The frontend framework, backend runtime, database, administrator authentication, and secret storage mechanism remain undecided. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
 
 ## 9. Integration constraints and risks
 
@@ -125,17 +127,17 @@ The first milestone is acceptable when:
 ## 11. Open questions
 
 1. What exact read-only information should the first dashboard show?
-2. Where will the management service run, and how will it reach each site?
+2. How will the manager reach each firewall site?
 3. Will the backend require a private connector/agent?
 4. Which frontend framework will be used, including whether Next.js is the selected framework?
-5. Which backend runtime and deployment topology will be used?
+5. Which backend runtime will be used?
 6. Which authentication method will administrators use to sign in?
 7. Where will firewall API credentials be stored, rotated, and revoked?
 8. Is a database required for device inventory, status history, users, and audit records? If so, which one?
 9. What are the exact CE release, Plus release, API package versions, and architectures at both locations?
 10. Which API endpoints and capabilities are verified on each installation?
 11. Is the product single-administrator initially, or must it support multiple users and roles?
-12. What deployment, backup, retention, and recovery requirements apply?
+12. What backup, retention, and recovery requirements apply?
 
 ## 12. Milestone outline
 
