@@ -4,7 +4,7 @@
 
 Docker Compose runs three services: the React/Vite web application served by Nginx, the Fastify API, and PostgreSQL. PostgreSQL and the API are not published to the LXC host. The web UI is bound to 127.0.0.1 on the LXC host by default. Use an SSH tunnel for initial remote access; do not publish it directly to the internet.
 
-This is an initial development deployment. Manager-user authentication has not been selected or implemented. Do not place the application behind a public reverse proxy until authentication and authorization are implemented and reviewed.
+The Docker Compose configuration and both application images are built successfully in GitHub Actions. The stack has not yet been deployed or exercised on the target Proxmox LXC. This is an initial development deployment. Manager-user authentication has not been selected or implemented. Do not place the application behind a public reverse proxy until authentication and authorization are implemented and reviewed.
 
 ## Prerequisites
 
