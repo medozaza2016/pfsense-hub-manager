@@ -12,7 +12,7 @@ The second firewall, running pfSense CE, is not yet connected. Its integration i
 
 ## Target logical components
 
-The application should be structured around these logical boundaries, independent of the final hosting choice:
+The application should be structured around these logical boundaries, within the approved Proxmox LXC and Docker Compose deployment:
 
 1. Web client: device inventory, health overview, device details, and administrative controls.
 2. Application API: authenticated manager-facing API, authorization, validation, and orchestration.
@@ -44,11 +44,11 @@ The adapter should:
 - Handle pagination if required by the endpoint.
 - Avoid retaining sensitive raw payloads unless explicitly required.
 
-## Technology status
+## Approved deployment
 
-React + TypeScript was discussed as an initial frontend direction, with Cloudflare Workers as an initially discussed management/API layer. Later planning also considered a separately hosted frontend and a self-hosted Node.js/TypeScript backend on Proxmox. Next.js has been mentioned as a possible development framework in the latest discussion, but it has not yet been recorded as an approved choice.
+The application will be deployed on the existing Proxmox LXC named `pfsense-hub-manager`. Docker Compose will manage the application containers. Cloudflare Workers and Cloudflare hosting are not part of this project.
 
-No framework, database, identity provider, deployment topology, or final network path should be treated as settled until recorded in DECISIONS.md.
+The frontend framework, backend runtime, database, administrator identity provider, and secret storage mechanism remain undecided. See `DECISIONS.md` for the authoritative decision record.
 
 ## Network architecture
 
@@ -66,13 +66,10 @@ A firewall outage must not make the whole manager unavailable. Poll each device 
 
 ## Open architecture decisions
 
-- Final frontend framework, including whether to use Next.js.
-- Backend runtime and hosting topology.
+- Frontend framework and backend runtime.
+- Database, administrator authentication, and secret storage.
 - Firewall-to-hub transport: VPN/overlay, site-to-site tunnel, private connector/agent, or another private path. This decision is explicitly deferred.
 - Whether a private connector/agent is needed for remote sites.
-- Database and retention policy.
-- Administrator authentication and role model.
-- Secret storage and rotation mechanism.
 - Polling frequency and concurrency.
 - Exact initial dashboard metrics.
 - Support matrix for Plus and CE versions and package releases.
