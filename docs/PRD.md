@@ -100,7 +100,7 @@ Quantitative availability, performance, and retention targets remain open.
 
 The application will be deployed on the existing Proxmox LXC `pfsense-hub-manager`, using Docker Compose to manage application containers. Cloudflare Workers and Cloudflare hosting are not used for this project.
 
-The frontend framework, backend runtime, database, administrator authentication, and secret storage mechanism remain undecided. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
+The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript service exposing a REST API. The backend HTTP framework, database, administrator authentication, and secret storage mechanism remain undecided. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
 
 ## 9. Integration constraints and risks
 
@@ -129,8 +129,7 @@ The first milestone is acceptable when:
 1. What exact read-only information should the first dashboard show?
 2. How will the manager reach each firewall site?
 3. Will the backend require a private connector/agent?
-4. Which frontend framework will be used, including whether Next.js is the selected framework?
-5. Which backend runtime will be used?
+4. Which backend HTTP framework will be used?
 6. Which authentication method will administrators use to sign in?
 7. Where will firewall API credentials be stored, rotated, and revoked?
 8. Is a database required for device inventory, status history, users, and audit records? If so, which one?
@@ -158,4 +157,4 @@ As of 2026-11-19 (America/New_York), the manager LXC named pfsense-hub-manager s
 
 The API key and firewall serial/Netgate identifiers are intentionally not included in this repository. The diagnostic TLS bypass and public-hostname timeout are documented in docs/INTEGRATION-STATUS.md. The 172.10.x.x addressing is being retained for now at the user's direction. The second pfSense CE firewall connection is deferred until the user is ready.
 
-The application has not yet been scaffolded. See docs/ROADMAP.md for the remaining work and docs/DECISIONS.md for confirmed decisions versus open architecture choices.
+The frontend stack (React, TypeScript, Vite) and separate Node.js/TypeScript REST backend have been approved. The application scaffold is the next implementation step. See docs/ROADMAP.md for the remaining work and docs/DECISIONS.md for confirmed decisions versus open architecture choices.
