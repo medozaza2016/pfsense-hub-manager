@@ -8,3 +8,5 @@ export const pollErrors=new Counter({name:"pfsense_poll_errors_total",help:"Fail
 export const pollDuration=new Histogram({name:"pfsense_poll_duration_seconds",help:"Firewall poll duration.",labelNames:["device_id","operation_group"],registers:[registry]});
 export const deviceUp=new Gauge({name:"pfsense_device_up",help:"Most recent firewall collection result, 1 if all operations succeeded.",labelNames:["device_id"],registers:[registry]});
 export const lastSuccess=new Gauge({name:"pfsense_last_successful_poll_timestamp_seconds",help:"Unix timestamp of last successful firewall operation.",labelNames:["device_id"],registers:[registry]});
+
+export const processUptime = new Gauge({name:"process_uptime_seconds",help:"Backend process uptime in seconds.",registers:[registry],collect(){this.set(process.uptime());}});
