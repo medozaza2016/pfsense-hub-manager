@@ -88,7 +88,7 @@ The exact firewall-to-hub connection method remains deferred. The transport abst
 - [x] Add API compatibility records per firewall edition, release, architecture, and REST API package version.
 - [x] Add metrics definitions and monitoring/runbook documentation.
 - [x] Add the security baseline for credentials, TLS, access control, and future write operations.
-- [ ] Add CI validation that checks the OpenAPI JSON and detects an out-of-date generated API matrix.
+- [x] Add CI validation that regenerates the API matrix from the existing reference JSON and fails if the committed generated matrix is out of date.
 
 ## M1, Backend implementation update
 
