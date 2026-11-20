@@ -41,6 +41,26 @@ Keep documentation synchronized with meaningful changes.
 - Apply authentication, authorization, input validation, rate limiting, and secure session/token handling at the server boundary.
 - Treat data returned by managed firewalls as untrusted input.
 
+## Mandatory integration safeguards
+
+These rules apply to every agent, contributor, service, and future feature in this repository. They are global requirements, not optional guidance for a particular endpoint.
+
+- **Deny by default.** The manager backend must expose only explicitly implemented and approved capabilities. Unknown routes, methods, devices, editions, API versions, and capabilities must be rejected, not passed through.
+- **No arbitrary upstream proxy.** Never accept a caller-supplied firewall URL, path, HTTP method, shell command, or raw request body and forward it to a managed firewall. Resolve devices from trusted server-side records and map manager-owned operations to fixed upstream routes.
+- **Read-only is the current security boundary.** Until a separately reviewed write-capability design is approved, permit only the exact required GET operations. Do not enable POST, PUT, PATCH, or DELETE merely because the upstream API documents them or a firewall permission exists.
+- **Command execution is prohibited.** Do not expose or call the diagnostics command prompt endpoint, shell execution, or equivalent arbitrary-command functionality.
+- **Disruptive actions are prohibited.** Do not expose reboot, halt, service restart, firewall apply, state-table flush, or other operationally disruptive actions in the initial read-only milestone.
+- **Enforce authorization server-side.** Authenticate every caller and authorize every operation against the user's role, target device, and capability. Frontend visibility or disabled buttons are not authorization.
+- **Protect device identity and credentials.** Keep API keys and tokens server-side, encrypted or held in an approved secret store when one is selected. Never return them to clients or write them to logs, traces, error responses, fixtures, screenshots, or repository files.
+- **Validate TLS.** Verify firewall certificates and hostnames. Never disable certificate validation or silently fall back to insecure HTTP. A self-signed certificate requires an explicit trust configuration, not a verification bypass.
+- **Constrain network destinations.** Firewall connection targets must come from trusted device configuration. Prevent caller-controlled destination changes and validate configured destinations to reduce SSRF and routing abuse.
+- **Validate all upstream data.** Treat firewall responses as untrusted. Validate response envelopes, types, bounds, enums, and nullable fields at runtime. Reject or safely quarantine malformed data without crashing other device polling.
+- **Bound resource use.** Apply connection and response timeouts, response-size limits, pagination limits, bounded retries with backoff, and per-device concurrency controls. Do not allow one unreachable or malformed firewall to stall the fleet.
+- **Minimize retained network data.** Do not persist raw ARP entries, firewall state records, packet details, or other sensitive topology/traffic metadata unless a documented feature requires it and retention/access controls are approved.
+- **Audit privileged activity.** Record security-relevant actions with actor, target device, capability, timestamp, outcome, and safe metadata. Never include secrets or full sensitive payloads in audit events.
+- **Future write operations require a separate gate.** Before any state-changing feature is implemented, document its product requirement, exact endpoint and schema, least-privilege permissions, role checks, explicit target confirmation, preview/diff, backup and recovery plan, audit events, controlled apply, rollback limitations, post-change verification, and tests. Obtain explicit approval in project decisions before implementation.
+- **Test security boundaries.** Add tests proving disallowed methods and paths are rejected, callers cannot change device destinations, unauthorized users cannot access devices/capabilities, TLS verification is enabled, secrets are redacted, and failures remain isolated per device.
+
 ## Engineering practices
 
 - Prefer small, focused changes with clear names and types.
