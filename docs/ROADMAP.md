@@ -60,6 +60,17 @@
 - [ ] Complete security review, access controls, logging redaction, and backup/recovery planning.
 - [ ] Establish operational documentation and release process.
 
-## Later, only with explicit requirements
+## Later phases, full management
 
-Potential configuration-changing features are not approved by this roadmap. Any such feature requires a separate product decision, fine-grained authorization, user confirmation, audit logging, tests, and recovery/rollback design.
+The product direction includes configuration management. Write functionality is not part of the initial read-only milestone, but it is an intended product capability and should be reflected in the architecture from the beginning.
+
+- [ ] Define capability matrix by pfSense edition, release, and API package version.
+- [ ] Design change preview/diff and validation workflow.
+- [ ] Design configuration backup and recovery/rollback strategy.
+- [ ] Implement fine-grained authorization and explicit confirmation.
+- [ ] Implement tamper-evident audit records for every write action.
+- [ ] Add configuration management domains incrementally, starting with a narrowly scoped feature such as firewall aliases/rules after API compatibility is verified.
+- [ ] Verify post-apply state and clearly report partial failures.
+- [ ] Add safeguards for changes that can interrupt connectivity or lock out the administrator.
+
+The exact firewall-to-hub connection method remains deferred. The transport abstraction must be preserved until that decision is made.
