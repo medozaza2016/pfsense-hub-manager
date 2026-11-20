@@ -73,3 +73,114 @@ A firewall outage must not make the whole manager unavailable. Poll each device 
 - Polling frequency and concurrency.
 - Exact initial dashboard metrics.
 - Support matrix for Plus and CE versions and package releases.
+
+## Runtime and container boundaries
+
+The initial deployment is a Docker Compose application on the existing Proxmox LXC `pfsense-hub-manager`. Compose is the deployment and lifecycle boundary. The design should start with the smallest useful number of runtime services and avoid introducing infrastructure that has no approved requirement.
+
+### Initial logical services
+
+1. **Web frontend:** React application built with Vite and TypeScript. It presents the operator interface and calls only the manager's application API. It must not call pfSense directly or contain firewall credentials.
+2. **Backend API:** Node.js and TypeScript service exposing the manager's REST API. It owns authentication and authorization enforcement once selected, input validation, device orchestration, firewall API calls, and safe response shaping.
+3. **Polling execution:** Initially a backend module/process responsibility, not a separate distributed service. It performs scheduled per-device collection with independent timeouts, bounded concurrency, and backoff. A separate worker container may be considered only if measured workload or operational isolation justifies it.
+
+This is a logical starting topology, not a final Compose file or a decision about the backend HTTP framework. Do not add a database, cache, message broker, identity provider, reverse proxy, or secret-management product until its requirement and operational cost are documented and approved.
+
+### Container communication and exposure
+
+- Browser traffic terminates at the application's chosen ingress and reaches the web frontend.
+- The frontend calls the backend through the manager's application API.
+- Only the backend initiates connections to managed firewalls.
+- The backend and any future persistence service should communicate over private Compose networking.
+- Do not publish database or internal service ports to the LXC host or external networks unless a documented operational requirement requires it.
+- The exact ingress/reverse-proxy component, host port mapping, DNS name, and TLS termination point remain open deployment details.
+- The firewall management API must not be exposed publicly as a consequence of deploying the manager.
+
+### Configuration and persistence boundaries
+
+Non-secret runtime configuration (for example, listen addresses and log levels) must be validated at startup. Firewall API keys, passwords, private keys, and session-signing material must be injected only into server-side components through an approved protected mechanism. The mechanism is not selected yet. Do not place secrets in Vite-exposed variables, image layers, source control, browser storage, or logs.
+
+Persistent storage requirements must be decided before selecting a database. The eventual data model should distinguish relatively stable device inventory and configuration metadata from time-series observations and sensitive diagnostic data. ARP entries and firewall state details should not be retained by default. Retention, backup, restore, and encryption requirements must be defined with the database decision.
+
+## Firewall integration architecture
+
+The integration path is deliberately layered so that management features do not depend on a specific network route or pfSense API implementation.
+
+```text
+React web client
+      |
+      | Manager REST API
+      v
+Node.js application API
+      |
+      v
+Management/domain services
+      |
+      v
+Firewall provider interface
+      |
+      +---- pfSense REST API adapter
+      |          |
+      |          v
+      |     Transport interface
+      |          |
+      |          v
+      |     Selected private connection (not yet decided)
+      |
+      +---- Per-device capability and compatibility profile
+```
+
+### Responsibilities
+
+- **Application API:** Accepts manager-facing requests, validates inputs, applies manager-user authorization, and returns normalized application responses. It does not expose raw firewall credentials or blindly proxy arbitrary API paths.
+- **Management/domain services:** Express product operations such as reading system health, gateway status, interface status, and service status. They should not know whether a firewall is Plus or CE, or how packets reach it.
+- **Provider interface:** Defines the application-owned operations available for a managed firewall and returns typed results and classified failures. It is the stable boundary used by domain services.
+- **pfSense REST API adapter:** Implements provider operations using the community REST API. It owns endpoint paths, HTTP methods, authentication-header construction, response-envelope parsing, runtime schema validation, and package/release-specific behavior.
+- **Transport interface:** Supplies a secure connection to the configured firewall API origin. The implementation may later use a site-to-site VPN, overlay network, private connector, or another approved route. The transport choice must not leak into domain services or frontend code.
+- **Capability profile:** Records what is actually supported for each device based on edition, release, architecture, and installed API package version. Unknown capability is reported as unknown or unsupported, never assumed to work.
+
+### Device connection lifecycle
+
+For each device, the backend should:
+1. Load non-secret connection metadata and resolve the credential reference through the approved secret mechanism.
+2. Establish a connection using verified TLS and the configured transport.
+3. Authenticate using the device's configured API-key mechanism.
+4. Call only operations enabled for that device's current capability profile.
+5. Validate the response at runtime and map it into application-owned types.
+6. Record poll time, duration, success state, and a classified error without recording credentials or unrestricted raw payloads.
+7. Release secret material and request resources as soon as practical.
+
+The initial implementation must use read-only operations only. The first verified Plus device has eight GET endpoints recorded in `INTEGRATION-STATUS.md`. Those results do not establish CE compatibility, schema compatibility across releases, or support for any write operation.
+
+### Failure model
+
+Keep these outcomes distinguishable in application state and logs:
+- DNS or route failure, connection refusal, or timeout.
+- TLS trust or hostname validation failure.
+- Authentication failure.
+- Authorization failure.
+- Unsupported endpoint or capability.
+- Rate limiting or remote service failure.
+- Invalid JSON or response-schema mismatch.
+
+A failure on one firewall must not block polling or viewing other devices. Use per-device timeouts, bounded retries with backoff, and concurrency limits. Do not retry authentication or authorization failures indefinitely.
+
+### Future write-operation boundary
+
+Write operations are outside the initial implementation scope. When they are considered, they must be added as explicit provider capabilities and protected by a separate change workflow: granular authorization, input validation, preview/diff, explicit target confirmation, pre-change backup or documented recovery path, durable audit event, controlled apply, and post-apply verification. A generic proxy to arbitrary pfSense write endpoints is not an acceptable implementation.
+
+## Architecture decisions intentionally left open
+
+The following remain unresolved and must not be inferred from this document:
+
+- Backend HTTP framework.
+- Database engine, schema, retention, and backup/restore policy.
+- Manager administrator authentication, session model, and roles.
+- Secret storage, injection, rotation, and revocation mechanism.
+- Ingress/reverse proxy, public or private application URL, and TLS termination.
+- Firewall-to-hub transport and whether a site-local connector is required.
+- Polling intervals, concurrency limits, and initial dashboard metrics.
+- Exact Plus/CE and API package compatibility matrix.
+
+Record each approved choice in `DECISIONS.md` before implementation depends on it.
+
