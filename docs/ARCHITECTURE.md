@@ -48,7 +48,7 @@ The adapter should:
 
 The application will be deployed on the existing Proxmox LXC named `pfsense-hub-manager`. Docker Compose will manage the application containers. Cloudflare Workers and Cloudflare hosting are not part of this project.
 
-The approved frontend is React with TypeScript and Vite. The backend is a separate Node.js and TypeScript service exposing a REST API. The backend HTTP framework, database, administrator identity provider, and secret storage mechanism remain undecided. See `DECISIONS.md` for the authoritative decision record.
+The approved frontend is React with TypeScript and Vite. The backend is a separate Node.js and TypeScript service exposing a REST API. PostgreSQL is approved as the application database and will run as a dedicated Docker Compose service. The backend HTTP framework, administrator identity provider, and secret storage mechanism remain undecided. See `DECISIONS.md` for the authoritative decision record.
 
 ## Network architecture
 
@@ -67,7 +67,7 @@ A firewall outage must not make the whole manager unavailable. Poll each device 
 ## Open architecture decisions
 
 - Backend HTTP framework.
-- Database, administrator authentication, and secret storage.
+- Administrator authentication and secret storage.
 - Firewall-to-hub transport: VPN/overlay, site-to-site tunnel, private connector/agent, or another private path. This decision is explicitly deferred.
 - Whether a private connector/agent is needed for remote sites.
 - Polling frequency and concurrency.
@@ -84,7 +84,7 @@ The initial deployment is a Docker Compose application on the existing Proxmox L
 2. **Backend API:** Node.js and TypeScript service exposing the manager's REST API. It owns authentication and authorization enforcement once selected, input validation, device orchestration, firewall API calls, and safe response shaping.
 3. **Polling execution:** Initially a backend module/process responsibility, not a separate distributed service. It performs scheduled per-device collection with independent timeouts, bounded concurrency, and backoff. A separate worker container may be considered only if measured workload or operational isolation justifies it.
 
-This is a logical starting topology, not a final Compose file or a decision about the backend HTTP framework. Do not add a database, cache, message broker, identity provider, reverse proxy, or secret-management product until its requirement and operational cost are documented and approved.
+This is a logical starting topology, not a final Compose file or a decision about the backend HTTP framework. Do not add a cache, message broker, identity provider, reverse proxy, or secret-management product until its requirement and operational cost are documented and approved.
 
 ### Container communication and exposure
 
@@ -100,7 +100,7 @@ This is a logical starting topology, not a final Compose file or a decision abou
 
 Non-secret runtime configuration (for example, listen addresses and log levels) must be validated at startup. Firewall API keys, passwords, private keys, and session-signing material must be injected only into server-side components through an approved protected mechanism. The mechanism is not selected yet. Do not place secrets in Vite-exposed variables, image layers, source control, browser storage, or logs.
 
-Persistent storage requirements must be decided before selecting a database. The eventual data model should distinguish relatively stable device inventory and configuration metadata from time-series observations and sensitive diagnostic data. ARP entries and firewall state details should not be retained by default. Retention, backup, restore, and encryption requirements must be defined with the database decision.
+PostgreSQL is the approved application database and will run as a dedicated Docker Compose service with a persistent volume and private Compose networking. The data model should distinguish stable device inventory and configuration metadata from time-series observations and sensitive diagnostic data. ARP entries and firewall state details should not be retained by default. Schema migrations, retention, backup, restore, and encryption requirements must be defined before production use. Database ports must not be published externally by default.
 
 ## Firewall integration architecture
 
