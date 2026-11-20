@@ -28,7 +28,8 @@ Create the API secret file:
 mkdir -p secrets certs
 umask 077
 printf '%s' 'YOUR_PFSENSE_API_KEY' > secrets/pfsense_api_key
-chmod 600 secrets/pfsense_api_key
+chown 1000:1000 secrets/pfsense_api_key
+chmod 400 secrets/pfsense_api_key
 ```
 
 If the firewall uses a private/self-signed CA, place the CA certificate at certs/pfsense-ca.pem. Set PFSENSE_CA_FILE=/run/certs/pfsense-ca.pem in .env. The API client always verifies TLS and hostname identity. Never disable verification. The certificate must contain a SAN matching the configured API URL host.
