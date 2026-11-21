@@ -19,7 +19,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Restore Rollup Linux native optional package
-        run: npm install --no-save --no-package-lock @rollup/rollup-linux-x64-gnu@4.68.7
+        run: node scripts/repair-rollup-linux.mjs
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
