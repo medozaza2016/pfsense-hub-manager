@@ -403,7 +403,19 @@ app.get("/api/v1/devices/:deviceId/capabilities", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
   const device = (await provider.listDevices()).find(item => item.id === deviceId);
   if (!device) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
-  return { data: await provider.capabilities() };
+  return {
+    data: {
+      device: {
+        id: device.id,
+        edition: device.edition,
+        release: device.release,
+        architecture: device.architecture,
+        restApiPackageVersion: device.restApiPackageVersion,
+        compatibilityVerifiedAt: device.compatibilityVerifiedAt
+      },
+      capabilities: await provider.capabilities(deviceId)
+    }
+  };
 });
 app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
