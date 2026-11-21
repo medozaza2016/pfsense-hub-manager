@@ -7,8 +7,9 @@ The feature belongs in the existing **Administration → Hub Settings** page. Do
 ## Initial and optional access modes
 
 - **Local (default):** the Hub is published only on `127.0.0.1`. This is the supported first-install state.
-- **Tailscale (optional):** the administrator enters the Tailscale IPv4 address assigned to the machine hosting Docker. The address is stored as desired configuration. The administrator remains responsible for installing/configuring Tailscale and ensuring the host is reachable over the tailnet.
-- **Hostname / reverse proxy (future optional mode):** store the hostname and proxy metadata only after the TLS, trusted-proxy, authentication, and ingress requirements have been designed. Do not treat a hostname entry as automatic DNS, certificate, or proxy provisioning.
+- **Tailscale (optional):** the administrator may use a Tailscale MagicDNS hostname or the Tailscale IPv4 address assigned to the device. MagicDNS is a name that resolves to the device's Tailscale address, it is not a separate transport. The Hub must not require Tailscale for local operation.
+- **Other hostname / IP (optional):** the administrator may record an existing hostname or IP managed outside Hub Manager. Do not treat an address entry as automatic DNS, certificate, proxy, or host-network provisioning.
+- **Guidance only:** explain each option with a short example and allow all optional fields to remain empty. Do not ask for a Tailscale address during first-run setup.
 
 The Hub must remain functional without any optional access provider.
 
@@ -36,6 +37,16 @@ A future apply implementation must use one of these reviewed approaches:
 - an explicit operator apply step that updates the deployment configuration and recreates only the required service.
 
 Do not mount the Docker socket into the web or API container. Do not provide arbitrary shell execution. The apply mechanism must validate the requested address against an address actually assigned to an eligible host interface, reject wildcard binds, preserve the previous working configuration for rollback, and report applied state back to the application.
+
+## Administrator authentication
+
+- On first launch, show a one-time administrator account creation screen. Do not ship default credentials.
+- Require a username and a password of at least 14 characters.
+- Store password hashes using PBKDF2-HMAC-SHA-512 with a per-user random salt and at least 310,000 iterations. Never store plaintext passwords.
+- Issue opaque, random, expiring session tokens in HttpOnly, SameSite=Strict cookies. Store only SHA-256 token hashes in PostgreSQL.
+- Require a valid administrator session for device data and Hub Settings API routes. Keep only health checks, version discovery, and the authentication bootstrap routes public.
+- Rate-limit failed login attempts and return generic invalid-credential errors.
+- Sign-out must revoke the server-side session and clear the cookie.
 
 ## Security gates
 
