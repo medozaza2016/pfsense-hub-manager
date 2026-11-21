@@ -10,7 +10,17 @@ function Set-Env([string]$Name,[string]$Value) {
 }
 function Get-Env([string]$Name,[string]$Default="") {
   $line = Get-Content .env | Where-Object { $_ -match ('^'+[regex]::Escape($Name)+'=') } | Select-Object -Last 1
-  if ($null -eq $line) { return $Default }; return ($line -replace ('^'+[regex]::Escape($Name)+'='),'')
+  if ($null -eq $line) { return $Default }
+  $value = ($line -replace ('^'+[regex]::Escape($Name)+'='),'').Trim()
+  # .env values may be quoted. Remove one matching pair before using them
+  # in URLs, Docker arguments, or validation checks.
+  if ($value.Length -ge 2) {
+    if (($value.StartsWith("'") -and $value.EndsWith("'")) -or
+        ($value.StartsWith('"') -and $value.EndsWith('"'))) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+  }
+  return $value
 }
 function Read-Hidden([string]$Prompt) {
   $s=Read-Host $Prompt -AsSecureString
