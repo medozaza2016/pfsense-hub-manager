@@ -116,3 +116,42 @@
 .user-status-toggle:disabled{opacity:.55;cursor:wait}
 .user-status-modal p{color:#5d6f87;font-size:13px;line-height:1.55;margin:8px 0 18px}
 .user-status-modal .settings-message{margin:0 0 14px}
+
+
+/* Alerts inventory: fit the complete operational record without horizontal scrolling */
+.ui-table-scroll.alerts-table-scroll{overflow-x:hidden}
+.ui-data-table.alerts-table{width:100%;min-width:0;table-layout:fixed}
+.alerts-table .alert-col-severity{width:10%}
+.alerts-table .alert-col-title{width:29%}
+.alerts-table .alert-col-source{width:13%}
+.alerts-table .alert-col-time{width:15%}
+.alerts-table .alert-col-count{width:7%;text-align:center}
+.alerts-table .alert-col-state{width:11%}
+.alerts-table th,.alerts-table td{padding:12px 9px;white-space:normal;overflow-wrap:anywhere}
+.alerts-table .alert-cell{min-width:0;line-height:1.4}
+.alerts-table .alert-cell strong{display:block;font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+.alerts-table .alert-cell small{display:block;margin-top:4px;color:#718096;font-size:10px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+.alerts-table .alert-source{display:block;overflow-wrap:anywhere;line-height:1.35}
+.alerts-table .alert-time{display:flex;flex-direction:column;gap:3px;line-height:1.3;white-space:normal}
+.alerts-table .alert-time span{font-variant-numeric:tabular-nums}
+.alerts-table .alert-time small{color:#718096;font-size:10px}
+.alerts-table .alert-count{font-weight:700;font-variant-numeric:tabular-nums}
+.alerts-table .alert-state{display:inline-flex;max-width:100%;padding:4px 7px;border-radius:7px;background:#f1f5f9;color:#475569;font-size:10px;font-weight:650;overflow-wrap:anywhere}
+.alerts-table .alert-state-active{background:#fff4e5;color:#a85b00}
+.alerts-table .alert-state-acknowledged{background:#eef5ff;color:#2459a6}
+.alerts-table .alert-state-resolved{background:#eaf8ef;color:#16834a}
+.alerts-table .ui-row-actions{white-space:normal}
+.alerts-table .ui-row-actions button{margin:2px;padding:5px 7px;font-size:10px}
+@media(max-width:900px){
+ .alerts-table .alert-col-severity{width:12%}
+ .alerts-table .alert-col-title{width:31%}
+ .alerts-table .alert-col-source{width:12%}
+ .alerts-table .alert-col-time{width:14%}
+ .alerts-table .alert-col-count{width:6%}
+ .alerts-table .alert-col-state{width:11%}
+ .alerts-table th,.alerts-table td{padding:9px 6px;font-size:10px}
+}
+@media(max-width:620px){
+ .ui-table-scroll.alerts-table-scroll{overflow-x:auto}
+ .ui-data-table.alerts-table{min-width:720px;table-layout:fixed}
+}
