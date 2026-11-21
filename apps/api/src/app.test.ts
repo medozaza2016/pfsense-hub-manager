@@ -328,6 +328,7 @@ describe("Fastify route authentication and authorization", () => {
   it("rejects certificate discovery for non-HTTPS URLs", async () => {
     const { app, cookie } = createHarness("admin");
     apps.push(app);
+    tlsConnectMock.mockReset();
 
     const response = await app.inject({
       method: "POST",
