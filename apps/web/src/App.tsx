@@ -150,7 +150,7 @@ export default function App(){
     <div className="nav-caption">WORKSPACE</div>{hubNav.slice(0,4).map(n=><button key={n.id} className={"nav-item "+(page===n.id?"active":"")} onClick={()=>go(n.id)}><Icon name={n.icon}/><span>{n.label}</span>{n.id==="alerts"&&<b className="nav-count">1</b>}</button>)}
     <div className="nav-caption admin-caption">ADMINISTRATION</div>{[hubNav[4],...adminNav].map(n=><button key={n.id} className={"nav-item "+(page===n.id?"active":"")} onClick={()=>go(n.id)}><Icon name={n.icon}/><span>{n.label}</span></button>)}
    </>}
-   <div className="sidebar-footer"><span className="status-dot"/><div><strong>{selected?selected.state==="online"?"Site online":"Site offline":"Hub operational"}</strong><span>Preview environment</span></div></div>
+   <div className="sidebar-footer"><span className="status-dot"/><div><strong>{selected?selected.state==="online"?"Site online":selected.state==="offline"?"Site offline":"Site status unknown":"Hub operational"}</strong><span>Preview environment</span></div></div>
   </aside>
   {menuOpen&&<button className="sidebar-scrim" aria-label="Close menu" onClick={()=>setMenuOpen(false)}/>}
   <main className="main-area">
@@ -159,10 +159,10 @@ export default function App(){
     <div className="topbar-actions"><span className="connection-chip"><i/>Hub operational</span><button className="icon-button" title="Refresh preview" aria-label="Refresh preview" onClick={refresh}><Icon name="refresh"/></button><button className="primary-button add-site-top" onClick={()=>setDialog("add-site")}><Icon name="plus" size={16}/> Add Site</button><button className="avatar" onClick={()=>setDialog("profile")}>{authUser.slice(0,2).toUpperCase()}</button><button className="top-chevron" onClick={()=>setDialog("profile")}><span>⌄</span></button></div>
    </header>
    <div className="page-content">
-    <div className="preview-banner"><span className="preview-dot"/> FRONTEND PREVIEW · DEMONSTRATION DATA · NO FIREWALL CHANGES</div>
+    <div className="preview-banner"><span className="preview-dot"/> DEVELOPMENT ENVIRONMENT · DATABASE-BACKED SITE INVENTORY · NO FIREWALL CHANGES</div>
     {isOverview&&!selected?<HubOverview sites={localSites} onOpen={openSite} onViewAll={()=>go("sites")} onConnectivity={()=>go("connectivity")} refreshCount={refreshCount}/>:selected&&page==="overview"?<SiteOverview device={selected} onNavigate={go}/>:page==="sites"?<SitesPage sites={filteredSites} query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} onOpen={openSite} onAdd={()=>setDialog("add-site")}/>:page==="connectivity"?<Connectivity sites={localSites}/>:page==="alerts"?<Alerts onNavigate={go}/>:page==="users"?<UserManagement/>:page==="audit"?<AuditLog/>:page==="hub-settings"?<HubSettingsPage/>:page==="app-settings"?<SettingsPage title={pageTitle} toggles={toggleStates} setToggles={setToggleStates}/>:page==="monitoring"?<Monitoring/>:page==="compatibility"?<Compatibility device={selected}/>:page==="site-settings"?<SiteSettings device={selected} toggles={toggleStates} setToggles={setToggleStates}/>:<DataPage page={page} query={query} setQuery={setQuery} onAdd={()=>notify("This is a frontend-only preview. No firewall configuration was changed.")} />}
    </div>
-   <footer className="app-footer">pfSense Hub Manager <span>·</span> Frontend preview <span>·</span> Live integration is intentionally deferred</footer>
+   <footer className="app-footer">pfSense Hub Manager <span>·</span> Development build <span>·</span> Multi-site firewall integration pending</footer>
   </main>
   <nav className="mobile-bottom-nav">{(selected?[["Overview","grid"],["Monitoring","activity"],["Interfaces","network"],["Rules","shield"],["More","more"]]:[["Overview","grid"],["Sites","sites"],["Connectivity","network"],["Alerts","bell"],["Settings","settings"]]).map(([label,icon])=><button key={label} className={mobileTab===label?"selected":""} onClick={()=>{setMobileTab(label);const match=[...hubNav,...siteNav].find(x=>x.label.toLowerCase().startsWith(label.toLowerCase()));if(label==="More")setMenuOpen(true);else if(match)go(match.id)}}><Icon name={icon as IconName} size={18}/><span>{label}</span>{label==="Alerts"&&<b>1</b>}</button>)}</nav>
   {toast&&<div className="toast" role="status">{toast}</div>}
