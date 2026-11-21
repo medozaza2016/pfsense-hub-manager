@@ -134,6 +134,7 @@ app.post("/api/v1/auth/setup", async (request, reply) => {
     if (!user) throw new Error("Administrator account creation returned no user.");
     await db.query("COMMIT");
     const token = await createSession(pool, user.id);
+    await appendAudit(pool, { actorId: user.id, actorUsername: user.username, action: "auth.setup", outcome: "success", summary: "Initial administrator account created", requestId: request.id });
     setSessionCookie(reply, token.token, ((request.protocol === "https" || request.headers["x-forwarded-proto"] === "https") || request.headers["x-forwarded-proto"] === "https"));
     return reply.code(201).send({ data: { id: user.id, username: user.username, role: user.role } });
   } catch (error) {
@@ -152,25 +153,27 @@ app.post("/api/v1/auth/login", async (request, reply) => {
   }
   const parsed = loginSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_LOGIN", message: "Enter a valid username and password." } });
-  const found = await pool.query<{ id: string; username: string; role: "admin" | "user"; password_hash: string; password_salt: string; password_iterations: number }>(
-    "SELECT id,username,role,password_hash,password_salt,password_iterations FROM admin_users WHERE lower(username)=lower($1)",
+  const found = await pool.query<{ id: string; username: string; role: "admin" | "user"; is_active: boolean; password_hash: string; password_salt: string; password_iterations: number }>(
+    "SELECT id,username,role,is_active,password_hash,password_salt,password_iterations FROM admin_users WHERE lower(username)=lower($1)",
     [parsed.data.username]
   );
   const user = found.rows[0];
   const valid = user ? await verifyPassword(parsed.data.password, user.password_hash, user.password_salt, user.password_iterations) : false;
-  if (!user || !valid) {
+  if (!user || !user.is_active || !valid) {
+    await appendAudit(pool, { actorType: "anonymous", actorUsername: parsed.data.username, action: "auth.login", outcome: "failure", summary: "Sign-in failed", requestId: request.id });
     const current = attempts && now - attempts.windowStartedAt < 15 * 60 * 1000 ? attempts : { count: 0, windowStartedAt: now };
     loginAttempts.set(ip, { count: current.count + 1, windowStartedAt: current.windowStartedAt });
     return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Username or password is incorrect." } });
   }
   loginAttempts.delete(ip);
+  await appendAudit(pool, { actorId: user.id, actorUsername: user.username, action: "auth.login", outcome: "success", summary: "User signed in", requestId: request.id });
   const session = await createSession(pool, user.id);
   setSessionCookie(reply, session.token, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
   return { data: { id: user.id, username: user.username, role: user.role } };
 });
 app.post("/api/v1/auth/logout", async (request, reply) => {
   const token = getCookie(request.headers.cookie);
-  if (token) await deleteSession(pool, token);
+  if (token) { const user = await findSession(pool, token); if (user) await appendAudit(pool, { actorId: user.id, actorUsername: user.username, action: "auth.logout", outcome: "success", summary: "User signed out", requestId: request.id }); await deleteSession(pool, token); }
   clearSessionCookie(reply, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
   return { data: { signedOut: true } };
 });
