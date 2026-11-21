@@ -22,3 +22,12 @@
 .settings-grid{align-items:start}
 .settings-message{margin:14px 0;background:#eff6ff;color:#1d4ed8}
 @media(max-width:640px){.auth-card{padding:24px}.auth-screen{padding:16px}}
+
+.admin-create-form{display:grid;grid-template-columns:1fr 1fr 160px auto;gap:12px;align-items:end}
+.admin-create-form label,.toolbar label{display:grid;gap:6px;color:var(--muted,#64748b);font-size:12px;font-weight:600}
+.admin-create-form input,.admin-create-form select,.toolbar select,.table-wrap select{min-height:38px;padding:8px 10px;border:1px solid var(--border,#dbe2ea);border-radius:8px;background:var(--surface,#fff);color:inherit;font:inherit}
+.table-wrap select{min-height:32px;padding:5px 8px}
+.settings-message.error{background:#fff1f0;color:#a32920}
+.table-wrap td small{display:block;margin-top:4px;color:var(--muted,#64748b);font-size:11px}
+@media(max-width:900px){.admin-create-form{grid-template-columns:1fr 1fr}.admin-create-form button{min-height:40px}}
+@media(max-width:560px){.admin-create-form{grid-template-columns:1fr}.admin-create-form button{width:100%}}
