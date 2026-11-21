@@ -222,3 +222,25 @@
  .ui-select-all{display:flex;align-items:center;gap:8px;color:#243b5b;font-size:12px;font-weight:650}
  .ui-select-all input,.ui-selection-cell input{width:18px;height:18px;accent-color:#075df5}
 }
+
+
+/* Keep the mobile account switch a horizontal switch, never a flex-sized circle */
+@media(max-width:760px){
+ .ui-mobile-record-actions.user-mobile-actions{grid-template-columns:minmax(0,1fr) 52px;align-items:end}
+ .ui-user-toggle-wrap{display:flex;align-items:center;justify-content:center;min-width:52px;width:52px;min-height:38px}
+ .ui-mobile-record-actions.user-mobile-actions .user-status-toggle,
+ .ui-mobile-record-actions.user-mobile-actions .user-status-toggle.on{
+  appearance:none;-webkit-appearance:none;display:inline-flex!important;align-items:center;justify-content:flex-start;
+  flex:0 0 42px!important;flex-grow:0!important;flex-shrink:0!important;
+  width:42px!important;min-width:42px!important;max-width:42px!important;
+  height:24px!important;min-height:24px!important;max-height:24px!important;
+  aspect-ratio:auto!important;padding:3px!important;margin:0;border:0;border-radius:999px!important;
+  box-sizing:border-box;background:#aebaca;color:transparent;line-height:1;box-shadow:none;
+ }
+ .ui-mobile-record-actions.user-mobile-actions .user-status-toggle.on{background:#16834a}
+ .ui-mobile-record-actions.user-mobile-actions .user-status-toggle i{
+  display:block;position:static;flex:0 0 18px;width:18px;height:18px;min-width:18px;min-height:18px;
+  margin:0;border-radius:50%;background:#fff;transform:translateX(0);transition:transform .18s ease;
+ }
+ .ui-mobile-record-actions.user-mobile-actions .user-status-toggle.on i{transform:translateX(18px)}
+}
