@@ -36,8 +36,7 @@ const hubSettingsSchema = z.object({
 }).strict();
 
 const loginAttempts = new Map<string, { count: number; windowStartedAt: number }>();
-function getCookie(request: { headers: { cookie: string | undefined } }): string | null {
-  const raw = request.headers.cookie;
+function getCookie(raw: string | undefined): string | null {
   if (!raw) return null;
   for (const part of raw.split(";")) {
     const separator = part.indexOf("=");
@@ -63,7 +62,7 @@ app.addHook("onRequest", async (request, reply) => {
   (request as typeof request & { metricStart?: bigint }).metricStart = process.hrtime.bigint();
   const path = (request.raw.url ?? "").split("?")[0] ?? "";
   if (!path.startsWith("/api/v1/") || path === "/api/v1/version" || path.startsWith("/api/v1/auth/")) return;
-  const token = getCookie(request);
+  const token = getCookie(request.headers.cookie);
   const admin = token ? await findSession(pool, token) : null;
   if (!admin) {
     return reply.code(401).send({ error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in to access this resource." } });
@@ -141,13 +140,13 @@ app.post("/api/v1/auth/login", async (request, reply) => {
   return { data: { id: user.id, username: user.username } };
 });
 app.post("/api/v1/auth/logout", async (request, reply) => {
-  const token = getCookie(request);
+  const token = getCookie(request.headers.cookie);
   if (token) await deleteSession(pool, token);
   clearSessionCookie(reply, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
   return { data: { signedOut: true } };
 });
 app.get("/api/v1/auth/me", async (request, reply) => {
-  const token = getCookie(request);
+  const token = getCookie(request.headers.cookie);
   const admin = token ? await findSession(pool, token) : null;
   if (!admin) return reply.code(401).send({ error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in to continue." } });
   return { data: admin };
