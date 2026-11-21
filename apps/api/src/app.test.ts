@@ -5,6 +5,9 @@ import { buildApp } from "./app.js";
 import { createSessionToken, SESSION_COOKIE } from "./auth/session.js";
 import type { PfSenseProvider } from "./pfsense/provider.js";
 
+const { tlsConnectMock } = vi.hoisted(() => ({ tlsConnectMock: vi.fn() }));
+vi.mock("node:tls", () => ({ connect: tlsConnectMock }));
+
 const config: AppConfig = {
   NODE_ENV: "test",
   HOST: "127.0.0.1",
@@ -46,6 +49,7 @@ function createHarness(role: "admin" | "user" | null = "admin") {
     testConnection: vi.fn(),
     registerDevice: vi.fn(),
     updateDevice: vi.fn(),
+    updateDeviceCredentials: vi.fn(),
     deleteDevice: vi.fn(),
     capabilities: vi.fn().mockResolvedValue([]),
     collect: vi.fn()
@@ -130,6 +134,211 @@ describe("Fastify route authentication and authorization", () => {
 
     expect(response.statusCode).toBe(200);
     expect(provider.listDevices).toHaveBeenCalledOnce();
+  });
+
+  it("allows an administrator to register a device after the connection test", async () => {
+    const { app, provider, cookie } = createHarness("admin");
+    apps.push(app);
+    vi.mocked(provider.registerDevice).mockResolvedValue({
+      device: { id: "branch-device-id", name: "Branch firewall", location: "Branch office", edition: "ce", enabled: true },
+      connection: { reachable: true, version: { version: "2.8.1" } }
+    } as never);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/devices",
+      headers: { cookie },
+      payload: {
+        name: "Branch firewall",
+        location: "Branch office",
+        edition: "ce",
+        apiBaseUrl: "https://branch.example.test:10443",
+        apiKey: "test-read-only-key",
+        caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----",
+        tlsServername: "branch.example.test"
+      }
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(provider.registerDevice).toHaveBeenCalledWith(expect.objectContaining({
+      apiKey: "test-read-only-key",
+      caCertificatePem: expect.stringContaining("BEGIN CERTIFICATE"),
+      tlsServername: "branch.example.test"
+    }));
+    expect(response.body).not.toContain("test-read-only-key");
+  });
+
+  it("denies device registration to regular users", async () => {
+    const { app, provider, cookie } = createHarness("user");
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/devices",
+      headers: { cookie },
+      payload: {
+        name: "Branch firewall",
+        edition: "ce",
+        apiBaseUrl: "https://branch.example.test:10443",
+        apiKey: "test-read-only-key"
+      }
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(provider.registerDevice).not.toHaveBeenCalled();
+  });
+
+  it("updates device metadata through the typed route", async () => {
+    const { app, provider, cookie } = createHarness("admin");
+    apps.push(app);
+    vi.mocked(provider.updateDevice).mockResolvedValue({
+      id: "branch-device-id", name: "Updated branch", location: null, edition: "ce", enabled: true
+    } as never);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/devices/branch-device-id",
+      headers: { cookie },
+      payload: { name: "Updated branch", location: null, edition: "ce", enabled: true }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(provider.updateDevice).toHaveBeenCalledWith("branch-device-id", {
+      name: "Updated branch", location: null, edition: "ce", enabled: true
+    });
+  });
+
+  it("updates credentials only through the administrator credential route", async () => {
+    const { app, provider, cookie } = createHarness("admin");
+    apps.push(app);
+    vi.mocked(provider.updateDeviceCredentials).mockResolvedValue({
+      deviceId: "branch-device-id", connection: { reachable: true, version: { version: "2.8.1" } }
+    } as never);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/devices/branch-device-id/credentials",
+      headers: { cookie },
+      payload: {
+        apiKey: "replacement-read-only-key",
+        caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----",
+        tlsServername: "branch.example.test"
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(provider.updateDeviceCredentials).toHaveBeenCalledWith("branch-device-id", expect.objectContaining({
+      apiKey: "replacement-read-only-key",
+      tlsServername: "branch.example.test"
+    }));
+    expect(response.body).not.toContain("replacement-read-only-key");
+  });
+
+  it("prevents credential changes to the installation-managed primary firewall", async () => {
+    const { app, provider, cookie } = createHarness("admin");
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/devices/${config.PFSENSE_DEVICE_ID}/credentials`,
+      headers: { cookie },
+      payload: { apiKey: "replacement-read-only-key" }
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe("PRIMARY_CREDENTIALS_MANAGED_BY_INSTALLATION");
+    expect(provider.updateDeviceCredentials).not.toHaveBeenCalled();
+  });
+
+  it("passes the supplied CA and TLS server name to the connection test", async () => {
+    const { app, provider, cookie } = createHarness("admin");
+    apps.push(app);
+    vi.mocked(provider.testConnection).mockResolvedValue({ reachable: true, version: { version: "2.8.1" } } as never);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/devices/test-connection",
+      headers: { cookie },
+      payload: {
+        name: "Branch firewall",
+        edition: "ce",
+        apiBaseUrl: "https://branch.example.test:10443",
+        apiKey: "test-read-only-key",
+        caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----",
+        tlsServername: "branch.example.test"
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(provider.testConnection).toHaveBeenCalledWith(expect.objectContaining({
+      caCertificatePem: expect.stringContaining("BEGIN CERTIFICATE"),
+      tlsServername: "branch.example.test"
+    }));
+  });
+
+  it("discovers certificate identity metadata without treating discovery as trust", async () => {
+    const { app, cookie } = createHarness("admin");
+    apps.push(app);
+    const listeners: Record<string, () => void> = {};
+    const socket: {
+      once: (event: string, callback: () => void) => unknown;
+      destroy: ReturnType<typeof vi.fn>;
+      end: ReturnType<typeof vi.fn>;
+      getPeerCertificate: ReturnType<typeof vi.fn>;
+    } = {
+      once(event, callback) { listeners[event] = callback; return socket; },
+      destroy: vi.fn(),
+      end: vi.fn(),
+      getPeerCertificate: vi.fn(() => ({
+        raw: Buffer.from("test-certificate"),
+        subject: { CN: "branch.example.test" },
+        issuer: { CN: "Test CA" },
+        subjectaltname: "DNS:branch.example.test",
+        fingerprint256: "AA:BB:CC",
+        valid_to: "Dec 31 23:59:59 2030 GMT"
+      }))
+    };
+    tlsConnectMock.mockReset().mockImplementation(() => {
+      queueMicrotask(() => listeners.secureConnect?.());
+      return socket;
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/devices/discover-certificate",
+      headers: { cookie },
+      payload: { apiBaseUrl: "https://branch.example.test:10443" }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({
+      dnsNames: ["branch.example.test"],
+      suggestedServername: "branch.example.test",
+      fingerprint256: "AA:BB:CC"
+    });
+    expect(tlsConnectMock).toHaveBeenCalledWith(expect.objectContaining({
+      host: "branch.example.test",
+      port: 10443,
+      servername: "branch.example.test",
+      rejectUnauthorized: false
+    }));
+    expect(socket.end).toHaveBeenCalledOnce();
+  });
+
+  it("rejects certificate discovery for non-HTTPS URLs", async () => {
+    const { app, cookie } = createHarness("admin");
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/devices/discover-certificate",
+      headers: { cookie },
+      payload: { apiBaseUrl: "http://branch.example.test" }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("CERTIFICATE_DISCOVERY_FAILED");
+    expect(tlsConnectMock).not.toHaveBeenCalled();
   });
 
   it("rejects state-changing requests from an untrusted origin", async () => {
