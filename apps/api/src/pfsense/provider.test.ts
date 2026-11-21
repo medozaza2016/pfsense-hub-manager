@@ -140,7 +140,7 @@ describe("pfSense provider device registration and credential safety", () => {
       .mockResolvedValueOnce({ data: { status: "ok" } });
     const replacement = {
       apiKey: "replacement-read-only-api-key",
-      caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----",
+      caCertificatePem: "-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----",
       tlsServername: "branch.example.test"
     };
 
@@ -174,7 +174,7 @@ describe("pfSense provider device registration and credential safety", () => {
 
     await expect(provider.updateDeviceCredentials("branch-device-id", {
       apiKey: "replacement-read-only-api-key",
-      caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----"
+      caCertificatePem: "-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----"
     })).rejects.toThrow("Firewall TLS verification failed.");
 
     expect(query).toHaveBeenCalledOnce();
