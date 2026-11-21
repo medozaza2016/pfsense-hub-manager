@@ -5,7 +5,7 @@ import { createPool } from "./db/pool.js";
 import { migrate } from "./db/migrate.js";
 import { PfSenseClient } from "./pfsense/client.js";
 import { PfSenseProvider } from "./pfsense/provider.js";
-import { createSession, deleteSession, findSession, hashPassword, verifyPassword } from "./auth.js";
+import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
 
 const config = loadConfig();
@@ -54,8 +54,20 @@ function clearSessionCookie(reply: { header: (name: string, value: string) => un
   reply.header("Set-Cookie", `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? "; Secure" : ""}`);
 }
 async function adminCount(): Promise<number> {
-  const result = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM admin_users");
+  const result = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM admin_users WHERE role = 'admin'");
   return Number(result.rows[0]?.count ?? 0);
+}
+
+async function requireAdmin(request: typeof app extends never ? never : import("fastify").FastifyRequest, reply: import("fastify").FastifyReply): Promise<void> {
+  const user = (request as typeof request & { admin?: AdminUser }).admin ?? null;
+  const failure = authorizationFailure(user);
+  if (failure === 401) {
+    await reply.code(401).send({ error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in to access this resource." } });
+    return;
+  }
+  if (failure === 403) {
+    await reply.code(403).send({ error: { code: "ADMINISTRATOR_REQUIRED", message: "Administrator permissions are required for this operation." } });
+  }
 }
 
 app.addHook("onRequest", async (request, reply) => {
@@ -97,7 +109,7 @@ app.post("/api/v1/auth/setup", async (request, reply) => {
       await db.query("ROLLBACK");
       return reply.code(409).send({ error: { code: "SETUP_ALREADY_COMPLETED", message: "An administrator account already exists." } });
     }
-    const created = await db.query<{ id: string; username: string }>(
+    const created = await db.query<{ id: string; username: string; role: "admin" | "user" }>(
       "INSERT INTO admin_users(username,password_hash,password_salt,password_iterations) VALUES($1,$2,$3,$4) RETURNING id,username",
       [parsed.data.username, credentials.hash, credentials.salt, credentials.iterations]
     );
@@ -106,7 +118,7 @@ app.post("/api/v1/auth/setup", async (request, reply) => {
     await db.query("COMMIT");
     const token = await createSession(pool, user.id);
     setSessionCookie(reply, token.token, ((request.protocol === "https" || request.headers["x-forwarded-proto"] === "https") || request.headers["x-forwarded-proto"] === "https"));
-    return reply.code(201).send({ data: { id: user.id, username: user.username } });
+    return reply.code(201).send({ data: { id: user.id, username: user.username, role: user.role } });
   } catch (error) {
     try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
     throw error;
@@ -123,8 +135,8 @@ app.post("/api/v1/auth/login", async (request, reply) => {
   }
   const parsed = loginSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_LOGIN", message: "Enter a valid username and password." } });
-  const found = await pool.query<{ id: string; username: string; password_hash: string; password_salt: string; password_iterations: number }>(
-    "SELECT id,username,password_hash,password_salt,password_iterations FROM admin_users WHERE lower(username)=lower($1)",
+  const found = await pool.query<{ id: string; username: string; role: "admin" | "user"; password_hash: string; password_salt: string; password_iterations: number }>(
+    "SELECT id,username,role,password_hash,password_salt,password_iterations FROM admin_users WHERE lower(username)=lower($1)",
     [parsed.data.username]
   );
   const user = found.rows[0];
@@ -137,7 +149,7 @@ app.post("/api/v1/auth/login", async (request, reply) => {
   loginAttempts.delete(ip);
   const session = await createSession(pool, user.id);
   setSessionCookie(reply, session.token, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
-  return { data: { id: user.id, username: user.username } };
+  return { data: { id: user.id, username: user.username, role: user.role } };
 });
 app.post("/api/v1/auth/logout", async (request, reply) => {
   const token = getCookie(request.headers.cookie);
