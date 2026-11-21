@@ -6,7 +6,7 @@ Docker Compose runs four services: the React/Vite web application served by Ngin
 
 The code-server container has a persistent project workspace at ./workspace, persistent editor configuration and extension data in named volumes, and password authentication using a Docker secret. It is intentionally isolated from the application backend network and does not receive the Docker socket. This prevents the editor terminal from automatically gaining control of the host Docker daemon.
 
-The Docker Compose configuration and application images were previously built successfully in GitHub Actions. The updated four-service stack must be validated in CI and then deployed on the target Proxmox LXC. Live deployment and firewall connectivity validation remain pending. Manager-user authentication for the pfSense Hub web application has not been implemented. Do not place that application behind a public reverse proxy until authentication and authorization are implemented and reviewed.
+The local Windows development environment has successfully started the application using Docker Compose, and the user has reported successful firewall connection testing and read-only data collection. The target Proxmox LXC deployment is a separate step and must not be assumed complete. Manager-user authentication and role checks are implemented, but the application remains loopback-only until production security review is complete. No CI run is required for routine local changes unless explicitly requested.
 
 ## Prerequisites
 
@@ -93,10 +93,10 @@ The Vite development server proxies /api and /health to the API. Run PostgreSQL 
 
 ## Security limitations before production
 
-- No manager-user authentication or role-based authorization is implemented for the pfSense Hub application. Its web UI is deliberately bound to localhost only.
+- Manager authentication and Admin/User role checks are implemented. Production hardening is incomplete, so the web UI remains deliberately bound to localhost only.
 - code-server has password authentication and is also bound to localhost only. Use SSH forwarding, or add HTTPS and an access-control layer before enabling remote network exposure.
 - The code-server terminal does not have Docker daemon access by default.
-- The first firewall is configured from environment variables. Multi-device CRUD and secret lifecycle management are not implemented.
+- The installation-configured primary firewall is environment-backed. Additional firewalls can be registered, edited for inventory metadata, enabled/disabled, checked, and removed through manager APIs. Their API keys are encrypted in PostgreSQL. The primary firewall is protected from deletion. Full connection-credential editing/rotation and recovery workflows are not yet implemented.
 - TLS verification is enforced. A private CA can be mounted as described above.
 - The eight upstream routes are fixed in code. No arbitrary proxy, command execution, or write operation exists in the pfSense Hub API.
-- Define retention, database backup/restore testing, authentication, and credential rotation before production use.
+- Complete database retention and backup/restore testing, credential rotation/recovery, audit-event hardening, and production security review before production use.
