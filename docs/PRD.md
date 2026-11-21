@@ -85,6 +85,9 @@ For consequential changes, the application shall validate input, show a human-re
 
 Administrators shall be able to add further supported pfSense firewalls without a fixed device-count assumption. Each device shall have independent credentials, connectivity settings, compatibility detection, and health state.
 
+### FR-11: Installation and first-run onboarding
+The product shall provide a guided installation and first-run setup experience that accounts for all required infrastructure, configuration, security, and operational prerequisites. The installation workflow and its documentation shall be updated with each feature increment that introduces a new dependency or setup requirement. Infrastructure setup and one-time bootstrap shall be automated wherever practical. Normal site registration, credential entry and rotation, connection testing, and site lifecycle management shall be available through the GUI without routine shell commands. Production deployment shall target Linux, while the supported local development workflow uses Windows 11 and Docker Desktop.
+
 ## 7. Initial non-functional requirements
 
 - **Security:** Least privilege, secret protection, TLS verification, and private connectivity preferred.
@@ -98,10 +101,11 @@ Quantitative availability, performance, and retention targets remain open.
 
 ## 8. Deployment and technology decisions
 
-The application will be deployed on the existing Proxmox LXC `pfsense-hub-manager`, using Docker Compose to manage application containers. Cloudflare Workers and Cloudflare hosting are not used for this project.
+Development is performed locally on Windows 11 using VS Code and Docker Desktop. Production will run on Linux, with the existing Proxmox LXC `pfsense-hub-manager` remaining the currently intended target unless changed by a later decision. Docker Compose manages application containers in both environments. The exact production Linux distribution, host provisioning, and deployment topology remain to be finalized. Cloudflare Workers and Cloudflare hosting are not used for this project.
 
-The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript Fastify service exposing a REST API. PostgreSQL runs as a dedicated Docker Compose service. The initial API key is mounted as a Docker secret. Manager-user authentication and roles remain undecided; therefore, the initial web UI is loopback-only and must not be publicly exposed. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
+The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript Fastify service exposing a REST API. PostgreSQL runs as a dedicated Docker Compose service. The current single-device API key is file-mounted, but this is not the final multi-site credential architecture. Manager-user authentication and roles remain undecided. Until authentication and authorization are implemented, the UI must remain restricted to a trusted local development boundary and must not be publicly exposed. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
 
+Installation and first-run onboarding are product requirements. Their workflow and documentation must evolve with each implementation increment. The setup process must automate infrastructure prerequisites and one-time bootstrap wherever practical. Routine site registration, credential entry and rotation, connection testing, and site lifecycle management must be performed through the GUI without routine shell commands. The exact secret-storage and encryption/key-management mechanism remains an open security decision and must be approved before implementation.
 ## 9. Integration constraints and risks
 
 The pfSense REST API discussed for this project is community-maintained and unofficial. Its compatibility depends on the exact pfSense release and package release. Not all operations are necessarily available across Plus and CE.
