@@ -68,6 +68,10 @@ if ($Development) {
     npx --no-install tsc --version
     if ($LASTEXITCODE -ne 0) { throw "TypeScript compiler is still unavailable after npm install." }
   }
+  Write-Host "Checking Windows native build dependencies..." -ForegroundColor Cyan
+  node scripts/repair-native-deps.mjs
+  if ($LASTEXITCODE -ne 0) { throw "Windows native dependency repair failed. Resolve the reported package issue before continuing." }
+
   Write-Host "Checking npm dependency vulnerabilities..." -ForegroundColor Cyan
   npm audit
   $initialAuditExit = $LASTEXITCODE
