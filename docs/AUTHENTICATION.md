@@ -22,9 +22,9 @@ When no administrator exists, the web application displays the one-time administ
 
 ## API access
 
-The initial setup status, one-time administrator bootstrap, and sign-in endpoints are public. All other manager API endpoints require a valid session. User and role administration endpoints additionally require the Admin role. Both roles can view the initial read-only firewall inventory and request read-only checks.
+The initial setup status, one-time administrator bootstrap, and sign-in endpoints are public. All other manager API endpoints require a valid session. User and role administration endpoints additionally require the Admin role. Both roles can view the firewall inventory and request read-only checks. Only Admin can test and register additional firewalls.
 
-The pfSense API key remains a Docker secret and is used only by the API container. It is not stored in manager user records or sent to browser code.
+The original pfSense API key remains a Docker secret and is used only by the API container. Additional firewall API keys are encrypted with AES-256-GCM before being stored in PostgreSQL. The encryption key is generated once during installation, stored as a separate Docker secret, and must be backed up securely. It is never sent to browser code. Each registered firewall is tested over HTTPS before it is saved. TLS verification is always enabled, with an optional per-firewall CA certificate.
 
 ## Current limitations
 
