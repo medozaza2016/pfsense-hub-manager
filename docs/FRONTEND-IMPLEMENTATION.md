@@ -70,62 +70,57 @@ This document records implementation coverage, not a claim that visual acceptanc
 
 ## Data integration status, November 21, 2026
 
-The current redesigned frontend is a presentation and interaction shell. It is **not yet connected to the real device inventory or live database data**.
+The Hub Overview, Sites, and Connectivity pages now load the managed-device inventory from the authenticated `GET /api/v1/devices` API. The frontend no longer initializes the Sites page from the old three hardcoded device cards.
 
-Confirmed implementation details:
+- The API exposes `isDemo`, `enabled`, and an explicit `connectionState`.
+- Demo records are disabled, use reserved `.demo.invalid` endpoints, and remain `unknown`. They cannot be opened as live firewall workspaces and the device overview endpoint only accepts the configured real device ID.
+- The Hub Overview counts online, offline, and unknown records separately. It does not infer reachability from a database row.
+- The inventory refresh action reloads the API inventory. It does not contact a firewall.
+- Add Site remains a local preview action. Secure multi-site onboarding and credential storage are not implemented.
+- Per-site live polling, verified connection state for additional sites, and real telemetry remain unimplemented.
 
-- Hub and Site pages are populated with local demonstration fixtures in `apps/web/src/App.tsx`.
-- Site search, status filters, Add Site, preference toggles, and preview refresh operate on browser-local React state.
-- The Online/Offline badges and dashboard metrics in this frontend are illustrative. They must not be interpreted as verified firewall reachability or live telemetry.
-- The Fastify API and PostgreSQL implementation on `main` remain the backend foundation. They are not changed by the frontend presentation branch.
-- The current API/provider is configured for one firewall through environment variables and a Docker-mounted API-key secret. The database currently has a basic `managed_devices` table and poll-run history. It does not yet provide a complete multi-site registration and per-device credential lifecycle.
-- The manager API currently exposes read-only device inventory, capabilities, and overview collection for the configured device. It does not expose Add Site, Edit Site, Remove Site, credential management, or arbitrary firewall API proxy routes.
+### Development demo-site seed
 
-Do not connect the frontend to a mock endpoint or create fake persistence to make the screens appear live. The next integration work must extend the actual backend and database contracts, then bind the UI to those contracts.
+Migration `006_development_demo_sites.sql` adds `managed_devices.is_demo` and a site count to the development seed-run ledger. The seed runner adds seven stable demo records under a separate seed key. This separate key is intentional: if the older development seed has already been run, the next seed invocation can add the seven demo sites without duplicating users, alerts, or audit events.
 
-## Next implementation sequence, real data
+The seed is additive and idempotent. It uses fixed UUIDs and `ON CONFLICT DO NOTHING`; it does not update or delete existing device rows, reset the database, or delete volumes. The demo records are disabled and use reserved `.invalid` endpoints. They are not real firewall devices.
 
-1. **Preserve and baseline the merged foundation.** Keep the approved visual design and the existing eight-route read-only pfSense provider intact.
-2. **Define the Site domain and database lifecycle.** Design stable site IDs, display name, location, edition, API origin/connection profile, enabled state, compatibility state, last-contact metadata, and a server-side credential reference. Add migrations and repository tests. Do not store API keys in ordinary site rows.
-3. **Choose and document secret handling before multi-site credentials.** The current single-device Docker secret is not a multi-device secret store. Select a protected per-site credential mechanism, including encryption/key management, rotation, deletion, backup, and recovery. Do not send secrets to the browser.
-4. **Implement safe site onboarding.** Add a server-side create-site workflow with strict input validation and destination restrictions, securely store the credential, test verified TLS and API-key authentication, identify edition/release/API package where available, and report classified connection outcomes. Failed tests must not create a falsely Online site.
-5. **Implement real inventory and site detail APIs.** Replace environment-only single-device lookup with database-backed multi-site repositories and device-scoped provider instances. Keep the fixed read-only upstream route allowlist, per-site isolation, timeouts, and secret redaction.
-6. **Wire the frontend in small vertical slices.** First Hub Overview and Sites list, then Add Site, then Site Overview and its read-only sections. Remove demonstration fixtures only when each corresponding API path is implemented and tested. Add loading, empty, partial, offline, unsupported, and error states.
-7. **Verify on the Windows 11 / Docker Desktop development environment.** Run type checks, tests, builds, Compose validation, and manual browser checks at desktop and mobile breakpoints. Then verify the same approved read-only integration against the real Plus firewall. Do not connect the CE firewall until the user explicitly schedules that work.
+After local code is updated, build the API before running the seed because the package script executes the compiled file:
 
-### Security and scope gates
+```powershell
+npm run build --workspace @pfsense-hub/api
+npm run db:seed:dev
+```
 
-- Keep the application read-only. Site registration is a manager-side inventory operation, not permission to change firewall configuration.
-- Never place firewall credentials in React state, browser storage, frontend bundles, URL query strings, logs, or API responses.
-- Never accept an arbitrary caller-supplied upstream URL/path/method and forward it to a firewall. Validate and constrain destinations to prevent SSRF.
-- Enforce TLS certificate and hostname verification. A self-signed certificate requires explicit trust configuration, not a verification bypass.
-- Do not label a site Online merely because its record exists. Online status requires a recent successful, verified connection result.
-- Do not enable write endpoints or broaden the existing eight firewall GET privileges as part of onboarding.
-- Manager-user authentication and authorization remain an unresolved prerequisite for exposing administrative site/credential management beyond a trusted local development boundary.
+Run only in the local development environment. The script requires `NODE_ENV=development` and `DATABASE_URL`, runs pending migrations, and refuses to seed without an active administrator. Do not run this against production.
 
 ## Reusable UI framework increment
 
-Branch: `feature/universal-ui-framework`
+Branch: `feature/development-seed-data`
 
-The frontend now has a shared component foundation in `apps/web/src/components/`:
+The shared components in `apps/web/src/components/` provide the common listing experience:
 
-- `DataTable<T>`: typed columns, consistent table rendering, client-side sorting, search integration, pagination, page-size selection, loading and empty states, optional row actions, and accessible table semantics.
-- `SearchField`: consistent accessible search input with clear action.
-- `PageHeader`: consistent page title, description, and action layout.
-- `EmptyState`: reusable empty-state presentation.
-- `Feedback`: consistent info, success, warning, and error messages.
-- `ui.css`: shared styles for tables, search, pagination, feedback, loading indicators, responsive page headers, and screen-reader-only labels.
+- `DataTable<T>`: typed columns, sorting, client-side search integration, pagination, 10/25/50/100 page sizes, loading and empty states, and optional row actions.
+- `ListToolbar`: consistent wide search, expandable filter section, active-filter count, removable filter chips, and clear-all behavior.
+- `SearchField`, `PageHeader`, `EmptyState`, and `Feedback`: reusable presentation primitives.
+- `ui.css`: shared layout, typography, table, search, filter, pagination, loading, and responsive styles.
 
-Initial adoption:
-- Firewall data preview pages use the shared data table, including common sorting, pagination, and search behavior.
-- User Management and Audit Logs use the same shared table, while retaining their API calls and domain-specific actions.
-- The shared search field is used by these list views instead of duplicating the search input markup.
+Adoption includes Sites, Connectivity, Alerts, User Management, Audit Logs, and the firewall data preview lists. Sites now uses a sortable table rather than a separate card-grid listing. Alerts uses the shared table instead of bespoke table markup. Domain-specific filters and row actions remain on their respective pages.
 
-Design and behavior constraints:
-- Pages supply their data, column definitions, and domain-specific actions. They should not reimplement generic table mechanics.
-- The shared table currently sorts and paginates the dataset supplied to it in the browser. It does not claim server-side pagination. A server-backed data adapter should be introduced when the API exposes stable limit/offset or cursor contracts.
-- API error handling remains owned by the page that makes the request, while loading and empty presentation can be delegated to the shared table.
-- No new API endpoints, database changes, firewall write operations, or GitHub Actions workflows are introduced by this increment.
-- Existing preview data remains explicitly labeled as preview data. Shared components do not make fixture data live.
+### Pagination and filtering boundary
 
-Next adoption targets are Sites and Alerts, followed by a broader page-shell migration once browser acceptance confirms that shared spacing and responsive behavior preserve the approved design.
+Sorting and pagination are functional in the browser over the rows returned to each page. They are not server-side pagination. The current API list endpoints return arrays, and Audit Logs is capped by its request limit. Server-side pagination, validated sort/filter query contracts, URL-persisted filters, and larger-dataset performance remain future work.
+
+### Validation still required
+
+The changes are committed to the feature branch, but have not been built or tested in the user's Windows/Docker environment. Before merging:
+
+1. Fetch and switch to `feature/development-seed-data`.
+2. Run root API/web type checks, tests, and production build.
+3. Start the existing Docker Compose stack without deleting volumes.
+4. Run the development seed once, then run it again to confirm the second run inserts no duplicate records.
+5. Confirm the seven demo sites appear as Unknown, disabled demo records, while the configured real device and the existing `ahmed` administrator remain unchanged.
+6. Test search, expandable filters, filter chips, sorting, pagination, page-size selection, row actions, and responsive behavior on each listing page.
+7. Compare desktop and mobile screenshots with the approved visual reference.
+
+Do not merge to `main` until the local verification and visual acceptance pass and the user approves the merge.
