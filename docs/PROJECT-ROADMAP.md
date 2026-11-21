@@ -4,7 +4,7 @@
 **Canonical tracking document:** `docs/PROJECT-ROADMAP.md`  
 **Active branch:** `feature/installation-onboarding`  
 **Last updated:** 2026-11-21  
-**Status:** Dialog and sidebar overflow presentation refined on the feature branch; local pull, build, and browser validation pending
+**Status:** User accepted the dialog and sidebar visual refinements; persisted firewall connection lifecycle implementation is committed and awaiting Windows validation
 
 This is the authoritative cross-session project tracker. At the end of every meaningful development session, update this document before stopping. A new chat should read this file first, then `AGENTS.md`, `docs/DECISIONS.md`, and the phase-specific documents linked below. Do not rely on chat history as the project record.
 
@@ -148,9 +148,10 @@ The phases are ordered. A phase may overlap with documentation or design work, b
 - [x] Independent per-device API credential encryption.
 - [x] Per-device CA and TLS server-name support.
 - [x] Certificate inspection/discovery during onboarding.
-- [ ] Add explicit device connection profile and lifecycle states.
+- [~] Persist device connection lifecycle state independently from the enabled/disabled setting, including last checked, last fully successful check, and classified error. Automated coverage added; Windows validation pending.
+- [D] Select a transport-specific connection profile until the firewall-to-manager transport decision in DEC-010 is approved.
 - [~] Backend credential replacement/rotation route implemented for additional devices, with read-only connection re-test before encrypted credentials and TLS settings are persisted; primary-device rotation remains installation-secret managed.
-- [~] Frontend credential/TLS editor implemented for additional devices: replacement API key, optional CA PEM import/paste or explicit clear, TLS server-name update or explicit clear, read-only revalidation before save, and failure feedback. Windows API tests (42/42), API/web typecheck, and API/web production builds passed on 2026-11-21; manual browser and live secondary-firewall workflow validation remain pending.
+- [~] Frontend credential/TLS editor implemented for additional devices: replacement API key, optional CA PEM import/paste or explicit clear, TLS server-name update or explicit clear, read-only revalidation before save, and failure feedback. User visually accepted the editor, file picker, dialog scrolling, and sidebar refinements on 2026-11-21. Latest Windows build validation and live secondary-firewall workflow validation remain pending.
 - [ ] Define and document the operational credential rotation/revocation procedure.
 - [ ] Record pfSense edition, release, architecture, REST API package version, and verified capability profile per device.
 - [ ] Add a compatibility matrix and capability discovery process.
@@ -345,7 +346,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: pull and validate the themed certificate picker, dialog scrollbar presentation, and sidebar navigation at desktop and mobile widths, then continue Phase 2 device connection profiles and compatibility discovery.**
+**Next task: validate persisted device connection lifecycle status on Windows, then implement per-device compatibility discovery. The transport-specific connection profile remains deferred until DEC-010 is resolved.**
 
 The user has successfully completed the corrected Windows development installer. The installer:
 - Recognized the required Windows native Rollup and esbuild packages at their expected versions.
@@ -374,7 +375,7 @@ The two Vite React Router `use client` warnings are non-fatal. Do not change dep
 
 Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The installer removed the obsolete API nested duplicate after verifying the root package name/version, preserved the Vite nested package, and completed audit, typecheck, production builds, Docker image builds, and Compose startup. `npm ls esbuild @esbuild/win32-x64 --all` now reports both expected native packages without an extraneous root package. The subsequent `npm ls --depth=0n` invocation contained a command-line typo (`0n` rather than `0`), producing an npm config warning; the dependency listing itself showed no extraneous package.
 
-**Previous action completed:** Phase 1 route/provider tests for registration, credential rotation, authorization, TLS configuration, and certificate discovery are implemented and recorded above. The user accepted the UI refresh. The Phase 2 frontend credential/TLS editor is committed. A follow-up layout fix now places the inventory form and credential editor inside one scroll container and corrects checkbox sizing. The unified dialog scroll fix is not yet locally validated. A further polish commit themes the native certificate file picker and hides the dialog scrollbar track while preserving wheel, touch, and keyboard scrolling. The latest sidebar refinement prevents horizontal overflow, hides scrollbar chrome, retains vertical scrolling, and keeps the account footer fixed within the sidebar.
+**Previous action completed:** Phase 1 route/provider tests for registration, credential rotation, authorization, TLS configuration, and certificate discovery are implemented and recorded above. The user accepted the UI refresh. The Phase 2 frontend credential/TLS editor is committed. A follow-up layout fix now places the inventory form and credential editor inside one scroll container and corrects checkbox sizing. The unified dialog scroll fix is not yet locally validated. A further polish commit themes the native certificate file picker and hides the dialog scrollbar track while preserving wheel, touch, and keyboard scrolling. The latest sidebar refinement prevents horizontal overflow, hides scrollbar chrome, retains vertical scrolling, and keeps the account footer fixed within the sidebar. The user confirmed the dialog and sidebar visual changes are good.
 
 ## 8. Session handoff
 
@@ -385,7 +386,7 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 - Vite emitted two non-fatal React Router `use client` directive warnings.
 - These checks validate the current frontend credential/TLS editor at compile/build level. They do not verify the interactive browser workflow or a live credential rotation against a secondary firewall.
 
-**User acceptance:** The user reviewed and accepted the UI refresh.
+**User acceptance:** The user reviewed and accepted the UI refresh, credential editor layout, and sidebar refinements (2026-11-21).
 
 **Latest implementation commits:**
 - `a41cca8`: persistent sidebar navigation and page transition hook.
@@ -396,7 +397,9 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 - `e6b8c20`: credential/TLS editor styling.
 - `ccf3a82`: clear credential form secrets after editor close.
 
-**Latest layout refinements (2026-11-21):** `c299c91` wraps the inventory form and credential editor in one scrollable dialog body; `3d93fd3` removes nested credential scrolling and fixes checkbox sizing; the CSS commit themes the certificate file picker and hides the dialog scrollbar track without disabling scrolling; the latest sidebar CSS commit prevents horizontal overflow, hides scrollbar chrome, and preserves the pinned account footer. User must pull and run `npm test`, `npm run typecheck`, and `npm run build`, then inspect the Edit firewall dialog at desktop and narrow/mobile widths. Manual credential rotation remains pending until an additional firewall is registered and reachable. Do not attempt primary firewall rotation through this screen. No firewall configuration writes are involved.
+**Latest layout refinements (2026-11-21):** `c299c91` wraps the inventory form and credential editor in one scrollable dialog body; `3d93fd3` removes nested credential scrolling and fixes checkbox sizing; the CSS commit themes the certificate file picker and hides the dialog scrollbar track without disabling scrolling; the latest sidebar CSS commit prevents horizontal overflow, hides scrollbar chrome, and preserves the pinned account footer. User must pull and run `npm test`, `npm run typecheck`, and `npm run build`, then inspect the Edit firewall dialog at desktop and narrow/mobile widths. Manual credential rotation remains pending until an additional firewall is registered and reachable. Do not attempt primary firewall rotation through this screen. No firewall configuration writes are involved. The new persisted lifecycle fields and frontend display require local validation.
+
+**Lifecycle status implementation (2026-11-21):** Commits `86d3794`, `fecbba5`, and `5f1abbd` add persisted connection status, timestamps, and error classification with migration `005_device_connection_lifecycle.sql`; `d002147` adds provider tests for online, degraded, offline, and inventory projection. Frontend commits `3ce9796`, `4876143`, `56aee68`, and `851a5e0` display persistent status and refresh inventory after checks and credential revalidation. DEC-022 defines the status semantics. These changes have not yet been run locally.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
