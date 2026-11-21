@@ -389,6 +389,12 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 **User acceptance:** The user reviewed and accepted the UI refresh, credential editor layout, and sidebar refinements (2026-11-21).
 
 **Latest implementation commits:**
+- `86d3794`: persist connection lifecycle state after read-only collection.
+- `fecbba5` and `5f1abbd`: register and add the lifecycle database migration.
+- `d002147`: test online, degraded, offline, and inventory status projection.
+- `3ce9796`: show persisted lifecycle status in the inventory.
+- `de91e79` and `418b614`: preserve camelCase API response fields and cover metadata edits.
+- `851a5e0`: refresh inventory after credential revalidation.
 - `a41cca8`: persistent sidebar navigation and page transition hook.
 - `cb96b00`: inventory layout, sidebar styling, and motion.
 - `1e946e8`: dialog entrance motion.
@@ -399,7 +405,7 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 
 **Latest layout refinements (2026-11-21):** `c299c91` wraps the inventory form and credential editor in one scrollable dialog body; `3d93fd3` removes nested credential scrolling and fixes checkbox sizing; the CSS commit themes the certificate file picker and hides the dialog scrollbar track without disabling scrolling; the latest sidebar CSS commit prevents horizontal overflow, hides scrollbar chrome, and preserves the pinned account footer. User must pull and run `npm test`, `npm run typecheck`, and `npm run build`, then inspect the Edit firewall dialog at desktop and narrow/mobile widths. Manual credential rotation remains pending until an additional firewall is registered and reachable. Do not attempt primary firewall rotation through this screen. No firewall configuration writes are involved. The new persisted lifecycle fields and frontend display require local validation.
 
-**Lifecycle status implementation (2026-11-21):** Commits `86d3794`, `fecbba5`, and `5f1abbd` add persisted connection status, timestamps, and error classification with migration `005_device_connection_lifecycle.sql`; `d002147` adds provider tests for online, degraded, offline, and inventory projection. Frontend commits `3ce9796`, `4876143`, `56aee68`, and `851a5e0` display persistent status and refresh inventory after checks and credential revalidation. DEC-022 defines the status semantics. These changes have not yet been run locally.
+**Lifecycle status implementation (2026-11-21):** Commits `86d3794`, `fecbba5`, and `5f1abbd` add persisted connection status, timestamps, and error classification with migration `005_device_connection_lifecycle.sql`; `d002147` adds provider tests for online, degraded, offline, and inventory projection. Frontend commits `3ce9796`, `4876143`, `56aee68`, and `851a5e0` display persistent status and refresh inventory after checks and credential revalidation. `de91e79` ensures inventory edits return camelCase lifecycle fields, and `418b614` tests that response. DEC-022 defines the status semantics. These changes have not yet been run locally.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
