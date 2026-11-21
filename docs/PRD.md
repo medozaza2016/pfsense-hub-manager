@@ -190,3 +190,13 @@ The repository now contains a first executable scaffold: React/Vite frontend, Fa
 
 ## 17. Frontend workspace foundation
 The approved frontend direction uses a light content workspace with a dark navy sidebar and responsive navigation. Hub-level navigation and site-level navigation are contextual: opening a site replaces the Hub navigation with the Site workspace navigation and a **Back to Hub** action. The first UI increment must use existing API data only. It must not imply live reachability from a device's enabled/disabled manager configuration state, and it must label unimplemented views rather than displaying fabricated telemetry. The initial frontend foundation is being developed on the `feature/frontend-foundation` branch; local build and browser validation remain required before the increment is considered complete.
+
+
+## 18. Hub access configuration requirements
+
+### FR-12: GUI-managed Hub access settings
+The administrator shall manage Hub access configuration from the existing **Administration → Hub Settings** page. A fresh installation shall use `127.0.0.1` as its safe default and shall remain usable locally without Tailscale, a reverse proxy, or a custom domain. The page shall allow the administrator to save an optional Tailscale IPv4 address and shall be extensible to hostname and reverse-proxy metadata. Configuration shall be persisted in PostgreSQL and validated server-side.
+
+The UI and API shall distinguish at least: configured desired address, pending application, applied deployment binding, and verified reachability. Saving an address must not be presented as proof that the host is reachable. A real probe from an appropriate client/network vantage point is required to mark reachability verified.
+
+The application container cannot change the Docker host's published-port binding merely by updating a database row. Applying a binding change requires a separate, narrowly scoped host-side deployment mechanism or an explicit operator apply workflow. The implementation must not grant the web/API containers unrestricted Docker socket access. Until manager authentication/authorization and the host-side apply boundary are implemented and reviewed, remote binding remains unavailable and loopback remains enforced. Public reverse-proxy exposure is out of scope for the unauthenticated stage.
