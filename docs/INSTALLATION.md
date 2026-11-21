@@ -1,6 +1,6 @@
 # Installation
 
-Docker Engine and Docker Compose v2 are host prerequisites. Node.js is not required on the host.
+Docker Engine and Docker Compose v2 are host prerequisites for every Docker installation. Node.js and npm are required only for the optional local development validation profile.
 
 ## Windows 11
 
@@ -9,7 +9,15 @@ From the repository root in PowerShell:
     Set-ExecutionPolicy -Scope Process Bypass
     .\scripts\install.ps1
 
-Docker Desktop must be running.
+Docker Desktop must be running. This is the Docker deployment path and does not require Node.js on the host.
+
+For a Windows development setup that also prepares and validates the local npm workspaces, run:
+
+    .\scripts\install.ps1 -Development
+
+The development profile requires Node.js 22 or newer and npm 10 or newer. It checks both versions, installs workspace dependencies when needed, verifies that the local TypeScript compiler is available, and runs the repository type-check and production build before continuing with Docker installation. If Node.js is missing or too old, install the current Node.js LTS release and reopen PowerShell before rerunning the command.
+
+The installer uses `npm install` when the local dependency directory is absent or TypeScript is unavailable. The project does not currently commit a package lockfile, so a reproducible `npm ci` installation is not yet available.
 
 ## Linux
 
@@ -18,7 +26,9 @@ From the repository root:
     chmod +x scripts/install.sh
     ./scripts/install.sh
 
-Run as a user permitted to run Docker. The installer secures .env and secret files. The API key and generated device-credential encryption key are owned by UID 1000 for the API container on Linux. Keep the encryption key backed up separately from the database, because registered firewall credentials cannot be decrypted without it.
+Run as a user permitted to run Docker. The Linux installer currently provisions the Docker deployment only; it does not require Node.js or npm on the host.
+
+The installer secures .env and secret files. The API key and generated device-credential encryption key are owned by UID 1000 for the API container on Linux. Keep the encryption key backed up separately from the database, because registered firewall credentials cannot be decrypted without it.
 
 ## Optional code-server
 
