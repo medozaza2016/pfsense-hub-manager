@@ -510,7 +510,6 @@ export default function App() {
   const connectedCount = devices.filter(device => device.connectionStatus === "online").length;
   const firewallRulesDevice = devices.find(device => device.id === firewallRulesDeviceId);
   const availableRuleInterfaces = [...new Set(firewallRules.flatMap(rule => Array.isArray(rule.interface) ? rule.interface.map(value => String(value)) : [firewallRuleValue(rule.interface, "")]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const groupedFirewallRules = availableRuleInterfaces.map(interfaceName => ({ interfaceName, rules: visibleFirewallRules.filter(rule => (Array.isArray(rule.interface) ? rule.interface.map(value => String(value)) : [firewallRuleValue(rule.interface, "")]).includes(interfaceName)) })).filter(group => group.rules.length > 0);
   const visibleFirewallRules = firewallRules.filter(rule => {
     const query = firewallRulesSearch.trim().toLowerCase();
     const action = firewallRuleValue(rule.type, "").toLowerCase();
@@ -519,6 +518,7 @@ export default function App() {
     const searchable = [rule.id, rule.descr, rule.source, rule.source_port, rule.destination, rule.destination_port, rule.protocol, rule.ipprotocol, rule.interface].map(value => firewallRuleValue(value, "")).join(" ").toLowerCase();
     return (!query || searchable.includes(query)) && (firewallRulesAction === "all" || action === firewallRulesAction) && (firewallRulesInterface === "all" || interfaceName.split(", ").includes(firewallRulesInterface)) && (firewallRulesState === "all" || (firewallRulesState === "disabled" ? disabled : !disabled));
   });
+  const groupedFirewallRules = availableRuleInterfaces.map(interfaceName => ({ interfaceName, rules: visibleFirewallRules.filter(rule => (Array.isArray(rule.interface) ? rule.interface.map(value => String(value)) : [firewallRuleValue(rule.interface, "")]).includes(interfaceName)) })).filter(group => group.rules.length > 0);
   const sidebar = <aside className="sidebar">
     <div className="brand">
       <div className="brand-mark">pf</div>
