@@ -49,3 +49,15 @@ node scripts/generate-api-matrix.mjs
 This writes `docs/API-MATRIX.generated.md` with tag, method, path, operation ID, summary, authentication, privileges, required packages, request/response schema references, immediate-apply behavior, and cache behavior.
 
 Device verification, backend implementation, frontend exposure, and automated tests remain separate statuses. See `API-COMPATIBILITY.md`. Presence in the specification does not imply support or permission to invoke a write operation.
+
+
+## Additional read-only inventory operations implemented
+
+These operations are separate from the nine-operation core monitoring and compatibility baseline above. They are used only by the administrator-only firewall rules inventory.
+
+| Method | Path | Purpose | Manager exposure | Status |
+|---|---|---|---|---|
+| GET | `/api/v2/firewall/rules` | Read firewall rule collection | `GET /api/v1/devices/:deviceId/firewall/rules` | Implemented, bounded, normalized, first Plus live-verified |
+| GET | `/api/v2/interfaces` | Read configured interface assignments and descriptions | `GET /api/v1/devices/:deviceId/interfaces` | Implemented, first Plus live-verified |
+
+The interface assignment response uses `id` as the logical interface identifier and `descr` as its human-readable label. The rules UI displays labels such as `Main (OPT1)`. These endpoints do not expand routine polling. Both manager routes are administrator-only. Only endpoint-specific GET privileges are used, not `page-all`. Firewall configuration writes remain disabled.
