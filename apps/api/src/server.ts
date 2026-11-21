@@ -89,7 +89,10 @@ app.addHook("preHandler", async (request, reply) => {
   const adminOnly = path === "/api/v1/system/operations"
     || path.startsWith("/api/v1/system/operations/")
     || path === "/api/v1/users"
-    || path.startsWith("/api/v1/users/");
+    || path.startsWith("/api/v1/users/")
+    || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
+    || (path === "/api/v1/hub-settings" && request.method === "PUT")
+    || (path.startsWith("/api/v1/alerts/") && request.method !== "GET");
   if (adminOnly) await requireAdmin(request, reply);
 });
 
