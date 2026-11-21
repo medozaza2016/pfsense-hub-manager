@@ -26,6 +26,8 @@ export type DataTableProps<T> = {
   caption?: string;
   className?: string;
   mobileCard?: (row: T) => ReactNode;
+  selection?: (row: T) => ReactNode;
+  selectionHeader?: ReactNode;
 };
 
 function compareValues(a: unknown, b: unknown): number {
@@ -38,7 +40,7 @@ export function DataTable<T>({
   rows, columns, getRowId, searchableText, search = "", emptyTitle = "No records found",
   emptyDescription = "Try changing your search or filters.", loading = false,
   loadingLabel = "Loading records…", error, pageSize = 25, pageSizeOptions = [10, 25, 50, 100],
-  actions, caption, className, mobileCard
+  actions, caption, className, mobileCard, selection, selectionHeader
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ id: string; direction: SortDirection } | null>(null);
   const [page, setPage] = useState(0);
@@ -73,7 +75,7 @@ export function DataTable<T>({
       : <>
         <div className={"ui-table-scroll " + (className ? className + "-scroll" : "")}><table className={"ui-data-table " + (className ?? "")}>
           {caption && <caption>{caption}</caption>}
-          <thead><tr>{columns.map(column => <th key={column.id} scope="col" className={column.className}>
+          <thead><tr>{selection && <th className="ui-selection-cell" scope="col">{selectionHeader}</th>}{columns.map(column => <th key={column.id} scope="col" className={column.className}>
             {column.sortable && column.value
               ? <button type="button" className="ui-sort-button" onClick={() => changeSort(column.id)} aria-label={`Sort by ${column.header}`}>
                   {column.header}<span aria-hidden="true">{sort?.id === column.id ? sort.direction === "asc" ? " ↑" : " ↓" : " ↕"}</span>
@@ -81,6 +83,7 @@ export function DataTable<T>({
               : column.header}
           </th>)}{actions && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
           <tbody>{visible.map(row => <tr key={getRowId(row)}>
+            {selection && <td className="ui-selection-cell">{selection(row)}</td>}
             {columns.map(column => <td key={column.id} className={column.className}>{column.accessor(row)}</td>)}
             {actions && <td className="ui-row-actions">{actions(row)}</td>}
           </tr>)}</tbody>
