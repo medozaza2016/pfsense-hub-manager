@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 type Role = "admin" | "user";
 type User = { id: string; name: string; email: string; role: Role; active?: boolean };
@@ -20,7 +21,22 @@ const pageTitles: Record<Page, string> = {
   users: "User management", audit: "Audit logs", "manager-api": "Manager API", settings: "Settings"
 };
 
+const pagePaths: Record<Page, string> = {
+  dashboard: "/dashboard",
+  firewalls: "/firewalls",
+  "add-firewall": "/firewalls/add",
+  monitoring: "/monitoring",
+  users: "/users",
+  audit: "/audit-logs",
+  "manager-api": "/manager-api",
+  settings: "/settings"
+};
+const pathPages = Object.fromEntries(Object.entries(pagePaths).map(([page, path]) => [path, page])) as Record<string, Page>;
+
 export default function App() {
+  const location = useLocation();
+  const routerNavigate = useNavigate();
+  const page = pathPages[location.pathname] ?? "dashboard";
   const [screen, setScreen] = useState<"loading" | "setup" | "login" | "app">("loading");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [name, setName] = useState("");
@@ -51,7 +67,6 @@ export default function App() {
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<Role>("user");
   const [status, setStatus] = useState("Connecting to manager API");
-  const [page, setPage] = useState<Page>("dashboard");
   const [firewallsOpen, setFirewallsOpen] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -78,7 +93,7 @@ export default function App() {
   async function initialize() {
     try {
       const setup = await api<{ setupRequired: boolean }>("/api/v1/setup/status");
-      if (setup.data.setupRequired) { setScreen("setup"); return; }
+      if (setup.data.setupRequired) { setScreen("setup"); routerNavigate("/setup", { replace: true }); return; }
       const session = await api<User>("/api/v1/auth/me");
       setCurrentUser(session.data);
       await loadAppData(session.data);
@@ -87,9 +102,23 @@ export default function App() {
     } catch {
       setScreen("login");
       setStatus("Sign in required");
+      routerNavigate("/login", { replace: true });
     }
   }
   useEffect(() => { void initialize(); }, []);
+  useEffect(() => {
+    if (screen === "app") {
+      if (!pathPages[location.pathname] || location.pathname === "/login" || location.pathname === "/setup") {
+        routerNavigate("/dashboard", { replace: true });
+      } else if (currentUser?.role !== "admin" && ["users", "audit", "settings"].includes(page)) {
+        routerNavigate("/dashboard", { replace: true });
+      }
+    } else if (screen === "setup" && location.pathname !== "/setup") {
+      routerNavigate("/setup", { replace: true });
+    } else if (screen === "login" && location.pathname !== "/login") {
+      routerNavigate("/login", { replace: true });
+    }
+  }, [screen, location.pathname, currentUser?.role, page, routerNavigate]);
 
   async function completeSignIn(path: string, payload: Record<string, string>) {
     setBusy(true); setError(null);
@@ -101,6 +130,7 @@ export default function App() {
       setStatus("Manager API connected");
       setPassword("");
       setScreen("app");
+      routerNavigate("/dashboard", { replace: true });
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to sign in."); }
     finally { setBusy(false); }
   }
@@ -115,7 +145,7 @@ export default function App() {
   async function logout() {
     setBusy(true);
     try { await api("/api/v1/auth/logout", { method: "POST" }); }
-    finally { setCurrentUser(null); setOverview(null); setScreen("login"); setBusy(false); }
+    finally { setCurrentUser(null); setOverview(null); setScreen("login"); routerNavigate("/login", { replace: true }); setBusy(false); }
   }
   async function refresh() {
     if (!currentUser) return;
@@ -227,7 +257,7 @@ export default function App() {
       await api("/api/v1/devices", { method: "POST", body: JSON.stringify(firewallPayload()) });
       setFirewallApiKey(""); setFirewallCa(""); setFirewallTlsServername(""); setCertificateDiscovery(null); setFirewallTested(false); setFirewallTestResult(null);
       if (currentUser) await loadAppData(currentUser);
-      setPage("firewalls");
+      navigate("firewalls");
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to register firewall."); }
     finally { setBusy(false); }
   }
@@ -270,7 +300,7 @@ export default function App() {
   }
 
   const isAdmin = currentUser?.role === "admin";
-  function navigate(next: Page) { setPage(next); setMobileNavOpen(false); setOverview(null); setError(null); }
+  function navigate(next: Page) { routerNavigate(pagePaths[next]); setMobileNavOpen(false); setOverview(null); setError(null); }
   const navClass = (sidebarCollapsed ? "app-layout sidebar-collapsed" : "app-layout") + (mobileNavOpen ? " mobile-nav-open" : "");
   const visibleDevices = devices.filter(device => {
     const query = firewallSearch.trim().toLowerCase();
