@@ -1,8 +1,5 @@
 name: CI
 on:
-  push:
-    branches: [main, feature/installation-onboarding]
-  pull_request:
   workflow_dispatch:
 concurrency:
   group: pfsense-app-${{ github.ref }}
