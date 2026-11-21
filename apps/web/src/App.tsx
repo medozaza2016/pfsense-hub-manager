@@ -499,7 +499,7 @@ export default function App() {
           <section className="inventory-overview">
             <article><span className="inventory-kpi-label">REGISTERED</span><strong>{devices.length}</strong><small>Appliances in this manager</small></article>
             <article><span className="inventory-kpi-label">ENABLED</span><strong>{devices.filter(device => device.enabled).length}</strong><small>Configured and available to check</small></article>
-            <article><span className="inventory-kpi-label">CHECKED SUCCESSFULLY</span><strong>{connectedCount}</strong><small>Successful checks in this session</small></article>
+            <article><span className="inventory-kpi-label">ONLINE</span><strong>{connectedCount}</strong><small>Currently reachable appliances</small></article>
           </section>
           <section className="content-card inventory-toolbar">
             <div className="inventory-toolbar-copy"><strong>Appliances</strong><span>Search and filter your managed firewall fleet.</span></div>
@@ -516,7 +516,8 @@ export default function App() {
               const checkLabel = connectionStatusLabel(device.connectionStatus);
               const checkClass = device.connectionStatus === "online" ? "connectivity-state connectivity-good"
                 : !device.connectionStatus || device.connectionStatus === "unknown" ? "connectivity-state connectivity-unknown"
-                  : "connectivity-state connectivity-warning";
+                  : ["offline", "authentication_failed", "authorization_failed", "tls_error", "error"].includes(device.connectionStatus) ? "connectivity-state connectivity-error"
+                    : "connectivity-state connectivity-warning";
               return <article className={"inventory-device" + (selectedDeviceId === device.id ? " inventory-device-selected" : "")} key={device.id}>
                 <div className="inventory-device-main"><div className="inventory-device-icon">◈</div><div className="inventory-device-copy">
                   <div className="inventory-device-title"><strong>{device.name}</strong><span className={device.enabled ? "config-state state-enabled" : "config-state state-disabled"}>{device.enabled ? "Enabled" : "Disabled"}</span></div>
