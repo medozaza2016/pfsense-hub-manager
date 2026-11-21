@@ -206,13 +206,77 @@ type ApiUser={id:string;username:string;role:"admin"|"user";isActive:boolean;cre
 type ApiAlert={id:string;severity:"critical"|"warning"|"info";title:string;message:string;source:string;resourceType?:string;resourceId?:string;status:"active"|"acknowledged"|"resolved";firstSeenAt:string;lastSeenAt:string;occurrenceCount:number};
 type AuditRecord={id:number;occurredAt:string;actorUsername:string|null;actorType:string;action:string;outcome:string;targetType:string|null;targetId:string|null;summary:string;requestId:string|null};
 async function apiRequest<T>(url:string,init?:RequestInit):Promise<T>{const response=await fetch(url,{credentials:"same-origin",...init,headers:{"Content-Type":"application/json",...(init?.headers??{})}});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error?.message??"The request could not be completed.");return body.data as T;}
-function UserManagement(){const [users,setUsers]=useState<ApiUser[]>([]);const [search,setSearch]=useState("");const [roleFilter,setRoleFilter]=useState("all");const [statusFilter,setStatusFilter]=useState("all");const [busy,setBusy]=useState(true);const [error,setError]=useState("");const [message,setMessage]=useState("");const [username,setUsername]=useState("");const [password,setPassword]=useState("");const [role,setRole]=useState<"admin"|"user">("user");const [creating,setCreating]=useState(false);
-async function load(){setBusy(true);setError("");try{setUsers(await apiRequest<ApiUser[]>("/api/v1/users?search="+encodeURIComponent(search)));}catch(e){setError(e instanceof Error?e.message:"Unable to load users.");}finally{setBusy(false);}}
-useEffect(()=>{void load();},[search]);
-async function createUser(e:React.FormEvent){e.preventDefault();setCreating(true);setMessage("");setError("");try{await apiRequest("/api/v1/users",{method:"POST",body:JSON.stringify({username,password,role})});setUsername("");setPassword("");setRole("user");setMessage("User created.");await load();}catch(e){setError(e instanceof Error?e.message:"Unable to create user.");}finally{setCreating(false);}}
-async function changeUser(user:ApiUser,patch:Partial<Pick<ApiUser,"role"|"isActive">>){setError("");setMessage("");try{await apiRequest("/api/v1/users/"+user.id,{method:"PATCH",body:JSON.stringify(patch)});setMessage("User updated. Existing sessions were revoked when access changed.");await load();}catch(e){setError(e instanceof Error?e.message:"Unable to update user.");}}
-const columns=[{id:"username",header:"Username",sortable:true,value:(u:ApiUser)=>u.username,accessor:(u:ApiUser)=><strong>{u.username}</strong>},{id:"role",header:"Role",sortable:true,value:(u:ApiUser)=>u.role,accessor:(u:ApiUser)=><select aria-label={"Role for "+u.username} value={u.role} onChange={e=>void changeUser(u,{role:e.target.value as "admin"|"user"})}><option value="admin">Admin</option><option value="user">User</option></select>},{id:"status",header:"Status",sortable:true,value:(u:ApiUser)=>u.isActive?"Active":"Disabled",accessor:(u:ApiUser)=><Status state={u.isActive?"online":"offline"} label={u.isActive?"Active":"Disabled"}/>},{id:"created",header:"Created",sortable:true,value:(u:ApiUser)=>new Date(u.createdAt),accessor:(u:ApiUser)=>new Date(u.createdAt).toLocaleDateString()}];
-return <><div className="page-heading"><div><h1>User Management</h1><p>Manage Hub accounts, roles, and account access</p></div></div><Panel title="Create user"><form className="admin-create-form" onSubmit={createUser}><label>Username<input required minLength={3} maxLength={64} value={username} onChange={e=>setUsername(e.target.value)} autoComplete="off"/></label><label>Temporary password<input required type="password" minLength={14} maxLength={128} value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password"/></label><label>Role<select value={role} onChange={e=>setRole(e.target.value as "admin"|"user")}><option value="user">User</option><option value="admin">Admin</option></select></label><button className="primary-button" disabled={creating}>{creating?"Creating…":"Create user"}</button></form></Panel><ListToolbar search={search} onSearch={setSearch} placeholder="Search users by username or role" filters activeCount={(roleFilter==="all"?0:1)+(statusFilter==="all"?0:1)} onClear={()=>{setRoleFilter("all");setStatusFilter("all");}} chips={[...(roleFilter!=="all"?[{label:"Role: "+roleFilter,onRemove:()=>setRoleFilter("all")}]:[]),...(statusFilter!=="all"?[{label:"Status: "+statusFilter,onRemove:()=>setStatusFilter("all")}]:[])]} actions={<button className="secondary-button" onClick={()=>void load()}>Refresh</button>}><label>Role<select value={roleFilter} onChange={e=>setRoleFilter(e.target.value)}><option value="all">All roles</option><option value="admin">Administrator</option><option value="user">User</option></select></label><label>Account status<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label></ListToolbar>{error&&<div className="settings-message error" role="alert">{error}</div>}{message&&<div className="settings-message" role="status">{message}</div>}<Panel title="Application users" action={<span className="subtle">{users.length} users</span>}><DataTable rows={users.filter(u=>(roleFilter==="all"||u.role===roleFilter)&&(statusFilter==="all"||(statusFilter==="active"?u.isActive:!u.isActive)))} columns={columns} getRowId={u=>u.id} searchableText={u=>u.username+" "+u.role+" "+(u.isActive?"active":"disabled")} search={search} loading={busy} error="" emptyTitle="No users found" emptyDescription="Create a user or adjust the search." pageSize={25} actions={u=><><button className="secondary-button" disabled={!u.isActive} onClick={()=>void changeUser(u,{isActive:false})}>Disable</button> <button className="secondary-button" disabled={u.isActive} onClick={()=>void changeUser(u,{isActive:true})}>Enable</button></>}/></Panel><p className="preview-footnote">Only administrators can manage accounts. Passwords are never returned by the API. Changing role or status revokes existing sessions.</p></>}
+function UserManagement(){
+ const [users,setUsers]=useState<ApiUser[]>([]);
+ const [search,setSearch]=useState("");
+ const [roleFilter,setRoleFilter]=useState("all");
+ const [statusFilter,setStatusFilter]=useState("all");
+ const [busy,setBusy]=useState(true);
+ const [error,setError]=useState("");
+ const [message,setMessage]=useState("");
+ const [createOpen,setCreateOpen]=useState(false);
+ const [createSuccess,setCreateSuccess]=useState(false);
+ const [username,setUsername]=useState("");
+ const [password,setPassword]=useState("");
+ const [role,setRole]=useState<"admin"|"user">("user");
+ const [creating,setCreating]=useState(false);
+ async function load(){
+  setBusy(true);setError("");
+  try{setUsers(await apiRequest<ApiUser[]>("/api/v1/users?search="+encodeURIComponent(search)));}
+  catch(e){setError(e instanceof Error?e.message:"Unable to load users.");}
+  finally{setBusy(false);}
+ }
+ useEffect(()=>{void load();},[search]);
+ function openCreate(){setUsername("");setPassword("");setRole("user");setCreateSuccess(false);setCreateOpen(true);}
+ function closeCreate(){if(creating)return;setCreateOpen(false);setCreateSuccess(false);}
+ async function createUser(e:React.FormEvent){
+  e.preventDefault();setCreating(true);setError("");
+  try{
+   await apiRequest("/api/v1/users",{method:"POST",body:JSON.stringify({username:username.trim(),password,role})});
+   setCreateSuccess(true);setMessage("User created successfully.");await load();
+  }catch(e){setError(e instanceof Error?e.message:"Unable to create user.");}
+  finally{setCreating(false);}
+ }
+ async function changeUser(user:ApiUser,patch:Partial<Pick<ApiUser,"role"|"isActive">>){
+  setError("");setMessage("");
+  try{await apiRequest("/api/v1/users/"+user.id,{method:"PATCH",body:JSON.stringify(patch)});setMessage("User updated successfully. Existing sessions were revoked when access changed.");await load();}
+  catch(e){setError(e instanceof Error?e.message:"Unable to update user.");}
+ }
+ const columns=[
+  {id:"username",header:"Username",sortable:true,value:(u:ApiUser)=>u.username,accessor:(u:ApiUser)=><strong>{u.username}</strong>},
+  {id:"role",header:"Role",sortable:true,value:(u:ApiUser)=>u.role,accessor:(u:ApiUser)=><select className="ui-select ui-role-select" aria-label={"Role for "+u.username} value={u.role} onChange={e=>void changeUser(u,{role:e.target.value as "admin"|"user"})}><option value="admin">Admin</option><option value="user">User</option></select>},
+  {id:"status",header:"Status",sortable:true,value:(u:ApiUser)=>u.isActive?"Active":"Disabled",accessor:(u:ApiUser)=><Status state={u.isActive?"online":"offline"} label={u.isActive?"Active":"Disabled"}/>},
+  {id:"created",header:"Created",sortable:true,value:(u:ApiUser)=>new Date(u.createdAt),accessor:(u:ApiUser)=>new Date(u.createdAt).toLocaleDateString()}
+ ];
+ return <>
+  <div className="page-heading"><div><h1>User Management</h1><p>Manage Hub accounts, roles, and account access</p></div><button className="primary-button" onClick={openCreate}><Icon name="plus"/> Add user</button></div>
+  <ListToolbar search={search} onSearch={setSearch} placeholder="Search users by username or role" filters activeCount={(roleFilter==="all"?0:1)+(statusFilter==="all"?0:1)} onClear={()=>{setRoleFilter("all");setStatusFilter("all");}} chips={[...(roleFilter!=="all"?[{label:"Role: "+roleFilter,onRemove:()=>setRoleFilter("all")}]:[]),...(statusFilter!=="all"?[{label:"Status: "+statusFilter,onRemove:()=>setStatusFilter("all")}]:[])]} actions={<button className="secondary-button" onClick={()=>void load()}>Refresh</button>}>
+   <label>Role<select className="ui-select" value={roleFilter} onChange={e=>setRoleFilter(e.target.value)}><option value="all">All roles</option><option value="admin">Administrator</option><option value="user">User</option></select></label>
+   <label>Account status<select className="ui-select" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label>
+  </ListToolbar>
+  {error&&<div className="settings-message error" role="alert">{error}</div>}
+  {message&&<div className="settings-message" role="status">{message}</div>}
+  <Panel title="Application users" action={<span className="subtle">{users.length} users</span>}>
+   <DataTable rows={users.filter(u=>(roleFilter==="all"||u.role===roleFilter)&&(statusFilter==="all"||(statusFilter==="active"?u.isActive:!u.isActive)))} columns={columns} getRowId={u=>u.id} searchableText={u=>u.username+" "+u.role+" "+(u.isActive?"active":"disabled")} search={search} loading={busy} error="" emptyTitle="No users found" emptyDescription="Create a user or adjust the search." pageSize={25} actions={u=><><button className="secondary-button" disabled={!u.isActive} onClick={()=>void changeUser(u,{isActive:false})}>Disable</button> <button className="secondary-button" disabled={u.isActive} onClick={()=>void changeUser(u,{isActive:true})}>Enable</button></>}/>
+  </Panel>
+  <p className="preview-footnote">Only administrators can manage accounts. Passwords are never returned by the API. Changing role or status revokes existing sessions.</p>
+  {createOpen&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)closeCreate();}}>
+   <section className="modal user-create-modal" role="dialog" aria-modal="true" aria-labelledby="create-user-title">
+    {!createSuccess&&<button className="modal-close" aria-label="Close dialog" onClick={closeCreate}><Icon name="close"/></button>}
+    {createSuccess?<div className="modal-result" role="status"><span className="modal-result-icon"><Icon name="check" size={24}/></span><span className="eyebrow">USER MANAGEMENT</span><h2 id="create-user-title">User created</h2><p>The account <strong>{username.trim()}</strong> was created successfully with the <strong>{role}</strong> role.</p><button className="primary-button full-width" onClick={()=>{setCreateOpen(false);setCreateSuccess(false);}}>Done</button></div>:<>
+     <span className="eyebrow">USER MANAGEMENT</span><h2 id="create-user-title">Add user</h2><p>Create an account and assign its initial access role. The user can sign in after creation.</p>
+     <form className="user-create-form" onSubmit={createUser}>
+      <label>Username<input required minLength={3} maxLength={64} value={username} onChange={e=>setUsername(e.target.value)} autoComplete="off" placeholder="Enter username"/></label>
+      <label>Temporary password<input required type="password" minLength={14} maxLength={128} value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password" placeholder="At least 14 characters"/><small>Use at least 14 characters. Share it securely with the new user.</small></label>
+      <label>Role<select className="ui-select" value={role} onChange={e=>setRole(e.target.value as "admin"|"user")}><option value="user">User</option><option value="admin">Admin</option></select></label>
+      {error&&<div className="settings-message error" role="alert">{error}</div>}
+      <div className="modal-actions"><button type="button" className="secondary-button" onClick={closeCreate} disabled={creating}>Cancel</button><button className="primary-button" disabled={creating}>{creating?"Creating…":"Create user"}</button></div>
+     </form>
+    </>}
+   </section>
+  </div>}
+ </>;
+}
 function AuditLog(){const [records,setRecords]=useState<AuditRecord[]>([]);const [search,setSearch]=useState("");const [outcome,setOutcome]=useState("all");const [busy,setBusy]=useState(true);const [error,setError]=useState("");async function load(){setBusy(true);setError("");try{setRecords(await apiRequest<AuditRecord[]>("/api/v1/audit?limit=200&search="+encodeURIComponent(search)));}catch(e){setError(e instanceof Error?e.message:"Unable to load audit events.");}finally{setBusy(false);}}useEffect(()=>{void load();},[search]);const columns=[{id:"time",header:"Time (UTC)",sortable:true,value:(r:AuditRecord)=>new Date(r.occurredAt),accessor:(r:AuditRecord)=>new Date(r.occurredAt).toLocaleString(undefined,{timeZone:"UTC"})},{id:"event",header:"Event",sortable:true,value:(r:AuditRecord)=>r.action,accessor:(r:AuditRecord)=><strong>{r.action}</strong>},{id:"actor",header:"Actor",sortable:true,value:(r:AuditRecord)=>r.actorUsername??r.actorType,accessor:(r:AuditRecord)=>r.actorUsername??r.actorType},{id:"target",header:"Target",value:(r:AuditRecord)=>r.targetType??"",accessor:(r:AuditRecord)=>r.targetType?r.targetType+(r.targetId?" · "+r.targetId.slice(0,8):""):"—"},{id:"outcome",header:"Outcome",sortable:true,value:(r:AuditRecord)=>r.outcome,accessor:(r:AuditRecord)=><Status state={r.outcome==="success"?"online":r.outcome==="denied"?"offline":"warning"} label={r.outcome}/>},{id:"summary",header:"Summary",accessor:(r:AuditRecord)=>r.summary}];return <><div className="page-heading"><div><h1>Audit Logs</h1><p>Append-only record of authentication and administrative activity</p></div><button className="secondary-button" onClick={()=>void load()}>Refresh</button></div><ListToolbar search={search} onSearch={setSearch} placeholder="Search actor, event or summary" filters activeCount={outcome==="all"?0:1} onClear={()=>setOutcome("all")} chips={outcome==="all"?[]:[{label:"Outcome: "+outcome,onRemove:()=>setOutcome("all")}]}><label>Outcome<select value={outcome} onChange={e=>setOutcome(e.target.value)}><option value="all">All outcomes</option><option value="success">Success</option><option value="failure">Failure</option><option value="denied">Denied</option></select></label></ListToolbar>{error&&<div className="settings-message error" role="alert">{error}</div>}<Panel title="Recent events" action={<span className="subtle">{records.length} events</span>}><DataTable rows={records.filter(r=>outcome==="all"||r.outcome===outcome)} columns={columns} getRowId={r=>r.id} searchableText={r=>[r.actorUsername??r.actorType,r.action,r.summary,r.outcome,r.targetType??""].join(" ")} search={search} loading={busy} emptyTitle="No audit events recorded" emptyDescription="Events will appear here as users authenticate and perform administrative actions." pageSize={25}/></Panel><p className="preview-footnote">Audit events are append-only. This screen provides no edit or delete controls.</p></>}
 function Alerts({onNavigate}:{onNavigate:(p:Page)=>void}){
  const [alerts,setAlerts]=useState<ApiAlert[]>([]);const [status,setStatus]=useState<"active"|"acknowledged"|"resolved"|"all">("active");const [severity,setSeverity]=useState("all");const [search,setSearch]=useState("");const [busy,setBusy]=useState(true);const [error,setError]=useState("");
