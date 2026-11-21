@@ -118,6 +118,9 @@ function Metric({icon,label,value,detail,tone}:{icon:IconName;label:string;value
 function Panel({title,action,children,className=""}:{title:string;action?:ReactNode;children:React.ReactNode;className?:string}){return <section className={"panel "+className}><div className="panel-heading"><h2>{title}</h2>{action}</div>{children}</section>}
 
 export default function App(){
+ const [authMode,setAuthMode]=useState<"checking"|"setup"|"login"|"ready">("checking");
+ const [authUser,setAuthUser]=useState("");
+ useEffect(()=>{let active=true;(async()=>{try{const status=await fetch("/api/v1/auth/status",{credentials:"same-origin"});const body=await status.json();if(!active)return;if(body.data?.setupRequired){setAuthMode("setup");return;}const me=await fetch("/api/v1/auth/me",{credentials:"same-origin"});if(!active)return;if(me.ok){const result=await me.json();setAuthUser(result.data?.username??"Administrator");setAuthMode("ready");}else setAuthMode("login");}catch{if(active)setAuthMode("login");}})();return()=>{active=false;}},[]);
  const [page,setPage]=useState<Page>("overview");
  const [selected,setSelected]=useState<Device|null>(null);
  const [menuOpen,setMenuOpen]=useState(false);
@@ -138,6 +141,9 @@ export default function App(){
  function backHub(){setSelected(null);go("overview");}
  function refresh(){setRefreshCount(x=>x+1);notify("Preview refreshed. No firewall was contacted.");}
  function addSite(){if(!formName.trim()){notify("Enter a site name to continue.");return;}const d:Device={id:"preview-"+Date.now(),name:formName.trim(),location:formLocation.trim()||"Location not set",edition:"Plus",address:"Not configured",state:"offline",lastSeen:"Not connected"};setLocalSites(s=>[...s,d]);setFormName("");setFormLocation("");setDialog("none");go("sites");notify("Preview site added locally. No device was registered with the backend.");}
+ async function signOut(){await fetch("/api/v1/auth/logout",{method:"POST",credentials:"same-origin"});setAuthUser("");setAuthMode("login");setDialog("none");}
+ if(authMode==="checking")return <AuthScreen mode="loading" onAuthenticated={()=>{}}/>;
+ if(authMode!=="ready")return <AuthScreen mode={authMode} onAuthenticated={username=>{setAuthUser(username);setAuthMode("ready");}}/>;
  const pageTitle=titles[page]??"Hub Overview";
  const isOverview=page==="overview";
  return <div className="app-shell">
