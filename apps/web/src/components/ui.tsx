@@ -100,7 +100,7 @@ export function DataTable<T>({
 
 export function ListToolbar({ search, onSearch, placeholder, filters, activeCount = 0, onClear, children, actions, chips = [] }: {
   search: string; onSearch: (value: string) => void; placeholder?: string;
-  filters?: boolean; activeCount?: number; onClear?: () => void; children?: ReactNode; actions?: ReactNode; chips?: Array<{ label: string; onRemove: () => void }>; chips?: Array<{ label: string; onRemove: () => void }>;
+  filters?: boolean; activeCount?: number; onClear?: () => void; children?: ReactNode; actions?: ReactNode; chips?: Array<{ label: string; onRemove: () => void }>;
 }) {
   const [expanded, setExpanded] = useState(false);
   return <section className="ui-list-toolbar">
