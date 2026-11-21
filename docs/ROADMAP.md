@@ -118,3 +118,16 @@ The exact firewall-to-hub connection method remains deferred. The transport abst
 The initial application scaffold is committed: React/Vite web app, Fastify API, PostgreSQL Compose service, initial SQL migration, Dockerfiles, local-only web exposure, Docker-secret API-key mount, strict HTTPS client, fixed allowlist for the eight previously verified GET endpoints, per-operation poll records, health/readiness endpoints, Prometheus-format metrics, and CI workflow. The first UI can trigger a read-only collection and show the result. ARP rows and individual firewall state rows are reduced to aggregate counts and are not persisted.
 
 This is not a production release. The manager has no user login or role model yet. Only one firewall is configured through environment variables. The live TLS trust chain, Compose build on the LXC, API response compatibility, and CI run must be verified before calling the foundation operational. No write API, shell execution, reboot, halt, apply, or arbitrary upstream proxy is implemented.
+
+## Phase 1, User Management, Audit Logs, and Alerts
+
+**Approved scope, November 21, 2026.** These three Hub areas will be delivered together as one phase. Reuse the existing login, users, and role model, do not rebuild authentication. Audit every consequential action, then generate severity-based alerts for events that warrant attention. Audit history is complete and durable; alerts are a filtered attention layer, not a duplicate of every audit entry.
+
+- [ ] Inspect and preserve existing authentication, user persistence, roles, and authorization checks.
+- [ ] Implement durable, append-only audit events with secret redaction.
+- [ ] Complete persisted User Management workflows using the existing role model.
+- [ ] Implement Critical, Warning, and Info alerts, including deduplication and acknowledge/resolve lifecycle.
+- [ ] Connect User Management, Audit Logs, and Alerts screens to real backend data.
+- [ ] Add authorization, audit coverage, alert lifecycle, migration, and UI integration tests.
+
+See [Phase 1 specification](PHASE-01-USER-MANAGEMENT-AUDIT-ALERTS.md) for scope, security rules, delivery sequence, and acceptance criteria.
