@@ -113,10 +113,12 @@ export function ListToolbar({ search, onSearch, placeholder, filters, activeCoun
         {actions}
       </div>
     </div>
-    {chips.length > 0 && <div className="ui-active-chips">{chips.map((chip,index)=><button type="button" key={index} onClick={chip.onRemove}>{chip.label}<span aria-hidden="true"> ×</span></button>)}</div>}
+    {(chips.length > 0 || (activeCount > 0 && onClear)) && <div className="ui-active-filters-row">
+      <div className="ui-active-chips">{chips.map((chip,index)=><button type="button" key={index} onClick={chip.onRemove}>{chip.label}<span aria-hidden="true"> ×</span></button>)}</div>
+      {activeCount > 0 && onClear && <button type="button" className="ui-clear-filters" onClick={onClear}>Clear all</button>}
+    </div>}
     {filters && expanded && <div className="ui-filter-panel">
-      <div className="ui-filter-panel-heading"><div><strong>Filter records</strong><span>Combine filters to narrow this list</span></div>
-      {activeCount > 0 && onClear && <button type="button" className="ui-clear-filters" onClick={onClear}>Clear all</button>}</div>
+      <div className="ui-filter-panel-heading"><div><strong>Filter records</strong><span>Combine filters to narrow this list</span></div></div>
       <div className="ui-filter-fields">{children}</div>
     </div>}
   </section>;
