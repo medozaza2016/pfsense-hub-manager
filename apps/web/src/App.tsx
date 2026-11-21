@@ -590,14 +590,15 @@ export default function App() {
         {editDevice && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeDeviceEditor(); }}>
           <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-firewall-title">
             <div className="modal-heading"><div><span className="eyebrow">FLEET MANAGEMENT</span><h2 id="edit-firewall-title">Edit firewall</h2><p className="muted">Update the inventory record. API credentials and connection settings are not changed here.</p></div><button type="button" onClick={closeDeviceEditor} disabled={busy} aria-label="Close">×</button></div>
-            <form className="modal-form" onSubmit={saveDeviceEdit}>
-              <label>Display name<input value={editDevice.name} onChange={e => setEditDevice({ ...editDevice, name: e.target.value })} minLength={2} maxLength={120} required /></label>
-              <label>Location / site<input value={editDevice.location ?? ""} onChange={e => setEditDevice({ ...editDevice, location: e.target.value })} maxLength={120} /></label>
-              <label>pfSense edition<select value={editDevice.edition} onChange={e => setEditDevice({ ...editDevice, edition: e.target.value })}><option value="plus">pfSense Plus</option><option value="ce">pfSense CE</option><option value="unknown">Unknown</option></select></label>
-              <label className="modal-checkbox"><input type="checkbox" checked={editDevice.enabled} onChange={e => setEditDevice({ ...editDevice, enabled: e.target.checked })} /> Enable this appliance for read-only checks</label>
-              <div className="modal-actions"><button type="button" onClick={closeDeviceEditor} disabled={busy}>Cancel</button><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : "Save inventory changes"}</button></div>
-            </form>
-            <section className="credential-editor">
+            <div className="modal-content-scroll">
+              <form className="modal-form" onSubmit={saveDeviceEdit}>
+                <label>Display name<input value={editDevice.name} onChange={e => setEditDevice({ ...editDevice, name: e.target.value })} minLength={2} maxLength={120} required /></label>
+                <label>Location / site<input value={editDevice.location ?? ""} onChange={e => setEditDevice({ ...editDevice, location: e.target.value })} maxLength={120} /></label>
+                <label>pfSense edition<select value={editDevice.edition} onChange={e => setEditDevice({ ...editDevice, edition: e.target.value })}><option value="plus">pfSense Plus</option><option value="ce">pfSense CE</option><option value="unknown">Unknown</option></select></label>
+                <label className="modal-checkbox"><input type="checkbox" checked={editDevice.enabled} onChange={e => setEditDevice({ ...editDevice, enabled: e.target.checked })} /> Enable this appliance for read-only checks</label>
+                <div className="modal-actions"><button type="button" onClick={closeDeviceEditor} disabled={busy}>Cancel</button><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : "Save inventory changes"}</button></div>
+              </form>
+              <section className="credential-editor">
               <div className="credential-editor-heading">
                 <span className="eyebrow">CONNECTION SECURITY</span>
                 <h3>API credentials and TLS</h3>
@@ -615,7 +616,8 @@ export default function App() {
                   <div className="credential-submit-row"><button className="primary-button" type="submit" disabled={busy || !credentialApiKey.trim() || clearCredentialCa && Boolean(credentialCa.trim()) || clearCredentialTls && Boolean(credentialTlsServername.trim())}>{busy ? "Testing and saving…" : "Verify and update credentials"}</button></div>
                 </form>
               </>}
-            </section>
+              </section>
+            </div>
           </section>
         </div>}
         {deleteDevice && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setDeleteDevice(null); }}>
