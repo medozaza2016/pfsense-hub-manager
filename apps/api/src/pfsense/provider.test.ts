@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import type { AppConfig } from "../config.js";
-import { decryptSecret } from "../auth/credential-crypto.js";
+import { decryptSecret, encryptSecret } from "../auth/credential-crypto.js";
 import { PfSenseProvider, type FirewallInput } from "./provider.js";
 import { PfSenseApiError } from "./errors.js";
 
@@ -53,7 +53,10 @@ describe("pfSense provider device registration and credential safety", () => {
     getMock.mockReset();
     closeMock.mockReset().mockResolvedValue(undefined);
     constructorMock.mockReset();
-    query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const storedKey = encryptSecret("test-device-api-key", encryptionKey);
+    query = vi.fn().mockImplementation(async (statement: string) => statement.includes("SELECT api_base_url,api_key_ciphertext")
+      ? { rows: [{ api_base_url: input.apiBaseUrl, api_key_ciphertext: storedKey.ciphertext, api_key_iv: storedKey.iv, api_key_tag: storedKey.tag, ca_certificate_pem: null, tls_servername: null }], rowCount: 1 }
+      : { rows: [], rowCount: 1 });
     pool = { query } as unknown as Pool;
     provider = new PfSenseProvider(config, pool, encryptionKey);
   });
@@ -248,7 +251,7 @@ describe("pfSense provider device registration and credential safety", () => {
     const result = await provider.collect(primaryDeviceId, onResult);
 
     expect(result).toMatchObject({ failedOperations: 0, connectionStatus: "online" });
-    expect(query).toHaveBeenCalledTimes(9); // Eight poll records plus one lifecycle update.
+    expect(query).toHaveBeenCalledTimes(10); // Device credential lookup, eight poll records, and one lifecycle update.
     const [statement, values] = query.mock.calls.at(-1) as unknown as [string, unknown[]];
     expect(statement).toContain("UPDATE managed_devices");
     expect(statement).toContain("last_success_at=CASE WHEN");
