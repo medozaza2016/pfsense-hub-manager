@@ -52,7 +52,6 @@ export class PfSenseProvider {
       enabled: row.enabled, connectionStatus: row.connection_status ?? "unknown",
       lastCheckedAt: row.last_checked_at ?? null, lastSuccessAt: row.last_success_at ?? null,
       lastErrorClass: row.last_error_class ?? null,
-      canDelete: true
     }));
   }
 
