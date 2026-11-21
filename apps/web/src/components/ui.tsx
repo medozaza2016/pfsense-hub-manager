@@ -108,7 +108,7 @@ export function ListToolbar({ search, onSearch, placeholder, filters, activeCoun
       <SearchField value={search} onChange={onSearch} placeholder={placeholder ?? "Search records"} />
       <div className="ui-list-toolbar-actions">
         {filters && <button type="button" className={"ui-filter-toggle " + (expanded ? "is-open" : "")} aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
-          <span aria-hidden="true">☷</span> Filters {activeCount > 0 && <b>{activeCount}</b>} <span className="ui-filter-chevron" aria-hidden="true">⌄</span>
+          <span aria-hidden="true">☷</span> Filters {activeCount > 0 && <b>{activeCount}</b>} <span className="ui-filter-toggle-mark" aria-hidden="true">{expanded ? "−" : "+"}</span>
         </button>}
         {actions}
       </div>
