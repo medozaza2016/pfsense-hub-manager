@@ -104,7 +104,7 @@ app.post("/api/v1/auth/setup", async (request, reply) => {
     if (!user) throw new Error("Administrator account creation returned no user.");
     await db.query("COMMIT");
     const token = await createSession(pool, user.id);
-    setSessionCookie(reply, token.token, request.protocol === "https");
+    setSessionCookie(reply, token.token, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
     return reply.code(201).send({ data: { id: user.id, username: user.username } });
   } catch (error) {
     try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
