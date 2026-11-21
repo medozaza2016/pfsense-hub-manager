@@ -72,7 +72,7 @@ export class PfSenseProvider {
 
   async testConnection(input: Pick<FirewallInput, "apiBaseUrl" | "apiKey" | "caCertificatePem" | "tlsServername">) {
     const baseUrl = validateBaseUrl(input.apiBaseUrl);
-    if (!input.apiKey.trim() || input.apiKey.length > 4096 || /[\\r\\n]/.test(input.apiKey)) throw new Error("Enter a valid pfSense API key.");
+    if (!input.apiKey.trim() || input.apiKey.length > 4096 || /[\r\n]/.test(input.apiKey)) throw new Error("Enter a valid pfSense API key.");
     if (input.caCertificatePem && (input.caCertificatePem.length > 65536 || !input.caCertificatePem.includes("-----BEGIN CERTIFICATE-----"))) {
       throw new Error("CA certificate must be a PEM certificate under 64 KB.");
     }
