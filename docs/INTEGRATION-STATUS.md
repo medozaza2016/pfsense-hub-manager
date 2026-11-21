@@ -1,7 +1,7 @@
 # Integration Status
 
 **Historical firewall-side verification:** 2026-11-19 (America/New_York; command output timestamps were 2026-11-20 UTC)  
-**Latest application test reported:** 2026-11-21, Windows 11 local Docker Compose development environment  
+**Latest application validation reported:** 2026-11-21, Windows 11 local development environment, 42 tests passed across 7 files, API/web type checks and production builds passed  
 **Status:** First pfSense Plus connection test and read-only collection reported successful; read-only scope  
 **Environment:** Windows 11 development workstation connecting through Tailscale subnet routing to the Branch LAN. This is separate from validation on the production Proxmox LXC.
 
@@ -63,6 +63,19 @@ The captured system response reported CPU usage 17%, memory usage 18%, and disk 
 The key was entered interactively and stored only in a shell variable for the duration of the test. The test used the X-API-Key header and removed the variable afterward. The test bypassed certificate validation because the current certificate is self-signed.
 
 Do not copy a real key into shell history, source files, issue comments, logs, or documentation. For repeatable tests, use a protected secret store or a root-readable environment file with restrictive permissions.
+
+## Latest manager-side automated coverage (2026-11-21)
+
+The user reported 42 passing tests across 7 test files, followed by successful API and web TypeScript checks and production builds. The added route/provider coverage includes:
+
+- Admin-only device registration and metadata update routes.
+- Credential replacement for additional devices, including read-only connection re-test before encrypted credentials are saved.
+- Rejection of credential rotation for the installation-configured primary device.
+- Propagation of configured CA certificate and TLS server name into the firewall client used for connection testing.
+- Certificate discovery response metadata (DNS identities, suggested server name, fingerprint) and rejection of non-HTTPS discovery URLs.
+- Authorization checks for credential rotation and registration.
+
+Certificate-discovery route tests use a mocked TLS socket. These tests validate route behavior and certificate metadata handling, not a new live TLS handshake with the physical firewall. The historical live firewall verification above remains the separate evidence for the Plus device. No CE validation or production LXC validation is implied.
 
 ## Known limitations and pending work
 
