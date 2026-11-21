@@ -54,7 +54,7 @@ describe("pfSense provider device registration and credential safety", () => {
     constructorMock.mockReset();
     query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
     pool = { query } as unknown as Pool;
-    provider = new PfSenseProvider({} as never, config, pool, encryptionKey);
+    provider = new PfSenseProvider({ get: getMock, close: closeMock } as never, config, pool, encryptionKey);
   });
 
   it("tests connectivity before saving a device and stores only encrypted API credentials", async () => {
