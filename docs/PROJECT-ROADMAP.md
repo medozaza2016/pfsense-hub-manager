@@ -4,7 +4,7 @@
 **Canonical tracking document:** `docs/PROJECT-ROADMAP.md`  
 **Active branch:** `feature/installation-onboarding`  
 **Last updated:** 2026-11-21  
-**Status:** Active development, Phase 1 local validation baseline passed; Windows native dependency repair verified
+**Status:** Phase 1 route, credential, TLS, and certificate test coverage implemented; Windows local tests, type checks, and production builds passed
 
 This is the authoritative cross-session project tracker. At the end of every meaningful development session, update this document before stopping. A new chat should read this file first, then `AGENTS.md`, `docs/DECISIONS.md`, and the phase-specific documents linked below. Do not rely on chat history as the project record.
 
@@ -64,20 +64,20 @@ Status meanings:
 ### Validated local development baseline
 - [x] Windows development installer completed successfully, including native Rollup/esbuild verification, dependency audit, type checks, production builds, Docker image builds, and Compose startup (earlier validated session).
 - [x] `npm audit`: 0 vulnerabilities (earlier user-reported validation; not rerun in the latest command sequence).
-- [x] API tests: 29 tests passed across 7 test files in the latest Windows run.
-- [x] `npm run typecheck`: API and web passed in the latest Windows run.
-- [x] `npm run build`: API and web production builds passed in the latest Windows run. Vite emitted two non-fatal React Router `use client` directive warnings.
-- [x] Latest user-reported Git sync: `git pull --ff-only origin feature/installation-onboarding` returned `Already up to date`.
+- [x] API tests: 42 tests passed across 7 test files in the latest Windows run (2026-11-21).
+- [x] `npm run typecheck`: API and web passed after the credential-update exact-optional-property fix.
+- [x] `npm run build`: API and web production builds passed. Vite emitted two non-fatal React Router `use client` directive warnings.
+- [x] Local branch is synchronized with `origin/feature/installation-onboarding` at `1c4724f` (`fix(api): omit undefined credential update fields`); working tree reported clean.
 - [x] Earlier Docker Compose validation reported `api`, `db`, and `web` healthy, with web bound only to `127.0.0.1:8080`; not rerun in the latest command sequence.
 - [x] User reports the application acceptance check passed (earlier validation).
 - [x] The npm workspace `package-lock.json` is tracked in the repository; the old untracked-lockfile note is obsolete.
 - [x] The injectable Fastify app factory and separated runtime bootstrap compile and pass the latest tests.
 
 ### Remaining foundation work
-- [~] Expand route-level tests beyond the initial authentication/authorization cases, especially registration, credential update, device lifecycle, and error paths.
-- [ ] Add focused tests for TLS configuration and certificate handling at the route/provider boundary.
+- [x] Add route-level coverage for device registration, metadata updates, credential rotation, authorization, primary-device protection, and relevant error paths.
+- [x] Add provider and route tests for credential revalidation, TLS CA/server-name propagation, certificate discovery metadata, and invalid non-HTTPS discovery input.
 - [ ] Review the non-fatal React Router build warnings only if a compatible, low-risk fix is identified; they do not currently fail the build.
-- [~] Reconcile older documentation with the current implementation and validation evidence.
+- [~] Continue reconciling older documentation with the current implementation and validation evidence.
 
 ### Not yet completed
 - [ ] Full monitoring pages and useful normalized per-firewall detail views.
@@ -134,8 +134,9 @@ The phases are ordered. A phase may overlap with documentation or design work, b
 - [x] npm workspace lockfile committed and retained.
 - [x] Add provider tests for registration/connectivity, credential encryption behavior, TLS verification failure, device listing, and protected primary-device deletion.
 - [x] Extract injectable Fastify app factory and add six route authentication/authorization tests.
-- [ ] Extend route tests to registration, credential update, device lifecycle, and additional error cases.
-- [ ] Add route/provider boundary tests for TLS configuration and certificate handling.
+- [x] Add route tests for device registration, metadata updates, credential rotation, admin authorization, and primary-device protection.
+- [x] Add route/provider boundary tests for TLS trust configuration, CA and TLS server-name propagation, certificate metadata discovery, and invalid URL handling.
+- [x] Validate 42 tests across 7 files, API/web type checks, and API/web production builds on Windows 11.
 
 **Exit gate:** Clean local build and documented manual acceptance test, without data loss or CI requirement.
 
@@ -147,9 +148,9 @@ The phases are ordered. A phase may overlap with documentation or design work, b
 - [x] Per-device CA and TLS server-name support.
 - [x] Certificate inspection/discovery during onboarding.
 - [ ] Add explicit device connection profile and lifecycle states.
-- [ ] Improve edit workflow to cover connection settings and safe credential replacement/rotation, not only metadata.
-- [ ] Add credential re-test before saving changes and clear rollback behavior.
-- [ ] Implement credential rotation and revocation procedure.
+- [~] Backend credential replacement/rotation route implemented for additional devices, with read-only connection re-test before encrypted credentials and TLS settings are persisted; primary-device rotation remains installation-secret managed.
+- [ ] Add frontend credential-edit workflow and clear operator feedback for connection/TLS failures.
+- [ ] Define and document the operational credential rotation/revocation procedure.
 - [ ] Record pfSense edition, release, architecture, REST API package version, and verified capability profile per device.
 - [ ] Add a compatibility matrix and capability discovery process.
 - [ ] Validate CE independently when the user connects the CE firewall.
@@ -343,7 +344,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: close the remaining Phase 1 route and TLS test gaps, then complete a documented local acceptance pass.**
+**Next task: finish Phase 1 documentation and manual acceptance evidence, then begin Phase 2 device connection profiles and compatibility discovery.**
 
 The user has successfully completed the corrected Windows development installer. The installer:
 - Recognized the required Windows native Rollup and esbuild packages at their expected versions.
@@ -386,7 +387,7 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 
 **Latest relevant commit:** `24b15b0` (`test(api): cover session and route authorization`).
 
-**Next action:** continue Phase 1 with route tests for registration and credential updates, followed by TLS configuration/certificate tests. Keep the application read-only against firewalls and preserve all existing local data and secrets.
+**Next action:** document the completed route/TLS test coverage and validation evidence, then design Phase 2 connection profiles and per-device compatibility discovery. Keep firewall operations read-only and preserve all existing local data and secrets.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
