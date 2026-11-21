@@ -102,3 +102,20 @@ This implementation has since been exercised in the Windows local Docker Compose
 ## Ninth approved read-only operation: REST API package version
 
 The operator added the GET permission for `/api/v2/system/restapi/version`. The manager probes this separately from the eight core operational checks and reads `data.current_version`. On 2026-11-21, the per-firewall compatibility page displayed `v2.11.0` and reported **9 of 9** endpoint checks as Verified for the Netgate 2100 running pfSense Plus 26.07.2-RELEASE. This is the current application-reported evidence for that device; it does not establish CE compatibility or full schema validation. The adjacent PATCH method is not called or authorized.
+
+
+## Firewall rules inventory and interface assignment verification (2026-11-21)
+
+The administrator-only firewall rules inventory was implemented and manually accepted on the first Plus firewall.
+
+- Manager endpoint: `GET /api/v1/devices/:deviceId/firewall/rules`.
+- Upstream operation: `GET /api/v2/firewall/rules`.
+- Collection uses bounded pagination (100 per page) and a hard cap of 1,000 rules.
+- Provider normalizes an explicit allowlist of rule fields and requires an integer rule ID. Tracker and created/updated metadata are excluded. Raw firewall rule records are not persisted.
+- The endpoint is separate from routine monitoring and is administrator-only. No firewall write method or generic proxy is exposed.
+- Interface assignments use a separate administrator-only manager endpoint backed by `GET /api/v2/interfaces`. Logical IDs are read from `id`, human-readable descriptions from `descr`. The endpoint-specific `api-v2-interfaces-get` privilege was used, not `page-all`.
+- The UI groups rules by interface, retains pfSense order, calculates priority from the original per-interface order (filters do not renumber), and keeps disabled rules visible.
+
+User screenshot acceptance showed 30 rules: LAN 4, OpenVPN 1, Main (OPT1) 7, TestLab (OPT2) 4, IoT (OPT3) 3, Mgt (OPT4) 1, WAN 9, and WireGuard 1. Summary counts: 25 enabled, 5 disabled.
+
+User-reported Windows validation: `npm test` passed 52 tests across 7 files; `npm run typecheck` passed for API and web; `npm run build` passed for API and web. Docker API/web services were rebuilt and the live UI was verified. No CI was run. This evidence applies to the first Plus firewall only, not the unconnected CE firewall.
