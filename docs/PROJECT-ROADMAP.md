@@ -349,11 +349,13 @@ After frontend validation, validate the API workspace and Compose configuration/
 
 ## 8. Session handoff
 
-**Last known code state:** The current branch includes React Router navigation and URL paths. The user has not yet reported a local TypeScript check or production build after those latest changes.
+**Last known code state:** The current branch includes React Router navigation and URL paths. Root scripts are confirmed in `package.json`: `npm run typecheck`, `npm run build`, and `npm test`. The user has not yet reported a local TypeScript check or production build after the routing changes. The web app uses BrowserRouter and the Nginx configuration includes an SPA fallback (`try_files $uri $uri/ /index.html`).
 
 **Last known live test:** User confirmed that the firewall connection test returned “Connection successful. pfSense API version endpoint responded.” User also confirmed the read-only collection worked in the local Windows Docker Compose environment.
 
-**Next chat should begin by:** Reading this file, confirming the active branch and Git working tree, then asking the user to run the Phase 1 validation commands above and share the output. Do not start another feature until the latest navigation build is verified.
+**Latest documentation commit:** `42d2aca5aec28db5d90e475b2985a83c2e13c03f` (integration status reconciliation). The canonical roadmap was created in `594b86e597d2d9f037e0f2bb4ce78931492cd4cc`; README, AGENTS.md, and the legacy checklist were then synchronized.
+
+**Next chat should begin by:** Reading this file, confirming the active branch and Git working tree, then asking the user to run `npm run typecheck` and `npm run build` from the repository root and share the output. Do not start another feature until the latest navigation build is verified.
 
 **Do not do:** Do not run CI unless necessary and approved. Do not touch production LXC. Do not delete/reset PostgreSQL volumes. Do not regenerate secrets. Do not overwrite local compose/certificate changes. Do not assume the second CE firewall is connected. Do not enable firewall write operations before Phase 5's safety gate.
 
