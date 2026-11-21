@@ -244,3 +244,16 @@
  }
  .ui-mobile-record-actions.user-mobile-actions .user-status-toggle.on i{transform:translateX(18px)}
 }
+
+
+/* Search input is visually one control with its enclosing search field */
+.ui-search-field input:focus,
+.ui-search-field input:focus-visible{
+ outline:none!important;
+ box-shadow:none!important;
+ border:0!important;
+}
+.ui-search-field:focus-within{
+ border-color:#6a9cf7;
+ box-shadow:0 0 0 3px #075df51a;
+}
