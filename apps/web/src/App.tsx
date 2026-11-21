@@ -477,7 +477,31 @@ export default function App() {
           <div className="dashboard-main-grid">
             <section className="content-card fleet-panel">
               <div className="dashboard-card-heading"><div><span className="eyebrow">YOUR ENVIRONMENT</span><h2>Managed firewalls</h2><p>Registered appliances and their configuration.</p></div><button className="text-button" onClick={() => navigate("firewalls")}>All firewalls <span>→</span></button></div>
-              {devices.length === 0 ? <div className="dashboard-empty"><div className="empty-symbol">◈</div><strong>No firewalls registered</strong><p>Add your first pfSense appliance to start managing your environment.</p>{isAdmin && <button className="primary-button" onClick={() => navigate("add-firewall")}>Add firewall</button>}</div> : <div className="fleet-list">{devices.map(device => <article className="fleet-device" key={device.id}><div className="fleet-device-icon">◈</div><div className="fleet-device-copy"><strong>{device.name}</strong><span>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</span></div><span className="pill">Configured</span><button className="fleet-check" disabled={busy} onClick={() => void runCheck(device.id)}>{busy ? "Checking…" : "Run check"}</button></article>)}</div>}
+              {devices.length === 0 ? <div className="dashboard-empty"><div className="empty-symbol">◈</div><strong>No firewalls registered</strong><p>Add your first pfSense appliance to start managing your environment.</p>{isAdmin && <button className="primary-button" onClick={() => navigate("add-firewall")}>Add firewall</button>}</div> : <div className="fleet-list">{devices.map(device => {
+                const deviceCheckClass = device.connectionStatus === "online" ? "connectivity-state connectivity-good"
+                  : !device.connectionStatus || device.connectionStatus === "unknown" ? "connectivity-state connectivity-unknown"
+                    : ["offline", "authentication_failed", "authorization_failed", "tls_error", "error"].includes(device.connectionStatus) ? "connectivity-state connectivity-error"
+                      : "connectivity-state connectivity-warning";
+                const detailsOpen = selectedDeviceId === device.id;
+                return <article className="fleet-device fleet-device-updated" key={device.id}>
+                  <div className="fleet-device-icon">◈</div>
+                  <div className="fleet-device-copy">
+                    <div className="fleet-device-title"><strong>{device.name}</strong><span className={device.enabled ? "config-state state-enabled" : "config-state state-disabled"}>{device.enabled ? "Enabled" : "Disabled"}</span></div>
+                    <span className="fleet-device-location">{device.location || "Location not set"} <i>·</i> <span className="inventory-edition-badge">pfSense {device.edition.toUpperCase()}</span></span>
+                    <div className="fleet-device-meta"><span className="inventory-config-meta"><i className="meta-dot dot-configured"/>{device.enabled ? "Configuration enabled" : "Configuration disabled"}</span><span className={deviceCheckClass}><i className="meta-dot"/>Connection {connectionStatusLabel(device.connectionStatus)}</span>{device.lastCheckedAt && <span className="inventory-last-checked"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.1"/><path d="M8 4.5V8l2.4 1.5"/></svg>Checked {new Date(device.lastCheckedAt).toLocaleString()}</span>}</div>
+                  </div>
+                  <div className="inventory-device-actions dashboard-device-actions" aria-label={`Actions for ${device.name}`}>
+                    {isAdmin && <button className="device-action device-action-edit" title="Edit appliance" aria-label={`Edit ${device.name}`} onClick={() => openDeviceEditor(device)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m13.8 3.2 3 3-9.7 9.7-3.8.8.8-3.8 9.7-9.7Z"/><path d="m11.9 5.1 3 3"/></svg><span>Edit</span></button>}
+                    {isAdmin && <button className="device-action device-action-remove" title="Remove appliance" aria-label={`Remove ${device.name}`} onClick={() => { setDeleteConfirmation(""); setDeleteDevice(device); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h13M8 5.5V3.8h4v1.7m-6.5 0 .7 11h7.6l.7-11M8.2 8.2v5.7m3.6-5.7v5.7"/></svg><span>Remove</span></button>}
+                    <button className="device-action device-action-details" aria-expanded={detailsOpen} onClick={() => setSelectedDeviceId(detailsOpen ? null : device.id)}><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 9v4m0-7h.01"/></svg><span>{detailsOpen ? "Hide" : "Details"}</span></button>
+                    <button className="device-action device-action-check primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.8 16 5v4.3c0 3.6-2.4 6.2-6 7.9-3.6-1.7-6-4.3-6-7.9V5l6-2.2Z"/><path d="m7.1 9.8 1.9 1.9 3.9-4"/></svg><span>{busy && selectedDeviceId === device.id ? "Checking…" : "Run check"}</span></button>
+                  </div>
+                  {detailsOpen && <div className="inventory-detail fleet-device-detail">
+                    <div><span>Appliance</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div><div><span>Connection status</span><strong>{connectionStatusLabel(device.connectionStatus)}</strong></div><div><span>Last successful check</span><strong>{device.lastSuccessAt ? new Date(device.lastSuccessAt).toLocaleString() : "Not yet successful"}</strong></div><div><span>Last error class</span><strong>{device.lastErrorClass || "None"}</strong></div>
+                    <p>Connection status reflects the latest read-only collection. Firewall configuration changes are not performed by this manager.</p>
+                  </div>}
+                </article>;
+              })}</div>}
               <div className="fleet-panel-footer"><span>{devices.length} {devices.length === 1 ? "firewall" : "firewalls"} registered</span><span>Configuration inventory</span></div>
             </section>
             <div className="dashboard-side-stack">
@@ -489,7 +513,6 @@ export default function App() {
               <section className="content-card operations-panel"><div className="dashboard-card-heading"><div><span className="eyebrow">OPERATIONS</span><h2>Monitoring status</h2></div><span className="status-tag status-planned">In development</span></div><p>Live system metrics, interface traffic, gateway health, and service status are not yet available in this release.</p><button className="text-button" onClick={() => navigate("monitoring")}>Explore monitoring <span>→</span></button></section>
             </div>
           </div>
-          {overview && <section className="content-card"><span className="eyebrow">LIVE API CHECK</span><h2>Read-only endpoint results</h2><pre>{JSON.stringify(overview,null,2)}</pre><p className="muted">Only aggregate counts are retained when returned by the API.</p></section>}
         </div>}
         {page === "firewalls" && <div className="page-stack inventory-page">
           <div className="inventory-heading">
