@@ -36,7 +36,7 @@ const hubSettingsSchema = z.object({
 }).strict();
 
 const loginAttempts = new Map<string, { count: number; windowStartedAt: number }>();
-function getCookie(request: { headers: { cookie?: string } }): string | null {
+function getCookie(request: { headers: { cookie: string | undefined } }): string | null {
   const raw = request.headers.cookie;
   if (!raw) return null;
   for (const part of raw.split(";")) {
