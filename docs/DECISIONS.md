@@ -22,7 +22,7 @@ This document records confirmed architectural decisions. Proposals and open ques
 
 ### DEC-005, Least-privilege API identity
 **Status:** Verified for first Plus firewall  
-**Decision:** Use a dedicated regular pfSense user named pfsense_hub, not an administrator account, for the initial API integration. The API key belongs to this user and the user has the eight GET privileges recorded in INTEGRATION-STATUS.md.
+**Decision:** Use a dedicated regular pfSense user named pfsense_hub, not an administrator account, for the initial API integration. The API key belongs to this user and the user has the nine approved GET privileges recorded in INTEGRATION-STATUS.md, eight core operational reads plus the REST API package-version probe.
 
 ### DEC-006, Keep current addressing for now
 **Status:** Accepted  
