@@ -9,7 +9,7 @@ services:
       - 'export PASSWORD="$$(cat /run/secrets/code_server_password)"; exec /usr/bin/entrypoint.sh --bind-addr 0.0.0.0:8080 --auth password --disable-telemetry /home/coder/project'
     ports: ["127.0.0.1:${CODE_SERVER_PORT:-8443}:8080"]
     volumes:
-      - ./:/home/coder/project
+      - ./workspace:/home/coder/project
       - code_server_config:/home/coder/.config
       - code_server_data:/home/coder/.local/share/code-server
     secrets: [code_server_password]
