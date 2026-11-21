@@ -82,6 +82,16 @@ app.addHook("onRequest", async (request, reply) => {
   (request as typeof request & { admin?: typeof admin }).admin = admin;
 });
 
+// Keep operational and user-administration API namespaces administrator-only.
+app.addHook("preHandler", async (request, reply) => {
+  const path = (request.raw.url ?? "").split("?")[0] ?? "";
+  const adminOnly = path === "/api/v1/system/operations"
+    || path.startsWith("/api/v1/system/operations/")
+    || path === "/api/v1/users"
+    || path.startsWith("/api/v1/users/");
+  if (adminOnly) await requireAdmin(request, reply);
+});
+
 app.addHook("onResponse", async (request, reply) => {
   const route = request.routeOptions.url ?? "unmatched";
   const start = (request as typeof request & { metricStart?: bigint }).metricStart ?? process.hrtime.bigint();
