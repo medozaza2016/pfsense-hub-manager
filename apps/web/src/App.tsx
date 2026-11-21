@@ -201,17 +201,32 @@ export default function App() {
       </header>
       <main className="page-content">
         {error && <div className="notice">{error}</div>}
-        {page === "dashboard" && <div className="page-stack">
-          <div className="welcome-row"><div><h2>Network overview</h2><p className="muted">A centralized view of your firewall environment.</p></div><button onClick={() => void refresh()} disabled={busy}>↻ Refresh data</button></div>
-          <div className="stat-grid">
-            <article className="stat-card"><span className="stat-label">REGISTERED FIREWALLS</span><strong>{devices.length}</strong><span className="stat-foot">Configured in inventory</span></article>
-            <article className="stat-card"><span className="stat-label">MANAGER API</span><strong className="stat-status"><i className="dot online" />Connected</strong><span className="stat-foot">Application backend</span></article>
-            <article className="stat-card"><span className="stat-label">CURRENT ROLE</span><strong className="stat-role">{isAdmin ? "Admin" : "User"}</strong><span className="stat-foot">{isAdmin ? "Full manager access" : "Read-only access"}</span></article>
+        {page === "dashboard" && <div className="dashboard-layout">
+          <div className="dashboard-heading">
+            <div><p className="dashboard-kicker">NETWORK OPERATIONS</p><h2>Good to see you, {currentUser?.name?.split(" ")[0] || "Administrator"}</h2><p className="muted">Here is the current state of your firewall environment.</p></div>
+            <button className="dashboard-refresh" onClick={() => void refresh()} disabled={busy}>↻ Refresh data</button>
           </div>
-          <section className="content-card"><div className="card-heading"><div><span className="eyebrow">INVENTORY</span><h2>Managed firewalls</h2></div><button className="text-button" onClick={() => navigate("firewalls")}>View inventory →</button></div>
-            {devices.length === 0 ? <p className="muted">No firewalls are registered yet.</p> : devices.slice(0,4).map(device => <div className="device-row" key={device.id}><div className="device-symbol">◈</div><div className="device-info"><strong>{device.name}</strong><span>{device.location || "Location not set"} · pfSense {device.edition.toUpperCase()}</span></div><span className="pill">Configured</span></div>)}
-          </section>
-          <section className="content-card placeholder-card"><span className="eyebrow">OPERATIONS</span><h2>Monitoring overview</h2><p className="muted">Live health metrics, interface status, gateway monitoring, and service information will appear here as monitoring capabilities are added.</p><button onClick={() => navigate("monitoring")}>Open monitoring →</button></section>
+          <div className="dashboard-metrics">
+            <article className="metric-panel metric-firewalls"><div className="metric-icon">◈</div><div><span className="metric-caption">REGISTERED FIREWALLS</span><strong>{devices.length}</strong><small>{devices.length === 1 ? "Appliance in inventory" : "Appliances in inventory"}</small></div><button className="metric-link" onClick={() => navigate("firewalls")}>View inventory <span>→</span></button></article>
+            <article className="metric-panel"><div className="metric-icon metric-icon-green">⌁</div><div><span className="metric-caption">MANAGER API</span><strong className="metric-connected"><i className="dot online"/>Connected</strong><small>Application backend</small></div><button className="metric-link" onClick={() => navigate("manager-api")}>View status <span>→</span></button></article>
+            <article className="metric-panel"><div className="metric-icon metric-icon-blue">♙</div><div><span className="metric-caption">YOUR ACCESS</span><strong>{isAdmin ? "Administrator" : "Read-only user"}</strong><small>{isAdmin ? "Full manager access" : "Read-only access"}</small></div>{isAdmin && <button className="metric-link" onClick={() => navigate("users")}>Manage users <span>→</span></button>}</article>
+          </div>
+          <div className="dashboard-main-grid">
+            <section className="content-card fleet-panel">
+              <div className="dashboard-card-heading"><div><span className="eyebrow">YOUR ENVIRONMENT</span><h2>Managed firewalls</h2><p>Registered appliances and their configuration.</p></div><button className="text-button" onClick={() => navigate("firewalls")}>All firewalls <span>→</span></button></div>
+              {devices.length === 0 ? <div className="dashboard-empty"><div className="empty-symbol">◈</div><strong>No firewalls registered</strong><p>Add your first pfSense appliance to start managing your environment.</p>{isAdmin && <button className="primary-button" disabled title="Firewall onboarding is the next development milestone">Add firewall</button>}</div> : <div className="fleet-list">{devices.map(device => <article className="fleet-device" key={device.id}><div className="fleet-device-icon">◈</div><div className="fleet-device-copy"><strong>{device.name}</strong><span>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</span></div><span className="pill">Configured</span><button className="fleet-check" disabled={busy} onClick={() => void runCheck(device.id)}>{busy ? "Checking…" : "Run check"}</button></article>)}</div>}
+              <div className="fleet-panel-footer"><span>{devices.length} {devices.length === 1 ? "firewall" : "firewalls"} registered</span><span>Configuration inventory</span></div>
+            </section>
+            <div className="dashboard-side-stack">
+              <section className="content-card quick-actions-panel"><div className="dashboard-card-heading"><div><span className="eyebrow">SHORTCUTS</span><h2>Quick actions</h2></div></div>
+                <button className="quick-action" onClick={() => navigate("firewalls")}><span className="quick-action-icon">◈</span><span><strong>Firewall inventory</strong><small>Review registered appliances</small></span><b>→</b></button>
+                <button className="quick-action" onClick={() => navigate("monitoring")}><span className="quick-action-icon">⌁</span><span><strong>Monitoring</strong><small>Open network monitoring</small></span><b>→</b></button>
+                {isAdmin && <button className="quick-action" onClick={() => navigate("users")}><span className="quick-action-icon">♙</span><span><strong>User management</strong><small>Manage access and roles</small></span><b>→</b></button>}
+              </section>
+              <section className="content-card operations-panel"><div className="dashboard-card-heading"><div><span className="eyebrow">OPERATIONS</span><h2>Monitoring status</h2></div><span className="status-tag status-planned">In development</span></div><p>Live system metrics, interface traffic, gateway health, and service status are not yet available in this release.</p><button className="text-button" onClick={() => navigate("monitoring")}>Explore monitoring <span>→</span></button></section>
+            </div>
+          </div>
+          {overview && <section className="content-card"><span className="eyebrow">LIVE API CHECK</span><h2>Read-only endpoint results</h2><pre>{JSON.stringify(overview,null,2)}</pre><p className="muted">Only aggregate counts are retained when returned by the API.</p></section>}
         </div>}
         {page === "firewalls" && <div className="page-stack">
           <div className="welcome-row"><div><h2>Firewall inventory</h2><p className="muted">Registered pfSense appliances and connection checks.</p></div><button onClick={() => void refresh()} disabled={busy}>↻ Refresh</button></div>
