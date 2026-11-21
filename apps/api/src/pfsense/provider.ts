@@ -15,7 +15,7 @@ export class PfSenseProvider{
  }
  async listDevices(){
   const result=await this.pool.query("SELECT id,name,location,edition,enabled,is_demo FROM managed_devices ORDER BY name");
-  return result.rows.map(row=>({id:row.id,name:row.name,location:row.location,edition:row.edition,release:null,enabled:row.enabled,isDemo:row.is_demo,connectionState:row.is_demo?"unknown":"unknown"}));
+  return result.rows.map(row=>({id:row.id,name:row.name,location:row.location,edition:row.edition,release:null,enabled:row.enabled,isDemo:row.is_demo,connectionState:"unknown"}));
  }
  async collect(deviceId:string,onResult:(group:string,result:"success"|"failure",errorClass?:string,durationMs?:number)=>void){
   if(deviceId!==this.config.PFSENSE_DEVICE_ID)return null;
