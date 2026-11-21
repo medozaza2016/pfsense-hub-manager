@@ -50,7 +50,13 @@ export class PfSenseProvider {
 
   async listDevices() {
     const result = await this.pool.query("SELECT id,name,location,edition,enabled FROM managed_devices ORDER BY name");
-    return result.rows.map(row => ({ id: row.id, name: row.name, location: row.location, edition: row.edition, release: null, enabled: row.enabled }));
+    return result.rows.map(row => ({ id: row.id, name: row.name, location: row.location, edition: row.edition, release: null, enabled: row.enabled, canDelete: row.id !== this.config.PFSENSE_DEVICE_ID }));
+  }
+
+  async deleteDevice(deviceId: string): Promise<boolean> {
+    if (deviceId === this.config.PFSENSE_DEVICE_ID) return false;
+    const result = await this.pool.query("DELETE FROM managed_devices WHERE id=$1 RETURNING id", [deviceId]);
+    return (result.rowCount ?? 0) > 0;
   }
 
   async updateDevice(deviceId: string, input: { name: string; location: string | null; edition: "plus" | "ce" | "unknown"; enabled: boolean }) {
