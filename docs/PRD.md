@@ -105,7 +105,7 @@ Development is performed locally on Windows 11 using VS Code and Docker Desktop.
 
 The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript Fastify service exposing a REST API. PostgreSQL runs as a dedicated Docker Compose service. The current single-device API key is file-mounted, but this is not the final multi-site credential architecture. Manager-user authentication and roles remain undecided. Until authentication and authorization are implemented, the UI must remain restricted to a trusted local development boundary and must not be publicly exposed. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
 
-Installation and first-run onboarding are product requirements. Their workflow and documentation must evolve with each implementation increment. The setup process must automate infrastructure prerequisites and one-time bootstrap wherever practical. Routine site registration, credential entry and rotation, connection testing, and site lifecycle management must be performed through the GUI without routine shell commands. The exact secret-storage and encryption/key-management mechanism remains an open security decision and must be approved before implementation.
+Installation and first-run onboarding are product requirements. Their workflow and documentation must evolve with each implementation increment. The setup process must automate infrastructure prerequisites and one-time bootstrap wherever practical. Routine site registration, credential entry and rotation, connection testing, and site lifecycle management must be performed through the GUI without routine shell commands. Per-site credentials shall be encrypted in PostgreSQL. Installation shall generate the application encryption key, provide a recovery copy for the administrator's password manager, and install a protected runtime copy for automatic backend access. See DEC-024. Key protection, recovery, and rotation must be implemented before production use.
 ## 9. Integration constraints and risks
 
 The pfSense REST API discussed for this project is community-maintained and unofficial. Its compatibility depends on the exact pfSense release and package release. Not all operations are necessarily available across Plus and CE.
@@ -134,7 +134,7 @@ The first milestone is acceptable when:
 2. How will the manager reach each firewall site?
 3. Will the backend require a private connector/agent?
 4. Which authentication method will administrators use to sign in?
-7. Where will firewall API credentials be stored, rotated, and revoked?
+7. How will encrypted firewall API credentials and the application encryption key be backed up, recovered, rotated, and revoked?
 8. PostgreSQL is approved for device inventory, status history, users, and audit records. The schema, retention, and backup policy still need to be designed.
 9. What are the exact CE release, Plus release, API package versions, and architectures at both locations?
 10. Which API endpoints and capabilities are verified on each installation?
