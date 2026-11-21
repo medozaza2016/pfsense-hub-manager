@@ -103,3 +103,29 @@ Do not connect the frontend to a mock endpoint or create fake persistence to mak
 - Do not enable write endpoints or broaden the existing eight firewall GET privileges as part of onboarding.
 - Manager-user authentication and authorization remain an unresolved prerequisite for exposing administrative site/credential management beyond a trusted local development boundary.
 
+## Reusable UI framework increment
+
+Branch: `feature/universal-ui-framework`
+
+The frontend now has a shared component foundation in `apps/web/src/components/`:
+
+- `DataTable<T>`: typed columns, consistent table rendering, client-side sorting, search integration, pagination, page-size selection, loading and empty states, optional row actions, and accessible table semantics.
+- `SearchField`: consistent accessible search input with clear action.
+- `PageHeader`: consistent page title, description, and action layout.
+- `EmptyState`: reusable empty-state presentation.
+- `Feedback`: consistent info, success, warning, and error messages.
+- `ui.css`: shared styles for tables, search, pagination, feedback, loading indicators, responsive page headers, and screen-reader-only labels.
+
+Initial adoption:
+- Firewall data preview pages use the shared data table, including common sorting, pagination, and search behavior.
+- User Management and Audit Logs use the same shared table, while retaining their API calls and domain-specific actions.
+- The shared search field is used by these list views instead of duplicating the search input markup.
+
+Design and behavior constraints:
+- Pages supply their data, column definitions, and domain-specific actions. They should not reimplement generic table mechanics.
+- The shared table currently sorts and paginates the dataset supplied to it in the browser. It does not claim server-side pagination. A server-backed data adapter should be introduced when the API exposes stable limit/offset or cursor contracts.
+- API error handling remains owned by the page that makes the request, while loading and empty presentation can be delegated to the shared table.
+- No new API endpoints, database changes, firewall write operations, or GitHub Actions workflows are introduced by this increment.
+- Existing preview data remains explicitly labeled as preview data. Shared components do not make fixture data live.
+
+Next adoption targets are Sites and Alerts, followed by a broader page-shell migration once browser acceptance confirms that shared spacing and responsive behavior preserve the approved design.
