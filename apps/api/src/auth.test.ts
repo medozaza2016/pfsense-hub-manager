@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hashPassword, hashSessionToken, verifyPassword } from "./auth.js";
+import { authorizationFailure, hashPassword, hashSessionToken, verifyPassword, type AdminUser } from "./auth.js";
 
 describe("administrator authentication primitives", () => {
   it("hashes passwords with a unique salt and verifies the original password", async () => {
@@ -20,5 +20,23 @@ describe("administrator authentication primitives", () => {
 
   it("rejects malformed password hash metadata", async () => {
     await expect(verifyPassword("password", "bad", "bad", 1)).resolves.toBe(false);
+  });
+});
+
+
+describe("manager role authorization", () => {
+  const admin: AdminUser = { id: "admin-id", username: "owner", role: "admin" };
+  const regularUser: AdminUser = { id: "user-id", username: "operator", role: "user" };
+
+  it("allows an administrator", () => {
+    expect(authorizationFailure(admin)).toBeNull();
+  });
+
+  it("returns 403 for an authenticated regular user", () => {
+    expect(authorizationFailure(regularUser)).toBe(403);
+  });
+
+  it("returns 401 when no authenticated user is present", () => {
+    expect(authorizationFailure(null)).toBe(401);
   });
 });
