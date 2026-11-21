@@ -99,6 +99,35 @@ export class PfSenseProvider {
     return { device: { id, name: input.name.trim(), location: input.location?.trim() || null, edition: input.edition, enabled: true }, connection: tested };
   }
 
+  async updateDeviceCredentials(deviceId: string, input: { apiKey: string; caCertificatePem?: string | null; tlsServername?: string | null }) {
+    if (deviceId === this.config.PFSENSE_DEVICE_ID) {
+      throw new Error("Primary firewall credentials are managed by the installation secrets and cannot be rotated here.");
+    }
+    const current = await this.pool.query(
+      "SELECT api_base_url,ca_certificate_pem,tls_servername FROM managed_devices WHERE id=$1",
+      [deviceId]
+    );
+    const row = current.rows[0];
+    if (!row) return null;
+
+    const caCertificatePem = input.caCertificatePem === undefined ? row.ca_certificate_pem : input.caCertificatePem;
+    const tlsServername = input.tlsServername === undefined ? row.tls_servername : input.tlsServername;
+    const connection = await this.testConnection({
+      apiBaseUrl: row.api_base_url,
+      apiKey: input.apiKey,
+      caCertificatePem: caCertificatePem ?? undefined,
+      tlsServername: tlsServername ?? undefined
+    });
+    const encrypted = encryptSecret(input.apiKey, this.credentialKey);
+    await this.pool.query(
+      `UPDATE managed_devices
+       SET api_key_ciphertext=$1,api_key_iv=$2,api_key_tag=$3,ca_certificate_pem=$4,tls_servername=$5,updated_at=now()
+       WHERE id=$6`,
+      [encrypted.ciphertext, encrypted.iv, encrypted.tag, caCertificatePem, tlsServername, deviceId]
+    );
+    return { deviceId, connection };
+  }
+
   private async clientForDevice(deviceId: string): Promise<{ client: PfSenseClient; owned: boolean } | null> {
     if (deviceId === this.config.PFSENSE_DEVICE_ID) return { client: this.client, owned: false };
     const result = await this.pool.query(
