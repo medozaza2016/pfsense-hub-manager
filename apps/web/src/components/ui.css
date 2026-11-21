@@ -179,8 +179,8 @@
 .ui-bulk-actions strong{margin-right:auto;color:#1d385c;font-size:12px}
 .ui-bulk-actions button:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:760px){
- .ui-mobile-record-list{display:block}
- .ui-table-scroll{display:none}
+ .ui-table-shell.has-mobile-cards .ui-mobile-record-list{display:block}
+ .ui-table-shell.has-mobile-cards .ui-table-scroll{display:none}
  .ui-table-footer{gap:11px}
  .ui-table-footer>span{font-size:11px}
  .ui-pagination{gap:6px}
