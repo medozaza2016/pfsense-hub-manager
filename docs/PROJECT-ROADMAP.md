@@ -328,46 +328,53 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: validate the permanent Windows native-dependency repair and commit the generated lockfile.**
+**Next task: validate the corrected Windows native-dependency repair.**
 
-The user has now locally verified the upgraded dependency set:
-- `npm audit`: 0 vulnerabilities.
-- API tests: 30 tests passed, but the original command ran both source and compiled `dist` tests, duplicating the same 15 tests.
-- API and web type checks passed.
-- API and web production builds passed.
-- The successful local repair installed `@rollup/rollup-win32-x64-msvc@4.68.7` and `@esbuild/win32-x64@0.25.12` together. API esbuild `0.28.2` remained correctly installed.
-- The generated `package-lock.json` is untracked locally and should be reviewed and committed after the next installer validation.
-- `apps/web/tsconfig.tsbuildinfo` is a generated artifact; `.gitignore` now ignores `*.tsbuildinfo`.
+The user confirmed `npm audit` reports 0 vulnerabilities. The user pulled the native repair script and ran `install.ps1 -Development`, which exposed a defect in the first repair implementation: Vite's esbuild needs native package version `0.25.12`, while the API's esbuild needs `0.28.2`. The first script incorrectly treated those as one shared package and stopped with a version conflict.
 
-Changes just added to this branch:
-- `scripts/repair-native-deps.mjs` detects the installed Rollup/Vite/API esbuild versions and installs missing or mismatched Windows native packages in one npm operation, without changing package manifests or the lockfile.
-- `scripts/install.ps1 -Development` invokes that repair before the audit/typecheck/build stages.
-- API test script now runs `vitest run src`, preventing compiled `dist` tests from being executed twice.
-- `.gitignore` ignores TypeScript incremental build artifacts.
-- `docs/INSTALLATION.md` documents the automatic native dependency repair and source-only test behavior.
+The repair script has now been corrected to install each native package at the appropriate dependency level:
+- Rollup's native package at the package level resolved for Rollup.
+- Vite's esbuild native package inside Vite's dependency tree.
+- API esbuild's native package at the package level resolved for the API's esbuild dependency.
 
-On the user's Windows development machine, from PowerShell:
+This preserves both required versions side-by-side and uses `--no-save --package-lock=false`. It does not alter package manifests or the user's lockfile.
+
+Recent fix commits:
+- `40ecec5407ae7f64b3ed1c63fa616434c1eba0f8` separates repairs by dependency prefix.
+- `cfdac303e7fa58f8d07444508d2612d7e5040d5e` corrects npm installation prefixes.
+- `347de83077e02a633583736258e31e35c6916ef0` resolves Rollup's native package at its own dependency level.
+- `04ae79192c95d498a3007bbcccaf8f84158315bf` documents why esbuild versions are installed separately.
+
+On the user's Windows machine, run:
 
 ```powershell
 cd C:\Users\ahmed\Desktop\Projects\pfsense-hub-manager
-git status --short
 git pull --ff-only
 .\scripts\install.ps1 -Development
+```
+
+If the installer passes the native dependency check, run:
+
+```powershell
 npm audit
 npm run test --workspace @pfsense-hub/api
 npm run typecheck
 npm run build
 ```
 
-The user has local untracked `package-lock.json`. Do not delete it. Review its optional native dependency entries after pulling. Confirm the installer repairs Rollup/esbuild automatically and the API test run reports 15 source tests, not 30 duplicated source/dist tests. If validation passes, commit the lockfile and any intentional local changes. Do not run CI. Do not reset, stash, or discard local changes.
+Expected audit: 0 vulnerabilities. Expected API test run: 15 source tests, not duplicated compiled tests. If the repair still fails, capture the complete output and stop before attempting manual package installs. Keep the untracked `package-lock.json`. Do not delete it, reset the working tree, or remove node_modules. No CI.
 
-After dependency validation, verify Compose configuration/build and manually test:
-- Sign-in and sign-out.
-- Browser refresh and direct URL navigation for every implemented route.
-- Admin versus User permissions.
-- Firewall inventory load, add, test, edit, enable/disable, and remove.
-- Read-only check and modal scrolling.
-- Restart containers and verify registered device credentials/TLS settings still work.
+After validation, review and commit the generated lockfile, then continue Phase 1 manual acceptance testing: Compose config/build, authentication, route refresh/deep links, role restrictions, firewall inventory operations, read-only checks, and restart persistence.
+
+## 8. Session handoff
+
+**Current state:** User's Windows installer run failed because the first native repair script incorrectly collapsed two different esbuild versions. The repair was corrected in GitHub, but the corrected script has not yet been run by the user.
+
+**Next action:** Pull the latest feature branch and rerun ` .\scripts\install.ps1 -Development` as shown above. Do not proceed to firewall feature work until the local install/test/build baseline is stable.
+
+**Preserve:** Keep the untracked `package-lock.json`; do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5.
+
+**Update this section at every session end:** Record latest commit, actual validation results, blockers, and next exact action.
 
 ## 8. Session handoff
 
