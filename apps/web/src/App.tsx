@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { DataTable, Feedback, ListToolbar } from "./components/ui";
 import "./components/ui.css";
+import { useToast } from "./components/ToastProvider";
 
 type IconName = "grid" | "sites" | "network" | "bell" | "settings" | "monitor" | "layers" | "shield" | "list" | "route" | "server" | "globe" | "key" | "file" | "plus" | "search" | "refresh" | "chevron" | "menu" | "close" | "clock" | "cpu" | "database" | "harddrive" | "check" | "alert" | "wifi" | "building" | "activity" | "more";
 function Icon({name,size=18}:{name:IconName;size?:number}) {
@@ -122,7 +123,7 @@ export default function App(){
  const [menuOpen,setMenuOpen]=useState(false);
  const [query,setQuery]=useState("");
  const [dialog,setDialog]=useState<"add-site"|"profile"|"none">("none");
- const [toast,setToast]=useState("");
+ const {notify}=useToast();
  const [toggleStates,setToggleStates]=useState<Record<string,boolean>>({"Automatic polling":true,"Email notifications":false,"Require confirmation":true});
  const [filter,setFilter]=useState("All");
  const [refreshCount,setRefreshCount]=useState(0);
@@ -130,7 +131,6 @@ export default function App(){
  const [formLocation,setFormLocation]=useState("");
  const [localSites,setLocalSites]=useState<Device[]>([]);
  const [mobileTab,setMobileTab]=useState("Overview");
- const notify=(message:string)=>{setToast(message);window.setTimeout(()=>setToast(""),2600)};
  useEffect(()=>{if(authMode!=="ready")return;let active=true;apiRequest<ManagedDeviceRecord[]>("/api/v1/devices").then(records=>{if(!active)return;setLocalSites(records.map(record=>({id:record.id,name:record.name,location:record.location,edition:record.edition==="plus"?"Plus":record.edition==="ce"?"CE":"Unknown",address:"Not configured",state:record.connectionState==="reachable"?"online":record.connectionState==="unreachable"?"offline":"unknown",lastSeen:record.isDemo?"Development sample · not connected":"Awaiting verified status",isDemo:record.isDemo})));}).catch(error=>{if(active)notify(error instanceof Error?error.message:"Unable to load managed sites.");});return()=>{active=false;};},[authMode]);
  const filteredSites=useMemo(()=>localSites.filter(s=>filter==="All"||s.state===filter.toLowerCase()),[localSites,filter]);
  function go(id:Page){setPage(id);setMenuOpen(false);setQuery("");}
@@ -165,7 +165,6 @@ export default function App(){
    <footer className="app-footer">pfSense Hub Manager <span>·</span> Development build <span>·</span> Multi-site firewall integration pending</footer>
   </main>
   <nav className="mobile-bottom-nav">{(selected?[["Overview","grid"],["Monitoring","activity"],["Interfaces","network"],["Rules","shield"],["More","more"]]:[["Overview","grid"],["Sites","sites"],["Connectivity","network"],["Alerts","bell"],["Settings","settings"]]).map(([label,icon])=><button key={label} className={mobileTab===label?"selected":""} onClick={()=>{setMobileTab(label);const match=[...hubNav,...siteNav].find(x=>x.label.toLowerCase().startsWith(label.toLowerCase()));if(label==="More")setMenuOpen(true);else if(match)go(match.id)}}><Icon name={icon as IconName} size={18}/><span>{label}</span></button>)}</nav>
-  {toast&&<div className="toast" role="status">{toast}</div>}
   {dialog!=="none"&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setDialog("none")}}><section className="modal"><button className="modal-close" onClick={()=>setDialog("none")}><Icon name="close"/></button>{dialog==="add-site"?<><span className="eyebrow">SITE ONBOARDING · PREVIEW</span><h2>Add a site</h2><p>Site onboarding is not connected to the backend yet. Submitting this form will not save a site or contact a firewall.</p><label>Site name<input value={formName} onChange={e=>setFormName(e.target.value)} placeholder="e.g. Branch Office"/></label><label>Location<input value={formLocation} onChange={e=>setFormLocation(e.target.value)} placeholder="City or site description"/></label><div className="modal-actions"><button className="secondary-button" onClick={()=>setDialog("none")}>Cancel</button><button className="primary-button" onClick={addSite}>Continue</button></div></>:<><span className="eyebrow">ACCOUNT</span><h2>Administrator</h2><p>You are signed in with an authenticated administrator session.</p><div className="profile-line"><span className="avatar">AM</span><div><strong>{authUser}</strong><small>Administrator</small></div></div><button className="secondary-button full-width" onClick={signOut}>Sign out</button></>}</section></div>}
  </div>
 }
