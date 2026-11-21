@@ -7,7 +7,7 @@ const envelope=z.object({code:z.number().optional(),status:z.string().optional()
 const routes={
  system:"/api/v2/status/system",gateways:"/api/v2/status/gateways",interfaces:"/api/v2/status/interfaces",
  services:"/api/v2/status/services",version:"/api/v2/system/version",arpTable:"/api/v2/diagnostics/arp_table",
- firewallStates:"/api/v2/firewall/states",firewallStateSize:"/api/v2/firewall/states/size", firewallRules:"/api/v2/firewall/rules", restApiVersion:"/api/v2/system/restapi/version"
+ firewallStates:"/api/v2/firewall/states",firewallStateSize:"/api/v2/firewall/states/size", firewallRules:"/api/v2/firewall/rules", interfaceAssignments:"/api/v2/interfaces", restApiVersion:"/api/v2/system/restapi/version"
 } as const;
 export type PfSenseOperation=keyof typeof routes;
 export class PfSenseClient{
