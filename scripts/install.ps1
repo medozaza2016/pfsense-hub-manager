@@ -46,10 +46,10 @@ if ($Development) {
   if (-not $npm) { throw "npm 10 or newer is required for development. Reinstall Node.js with npm included, then reopen PowerShell." }
   $nodeVersionText = (& node --version).Trim()
   $npmVersionText = (& npm --version).Trim()
-  if ($nodeVersionText -notmatch '^v?(\\d+)\\.') { throw "Unable to determine Node.js version: $nodeVersionText" }
+  if ($nodeVersionText -notmatch '^v?(\d+)\.') { throw "Unable to determine Node.js version: $nodeVersionText" }
   $nodeMajor = [int]$Matches[1]
   if ($nodeMajor -lt 22) { throw "Node.js 22 or newer is required. Detected $nodeVersionText." }
-  if ($npmVersionText -notmatch '^(\\d+)\\.') { throw "Unable to determine npm version: $npmVersionText" }
+  if ($npmVersionText -notmatch '^(\d+)\.') { throw "Unable to determine npm version: $npmVersionText" }
   $npmMajor = [int]$Matches[1]
   if ($npmMajor -lt 10) { throw "npm 10 or newer is required. Detected $npmVersionText." }
   Write-Host "Node.js $nodeVersionText and npm $npmVersionText detected." -ForegroundColor Green
