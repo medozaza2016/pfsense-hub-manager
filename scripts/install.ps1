@@ -175,5 +175,5 @@ if ($enable -match '^(y|yes)$') {
   $cp=Get-Env "CODE_SERVER_PORT" "8443"; Write-Host "Browser VS Code: http://127.0.0.1:$cp"
   if ($password) { Write-Host "code-server password (shown once): $password" }
 }
-Write-Host "UI is localhost-only. Do not expose it publicly before manager authentication is implemented."
+Write-Host "UI is localhost-only. Keep it private until the production security review is complete."
 Write-Host "Troubleshooting: docker compose ps ; docker compose logs -f api"
