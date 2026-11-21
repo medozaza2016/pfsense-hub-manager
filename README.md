@@ -2,7 +2,7 @@
 
 A centralized management and monitoring platform for multiple pfSense firewalls, designed to support mixed **pfSense Plus** and **pfSense CE** environments.
 
-> **Project status:** Initial application foundation scaffolded. GitHub CI passed the initial application checks and image builds. The four-service Compose stack now includes browser-based VS Code through code-server. Updated-stack CI and live deployment/runtime validation on the Proxmox LXC remain pending.
+> **Project status:** Active development. Manager authentication, multi-firewall onboarding, encrypted per-device credentials, TLS discovery, read-only checks, and the responsive dashboard/navigation foundation are implemented. The current priority is validating the latest React Router changes locally. See the [canonical Project Roadmap and Session Handoff](docs/PROJECT-ROADMAP.md) for the authoritative status, phases, next action, and cross-session handoff.
 
 ## Why this project exists
 
@@ -55,7 +55,8 @@ The editor workspace is ./workspace. The code-server container is isolated from 
 - [Security](docs/SECURITY.md)
 - [API specification](docs/API-SPECIFICATION.md)
 - [Integration status and verified tests](docs/INTEGRATION-STATUS.md)
-- [Roadmap](docs/ROADMAP.md)
+- [Project Roadmap and Session Handoff, canonical](docs/PROJECT-ROADMAP.md)
+- [Implementation checklist](docs/ROADMAP.md)
 - [Decision log](docs/DECISIONS.md)
 - [Deployment guide](docs/DEPLOYMENT.md)
 - [Metrics](docs/METRICS.md)
@@ -67,7 +68,7 @@ Never commit firewall credentials, API keys, tokens, private keys, configuration
 
 ## Development
 
-See [Deployment](docs/DEPLOYMENT.md). Copy .env.example to .env, create the local API key and code-server password files described there, and configure a trusted CA if required. Run docker compose config, then docker compose up -d --build. The initial application UI and VS Code editor are exposed only on localhost ports 8080 and 8443 respectively. The eight upstream GET operations are implemented behind a fixed allowlist; no write routes or arbitrary proxy exist. Manager-user authentication and multi-device administration remain future work.
+See [Deployment](docs/DEPLOYMENT.md). Copy .env.example to .env, create the local API key and code-server password files described there, and configure a trusted CA if required. Run docker compose config, then docker compose up -d --build. The initial application UI and VS Code editor are exposed only on localhost ports 8080 and 8443 respectively. The initial eight upstream GET operations are implemented behind a fixed allowlist; no firewall configuration-write routes or arbitrary proxy exist. Manager authentication and multi-device administration are implemented. Full monitoring and configuration management remain on the phased roadmap.
 
 ## License
 
