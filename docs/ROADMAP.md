@@ -13,7 +13,7 @@ This is a separate UI implementation milestone, not completion of the live-data 
 - [x] Implement the Hub and Site navigation surfaces and local preview interactions.
 - [x] Simplify Hub Overview site rows to one primary Open Site/Details action.
 - [x] Make the Site navigation sidebar vertically scrollable.
-- [ ] Run local Windows/Docker typecheck and production build after the latest branch pull.
+- [x] Run local Windows typecheck, API tests, and production build after the latest branch pull (November 21, 2026).
 - [ ] Validate desktop and mobile layouts against the approved mockup in a running browser.
 - [ ] Replace local demonstration fixtures with database-backed site inventory and verified API state.
 
@@ -153,7 +153,7 @@ This is an approved product scope, not an implemented feature. Implementation an
 - [x] Include the database role in authenticated session, setup, and login responses.
 - [x] Add a Fastify pre-handler that returns 401 for unauthenticated requests and 403 for non-admin requests under the reserved system-operations and user-management API paths.
 - [x] Add unit coverage for admin allow, regular-user 403, and unauthenticated 401 decisions.
-- [ ] Run API typecheck and tests, then verify the migration against both a fresh database and a copy of the existing database before deployment.
+- [x] Run API typecheck and source unit tests on Windows (November 21, 2026, 19 tests passed). Migration validation against both a fresh database and a copy of the existing database remains pending.
 - [ ] Add integration tests that exercise the Fastify pre-handler and last-admin protection.
 - [ ] Add safe user provisioning/role management and last-admin protection.
 - [ ] Add read-only monitoring contracts and bounded sanitized logs.
