@@ -65,5 +65,5 @@ The first API role increment is committed on `feature/linux-production-gui-onboa
 - Migration `003_manager_roles_and_sessions.sql` creates the manager account/session tables when absent and adds a constrained `role` column. Existing rows receive the `admin` role by default; no account deletion or password reset is part of the migration.
 - Session lookup reads the role from PostgreSQL. Setup and login responses include the role from the database.
 - A Fastify pre-handler enforces administrator access on the reserved `/api/v1/system/operations` and `/api/v1/users` API namespaces. It returns 403 for authenticated non-admin users. The existing authentication hook returns 401 when there is no valid session.
-- Unit tests cover the role decision outcomes. These tests and the migration have not yet been executed against a local test database or an existing database copy.
+- Unit tests cover the role decision outcomes and passed in the Windows source test run on November 21, 2026. The migration has not yet been executed against a local test database or an existing database copy.
 - No Docker operation endpoints, host agent, or container controls have been added. Deployment and database migration are intentionally not performed by these source changes.
