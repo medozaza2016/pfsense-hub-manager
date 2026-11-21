@@ -98,6 +98,29 @@ export function DataTable<T>({
   </section>;
 }
 
+export function ListToolbar({ search, onSearch, placeholder, filters, activeCount = 0, onClear, children, actions }: {
+  search: string; onSearch: (value: string) => void; placeholder?: string;
+  filters?: boolean; activeCount?: number; onClear?: () => void; children?: ReactNode; actions?: ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return <section className="ui-list-toolbar">
+    <div className="ui-list-toolbar-main">
+      <SearchField value={search} onChange={onSearch} placeholder={placeholder ?? "Search records"} />
+      <div className="ui-list-toolbar-actions">
+        {filters && <button type="button" className={"ui-filter-toggle " + (expanded ? "is-open" : "")} aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
+          <span aria-hidden="true">☷</span> Filters {activeCount > 0 && <b>{activeCount}</b>} <span className="ui-filter-chevron" aria-hidden="true">⌄</span>
+        </button>}
+        {actions}
+      </div>
+    </div>
+    {filters && expanded && <div className="ui-filter-panel">
+      <div className="ui-filter-panel-heading"><div><strong>Filter records</strong><span>Combine filters to narrow this list</span></div>
+      {activeCount > 0 && onClear && <button type="button" className="ui-clear-filters" onClick={onClear}>Clear all</button>}</div>
+      <div className="ui-filter-fields">{children}</div>
+    </div>}
+  </section>;
+}
+
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return <header className="ui-page-header"><div><h1>{title}</h1>{description && <p>{description}</p>}</div>{actions && <div className="ui-page-actions">{actions}</div>}</header>;
 }
