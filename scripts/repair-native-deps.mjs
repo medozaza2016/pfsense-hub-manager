@@ -62,7 +62,7 @@ function installedVersion(name, targetNodeModules) {
 const requirements = [
   { owner: "Rollup", name: rollupNativeName, version: rollup.data.optionalDependencies?.[rollupNativeName], from: rollup.directory, targetNodeModules: path.dirname(rollup.directory) },
   { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory, targetNodeModules: path.dirname(viteEsbuild.directory) },
-  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, targetNodeModules: path.join(apiEsbuild.directory, "node_modules") }
+  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, targetNodeModules: path.dirname(apiEsbuild.directory) }
 ];
 
 const repairs = [];
@@ -106,6 +106,25 @@ for (const item of repairs) {
     console.log(`Installed ${spec} at ${destination}.`);
   } finally {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
+  }
+}
+
+// npm's lockfile places the API esbuild native optional dependency at the
+// root node_modules level. Remove only the stale nested duplicate left by the
+// earlier repair implementation, and only after verifying the root copy.
+const apiNativeRequirement = requirements.find((item) => item.owner === "API esbuild");
+const apiRootVersion = installedVersion(apiNativeRequirement.name, apiNativeRequirement.targetNodeModules);
+if (apiRootVersion === apiNativeRequirement.version) {
+  const staleNestedPackage = path.join(apiEsbuild.directory, "node_modules", ...apiNativeRequirement.name.split("/"));
+  const staleManifest = path.join(staleNestedPackage, "package.json");
+  if (fs.existsSync(staleManifest)) {
+    const staleData = JSON.parse(fs.readFileSync(staleManifest, "utf8"));
+    if (staleData.name === apiNativeRequirement.name && staleData.version === apiNativeRequirement.version) {
+      fs.rmSync(staleNestedPackage, { recursive: true, force: true });
+      console.log(`Removed obsolete duplicate at ${staleNestedPackage}.`);
+    } else {
+      throw new Error(`Refusing to remove unexpected package at ${staleNestedPackage}.`);
+    }
   }
 }
 
