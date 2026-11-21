@@ -1076,3 +1076,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   white-space:nowrap;
   text-overflow:ellipsis;
 }
+
+
+/* Persistent device connection state */
+.connectivity-warning{color:#a56c1f!important}
+.connectivity-warning .meta-dot{background:#d69a3e}
+.connectivity-error{color:#b83d36!important}
+.connectivity-error .meta-dot{background:#d64b45}
