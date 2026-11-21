@@ -83,3 +83,17 @@ If a key or password is exposed:
 ## OpenAPI and API-operation safety
 
 The upstream OpenAPI JSON includes read and write operations. Its presence does not authorize implementation or invocation. The initial release is read-only. Do not create a generic arbitrary-path proxy to the firewall API. Any future write capability must meet the explicit preview, authorization, backup/recovery, audit, confirmation, and post-apply verification requirements above.
+
+
+## Encrypted credential storage and key lifecycle
+
+The approved direction (DEC-024) is to store per-site firewall API credentials encrypted in PostgreSQL, with the application encryption key kept separately from the database. The installation workflow must generate a high-entropy key automatically, provide a recovery copy for the administrator to save in a password manager, and place the runtime key in a protected host-side location accessible to the backend. The backend must load the key automatically at startup. The key must never be stored in the database, source control, browser storage, logs, or API responses.
+
+Implementation requirements:
+- Use authenticated encryption, with AES-256-GCM as the selected candidate pending implementation review.
+- Generate a unique cryptographic nonce for every encryption operation and store the authentication tag and a format/key version with the ciphertext.
+- Fail closed if the runtime key is missing, malformed, or cannot authenticate/decrypt a credential. Never silently overwrite or regenerate a missing key.
+- Support key rotation by re-encrypting stored credentials without exposing plaintext to the browser or logs.
+- Back up the encrypted database and encryption key separately. A database backup without its corresponding key cannot restore credentials; a key without the database does not restore the credentials.
+- Define and test restrictive host permissions and automated provisioning for Windows development and Linux production before release.
+- Do not claim that a password-manager recovery copy alone protects the runtime key or that Docker Compose secrets provide encryption at rest.
