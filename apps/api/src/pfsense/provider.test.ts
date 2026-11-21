@@ -67,7 +67,7 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(closeMock).toHaveBeenCalledOnce();
     expect(query).toHaveBeenCalledOnce();
 
-    const [statement, values] = query.mock.calls[0] as [string, unknown[]];
+    const [statement, values] = query.mock.calls[0] as unknown as [string, unknown[]];
     expect(statement).toContain("INSERT INTO managed_devices");
     expect(statement).toContain("api_key_ciphertext");
     expect(values).not.toContain(input.apiKey);
@@ -107,6 +107,15 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(closeMock).not.toHaveBeenCalled();
   });
 
+  it("does not save a device when TLS verification fails", async () => {
+    getMock.mockRejectedValueOnce(new Error("Firewall TLS verification failed."));
+
+    await expect(provider.registerDevice(input)).rejects.toThrow("Firewall TLS verification failed.");
+
+    expect(query).not.toHaveBeenCalled();
+    expect(closeMock).toHaveBeenCalledOnce();
+  });
+
   it("rejects non-HTTPS firewall URLs before contacting the firewall", async () => {
     await expect(provider.registerDevice({ ...input, apiBaseUrl: "http://branch.example.test" })).rejects.toThrow(/HTTPS origin/);
 
@@ -127,7 +136,7 @@ describe("pfSense provider device registration and credential safety", () => {
     });
 
     const devices = await provider.listDevices();
-    const [statement] = query.mock.calls[0] as [string];
+    const statement = query.mock.calls[0]?.[0] as string;
 
     expect(statement).toContain("SELECT id,name,location,edition,enabled");
     expect(statement).not.toContain("api_key");
