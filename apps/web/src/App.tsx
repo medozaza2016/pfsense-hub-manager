@@ -33,6 +33,7 @@ export default function App() {
   const [firewallSearch, setFirewallSearch] = useState("");
   const [firewallFilter, setFirewallFilter] = useState<"all" | "enabled" | "disabled">("all");
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [deviceChecks, setDeviceChecks] = useState<Record<string, { outcome: "success" | "partial" | "failed"; checkedAt: string; failedOperations: number }>>({});
   const [users, setUsers] = useState<User[]>([]);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -114,13 +115,18 @@ export default function App() {
     finally { setBusy(false); }
   }
   async function runCheck(id: string) {
-    setBusy(true); setOverview(null); setError(null);
+    setBusy(true); setOverview(null); setError(null); setSelectedDeviceId(id);
     try {
       const result = await api<Record<string, unknown>>("/api/v1/devices/" + encodeURIComponent(id) + "/overview");
+      const outcome = result.meta?.outcome === "success" ? "success" : "partial";
+      const failedOperations = result.meta?.failedOperations ?? 0;
       setOverview(result.data);
-      if (result.meta?.outcome !== "success") setError("Collection partially failed. " + (result.meta?.failedOperations ?? 0) + " operations failed.");
-    } catch (e) { setError(e instanceof Error ? e.message : "Collection failed."); }
-    finally { setBusy(false); }
+      setDeviceChecks(current => ({ ...current, [id]: { outcome, checkedAt: new Date().toISOString(), failedOperations } }));
+      if (outcome !== "success") setError("Read-only check completed with " + failedOperations + " failed operations.");
+    } catch (e) {
+      setDeviceChecks(current => ({ ...current, [id]: { outcome: "failed", checkedAt: new Date().toISOString(), failedOperations: 8 } }));
+      setError(e instanceof Error ? e.message : "Read-only check failed.");
+    } finally { setBusy(false); }
   }
   function firewallPayload() {
     return { name: firewallName, location: firewallLocation, edition: firewallEdition, apiBaseUrl: firewallUrl, apiKey: firewallApiKey, ...(firewallCa.trim() ? { caCertificatePem: firewallCa } : {}), ...(firewallTlsServername.trim() ? { tlsServername: firewallTlsServername.trim() } : {}) };
@@ -230,6 +236,13 @@ export default function App() {
   const isAdmin = currentUser?.role === "admin";
   function navigate(next: Page) { setPage(next); setMobileNavOpen(false); setOverview(null); setError(null); }
   const navClass = (sidebarCollapsed ? "app-layout sidebar-collapsed" : "app-layout") + (mobileNavOpen ? " mobile-nav-open" : "");
+  const visibleDevices = devices.filter(device => {
+    const query = firewallSearch.trim().toLowerCase();
+    const matchesQuery = !query || [device.name, device.location || "", device.edition].some(value => value.toLowerCase().includes(query));
+    const matchesFilter = firewallFilter === "all" || (firewallFilter === "enabled" ? device.enabled : !device.enabled);
+    return matchesQuery && matchesFilter;
+  });
+  const connectedCount = Object.values(deviceChecks).filter(check => check.outcome === "success").length;
   const sidebar = <aside className="sidebar">
     <div className="brand">
       <div className="brand-mark">pf</div>
@@ -237,24 +250,18 @@ export default function App() {
       <button className="icon-button sidebar-toggle desktop-only" aria-label="Collapse sidebar" onClick={() => setSidebarCollapsed(true)}>‹</button>
     </div>
     <nav className="side-nav" aria-label="Main navigation">
+      <div className="nav-divider"><span>WORKSPACE</span></div>
       <button className={page === "dashboard" ? "nav-link active" : "nav-link"} onClick={() => navigate("dashboard")}><span className="nav-icon">▦</span><span>Dashboard</span></button>
+      <div className="nav-divider"><span>FLEET MANAGEMENT</span></div>
       <div className="nav-group">
         <button className="nav-link group-toggle" aria-expanded={firewallsOpen} onClick={() => setFirewallsOpen(v => !v)}><span className="nav-icon">◈</span><span>Firewalls</span><span className="nav-chevron">{firewallsOpen ? "⌄" : "›"}</span></button>
         {firewallsOpen && <div className="sub-nav">
-          <button className={page === "firewalls" ? "sub-link active" : "sub-link"} onClick={() => navigate("firewalls")}>Inventory</button>
-          <button className={page === "add-firewall" ? "sub-link active" : "sub-link"} onClick={() => navigate("add-firewall")}>Add firewall</button>
-          <button className="sub-link" onClick={() => navigate("firewalls")}>Locations & groups</button>
+          <button className={page === "firewalls" ? "sub-link active" : "sub-link"} onClick={() => navigate("firewalls")}>Inventory <span className="nav-count">{devices.length}</span></button>
+          {isAdmin && <button className={page === "add-firewall" ? "sub-link active" : "sub-link"} onClick={() => navigate("add-firewall")}>Add firewall</button>}
         </div>}
       </div>
-      <div className="nav-group">
-        <button className="nav-link group-toggle" aria-expanded={monitoringOpen} onClick={() => setMonitoringOpen(v => !v)}><span className="nav-icon">⌁</span><span>Monitoring</span><span className="nav-chevron">{monitoringOpen ? "⌄" : "›"}</span></button>
-        {monitoringOpen && <div className="sub-nav">
-          <button className={page === "monitoring" ? "sub-link active" : "sub-link"} onClick={() => navigate("monitoring")}>System overview</button>
-          <button className="sub-link" onClick={() => navigate("monitoring")}>Interfaces</button>
-          <button className="sub-link" onClick={() => navigate("monitoring")}>Gateways</button>
-          <button className="sub-link" onClick={() => navigate("monitoring")}>Services & logs</button>
-        </div>}
-      </div>
+      <div className="nav-divider"><span>OBSERVABILITY</span></div>
+      <button className={page === "monitoring" ? "nav-link active" : "nav-link"} onClick={() => navigate("monitoring")}><span className="nav-icon">⌁</span><span>Monitoring</span></button>
       <div className="nav-divider"><span>ADMINISTRATION</span></div>
       {isAdmin && <button className={page === "users" ? "nav-link active" : "nav-link"} onClick={() => navigate("users")}><span className="nav-icon">♙</span><span>User management</span></button>}
       {isAdmin && <button className={page === "audit" ? "nav-link active" : "nav-link"} onClick={() => navigate("audit")}><span className="nav-icon">▤</span><span>Audit logs</span></button>}
@@ -311,36 +318,44 @@ export default function App() {
         </div>}
         {page === "firewalls" && <div className="page-stack inventory-page">
           <div className="inventory-heading">
-            <div><p className="dashboard-kicker">NETWORK OPERATIONS / FLEET</p><h2>Firewall inventory</h2><p className="muted">Manage your registered pfSense appliances and inspect their configuration.</p></div>
+            <div><p className="dashboard-kicker">FLEET MANAGEMENT / FIREWALLS</p><h2>Firewall inventory</h2><p className="muted">A single view of registered appliances, configuration, and live reachability.</p></div>
             <div className="inventory-heading-actions"><button onClick={() => void refresh()} disabled={busy}>↻ Refresh</button>{isAdmin && <button className="primary-button" onClick={() => navigate("add-firewall")}>＋ Add firewall</button>}</div>
           </div>
+          <section className="inventory-overview">
+            <article><span className="inventory-kpi-label">REGISTERED</span><strong>{devices.length}</strong><small>Appliances in this manager</small></article>
+            <article><span className="inventory-kpi-label">ENABLED</span><strong>{devices.filter(device => device.enabled).length}</strong><small>Configured and available to check</small></article>
+            <article><span className="inventory-kpi-label">CHECKED SUCCESSFULLY</span><strong>{connectedCount}</strong><small>Successful checks in this session</small></article>
+          </section>
           <section className="content-card inventory-toolbar">
-            <div className="inventory-count"><strong>{devices.length}</strong><span>{devices.length === 1 ? "Registered firewall" : "Registered firewalls"}</span></div>
+            <div className="inventory-toolbar-copy"><strong>Appliances</strong><span>Search and filter your managed firewall fleet.</span></div>
             <div className="inventory-controls">
-              <label className="inventory-search"><span>⌕</span><input aria-label="Search firewalls" placeholder="Search by name, site, or platform" value={firewallSearch} onChange={e => setFirewallSearch(e.target.value)}/></label>
-              <select aria-label="Filter firewalls" value={firewallFilter} onChange={e => setFirewallFilter(e.target.value as "all" | "enabled" | "disabled")}><option value="all">All firewalls</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select>
+              <label className="inventory-search"><span>⌕</span><input aria-label="Search firewalls" placeholder="Search name, site, or platform" value={firewallSearch} onChange={e => setFirewallSearch(e.target.value)}/></label>
+              <select aria-label="Filter firewalls" value={firewallFilter} onChange={e => setFirewallFilter(e.target.value as "all" | "enabled" | "disabled")}><option value="all">All appliances</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select>
             </div>
           </section>
           <section className="content-card inventory-list-card">
-            <div className="inventory-section-heading"><div><span className="eyebrow">YOUR ENVIRONMENT</span><h2>Managed appliances</h2></div><span className="inventory-total">{devices.length} total</span></div>
-            {devices.filter(device => {
-              const query = firewallSearch.trim().toLowerCase();
-              const matchesQuery = !query || [device.name, device.location || "", device.edition].some(value => value.toLowerCase().includes(query));
-              const matchesFilter = firewallFilter === "all" || (firewallFilter === "enabled" ? device.enabled : !device.enabled);
-              return matchesQuery && matchesFilter;
-            }).length === 0 ? <div className="inventory-empty"><div className="empty-symbol">⌕</div><strong>{devices.length ? "No matching firewalls" : "No firewalls registered yet"}</strong><p>{devices.length ? "Try changing your search or filter." : "Your registered pfSense appliances will appear here."}</p></div> :
-            devices.filter(device => {
-              const query = firewallSearch.trim().toLowerCase();
-              const matchesQuery = !query || [device.name, device.location || "", device.edition].some(value => value.toLowerCase().includes(query));
-              const matchesFilter = firewallFilter === "all" || (firewallFilter === "enabled" ? device.enabled : !device.enabled);
-              return matchesQuery && matchesFilter;
-            }).map(device => <article className={"inventory-device" + (selectedDeviceId === device.id ? " inventory-device-selected" : "")} key={device.id}>
-              <div className="inventory-device-main"><div className="inventory-device-icon">◈</div><div className="inventory-device-copy"><div className="inventory-device-title"><strong>{device.name}</strong><span className={device.enabled ? "config-state state-enabled" : "config-state state-disabled"}>{device.enabled ? "Enabled" : "Disabled"}</span></div><p>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</p><div className="inventory-meta"><span><i className="meta-dot dot-configured"/>Registered configuration</span><span><i className="meta-dot dot-unknown"/>Live connection not checked</span></div></div></div>
-              <div className="inventory-device-actions"><button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy ? "Checking…" : "Run read-only check"}</button></div>
-              {selectedDeviceId === device.id && <div className="inventory-detail"><div><span>Appliance name</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div><p>A successful read-only check is required before this appliance can be marked as connected. Firewall configuration changes are not available.</p></div>}
-            </article>)}
+            <div className="inventory-section-heading"><div><span className="eyebrow">MANAGED FLEET</span><h2>Registered appliances</h2></div><span className="inventory-total">Showing {visibleDevices.length} of {devices.length}</span></div>
+            {visibleDevices.length === 0 ? <div className="inventory-empty"><div className="empty-symbol">⌕</div><strong>{devices.length ? "No matching appliances" : "Your fleet is empty"}</strong><p>{devices.length ? "Adjust the search or filter to find an appliance." : "Register a pfSense appliance to begin monitoring its read-only status."}</p>{devices.length === 0 && isAdmin && <button className="primary-button" onClick={() => navigate("add-firewall")}>＋ Add your first firewall</button>}</div> :
+            visibleDevices.map(device => {
+              const check = deviceChecks[device.id];
+              const checkLabel = !check ? "Not checked" : check.outcome === "success" ? "Reachable" : check.outcome === "partial" ? "Partial response" : "Check failed";
+              const checkClass = !check ? "connectivity-state connectivity-unknown" : check.outcome === "success" ? "connectivity-state connectivity-good" : "connectivity-state connectivity-warning";
+              return <article className={"inventory-device" + (selectedDeviceId === device.id ? " inventory-device-selected" : "")} key={device.id}>
+                <div className="inventory-device-main"><div className="inventory-device-icon">◈</div><div className="inventory-device-copy">
+                  <div className="inventory-device-title"><strong>{device.name}</strong><span className={device.enabled ? "config-state state-enabled" : "config-state state-disabled"}>{device.enabled ? "Enabled" : "Disabled"}</span></div>
+                  <p>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</p>
+                  <div className="inventory-meta"><span><i className="meta-dot dot-configured"/>Configuration {device.enabled ? "enabled" : "disabled"}</span><span className={checkClass}><i className="meta-dot"/> {checkLabel}</span>{check && <span>Last checked {new Date(check.checkedAt).toLocaleString()}</span>}</div>
+                </div></div>
+                <div className="inventory-device-actions"><button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
+                {selectedDeviceId === device.id && <div className="inventory-detail">
+                  <div><span>Appliance</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div>
+                  <div><span>Live connectivity</span><strong>{checkLabel}</strong></div><div><span>Failed operations</span><strong>{check ? check.failedOperations : "Not checked"}</strong></div>
+                  <p>A read-only check queries the supported pfSense API endpoints. This manager does not change firewall configuration.</p>
+                </div>}
+              </article>;
+            })}
           </section>
-          {overview && <section className="content-card inventory-results"><div className="inventory-section-heading"><div><span className="eyebrow">LIVE API CHECK</span><h2>Read-only check results</h2></div></div><pre>{JSON.stringify(overview,null,2)}</pre><p className="muted">The response above contains the data returned by the firewall read-only endpoints.</p></section>}
+          {overview && <section className="content-card inventory-results"><div className="inventory-section-heading"><div><span className="eyebrow">DEVICE DIAGNOSTICS</span><h2>Read-only results: {devices.find(device => device.id === selectedDeviceId)?.name ?? "Selected appliance"}</h2><p className="muted">Returned data is associated with the appliance selected above.</p></div><span className={deviceChecks[selectedDeviceId ?? ""]?.outcome === "success" ? "result-status result-good" : "result-status result-warning"}>{deviceChecks[selectedDeviceId ?? ""]?.outcome === "success" ? "Successful" : "Partial / failed"}</span></div><pre>{JSON.stringify(overview,null,2)}</pre><p className="muted">The response contains data returned by read-only firewall endpoints. Sensitive credential values are not displayed.</p></section>}
         </div>}
         {page === "add-firewall" && isAdmin && <div className="page-stack firewall-onboarding">
           <div className="inventory-heading"><div><p className="dashboard-kicker">FIREWALLS / ONBOARDING</p><h2>Register a pfSense appliance</h2><p className="muted">Add a firewall using a dedicated read-only API key. Credentials are encrypted before storage.</p></div><button onClick={() => navigate("firewalls")}>Cancel</button></div>
