@@ -43,8 +43,7 @@ export class PfSenseProvider {
   async ensureDevice(): Promise<void> {
     await this.pool.query(
       `INSERT INTO managed_devices(id,name,location,edition,api_base_url)
-       VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,location=EXCLUDED.location,
-       edition=EXCLUDED.edition,api_base_url=EXCLUDED.api_base_url,updated_at=now()`,
+       VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING`,
       [this.config.PFSENSE_DEVICE_ID, this.config.PFSENSE_DEVICE_NAME, this.config.PFSENSE_DEVICE_LOCATION || null, this.config.PFSENSE_EDITION, this.config.PFSENSE_API_BASE_URL]
     );
   }
