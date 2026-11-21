@@ -2,7 +2,7 @@
 
 A centralized management and monitoring platform for multiple pfSense firewalls, designed to support mixed **pfSense Plus** and **pfSense CE** environments.
 
-> **Project status:** Active development. Manager authentication, multi-firewall onboarding, encrypted per-device credentials, TLS discovery, read-only checks, and the responsive dashboard/navigation foundation are implemented. The current priority is validating the latest React Router changes locally. See the [canonical Project Roadmap and Session Handoff](docs/PROJECT-ROADMAP.md) for the authoritative status, phases, next action, and cross-session handoff.
+> **Project status (2026-11-21):** Active development. The first Plus firewall's administrator-only, read-only rules inventory is implemented and user-accepted, including interface-name resolution. Windows tests, typecheck, production builds, and Docker API/web rebuild passed. The next planned feature is read-only firewall alias inventory. See the [canonical Project Roadmap and Session Handoff](docs/PROJECT-ROADMAP.md) for current status and next steps.
 
 ## Why this project exists
 
