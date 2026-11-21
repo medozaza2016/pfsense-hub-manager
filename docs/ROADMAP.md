@@ -149,8 +149,12 @@ This is an approved product scope, not an implemented feature. Implementation an
 
 - [x] Approve the four-service monitoring scope and fixed-project boundary (DEC-026).
 - [x] Approve `admin` and `user` visibility/operation permissions (DEC-027).
-- [ ] Add database-backed `admin` / `user` roles and include the role in authenticated session results.
-- [ ] Enforce server-side admin authorization for every operational API route; add 401/403 tests.
+- [x] Add database-backed `admin` / `user` roles. The additive migration defaults existing accounts to `admin` and includes the session schema.
+- [x] Include the database role in authenticated session, setup, and login responses.
+- [x] Add a Fastify pre-handler that returns 401 for unauthenticated requests and 403 for non-admin requests under the reserved system-operations and user-management API paths.
+- [x] Add unit coverage for admin allow, regular-user 403, and unauthenticated 401 decisions.
+- [ ] Run API typecheck and tests, then verify the migration against both a fresh database and a copy of the existing database before deployment.
+- [ ] Add integration tests that exercise the Fastify pre-handler and last-admin protection.
 - [ ] Add safe user provisioning/role management and last-admin protection.
 - [ ] Add read-only monitoring contracts and bounded sanitized logs.
 - [ ] Implement and review the restricted cross-platform host-side management agent.
