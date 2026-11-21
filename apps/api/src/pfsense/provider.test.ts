@@ -221,8 +221,7 @@ describe("pfSense provider device registration and credential safety", () => {
       connectionStatus: "degraded",
       lastCheckedAt: "2026-11-21T12:00:00.000Z",
       lastSuccessAt: "2026-11-20T12:00:00.000Z",
-      lastErrorClass: "timeout",
-      canDelete: true
+      lastErrorClass: "timeout"
     });
   });
 
