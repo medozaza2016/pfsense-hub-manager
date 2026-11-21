@@ -7,7 +7,7 @@ import { classifyError } from "./errors.js";
 
 const groups: Record<PfSenseOperation, string> = {
   system: "system", gateways: "gateways", interfaces: "interfaces", services: "services",
-  version: "version", arpTable: "diagnostics", firewallStates: "firewallStates", firewallStateSize: "firewallStates"
+  version: "version", arpTable: "diagnostics", firewallStates: "firewallStates", firewallStateSize: "firewallStates", restApiVersion: "compatibility"
 };
 function recordCount(value: unknown): number | null { return Array.isArray(value) ? value.length : null; }
 
@@ -50,10 +50,12 @@ export class PfSenseProvider {
 
   async listDevices() {
     const result = await this.pool.query(
-      "SELECT id,name,location,edition,enabled,connection_status,last_checked_at,last_success_at,last_error_class FROM managed_devices ORDER BY name"
+      "SELECT id,name,location,edition,release,architecture,rest_api_package_version,compatibility_verified_at,enabled,connection_status,last_checked_at,last_success_at,last_error_class FROM managed_devices ORDER BY name"
     );
     return result.rows.map(row => ({
-      id: row.id, name: row.name, location: row.location, edition: row.edition, release: null,
+      id: row.id, name: row.name, location: row.location, edition: row.edition, release: row.release ?? null,
+      architecture: row.architecture ?? null, restApiPackageVersion: row.rest_api_package_version ?? null,
+      compatibilityVerifiedAt: row.compatibility_verified_at ?? null,
       enabled: row.enabled, connectionStatus: row.connection_status ?? "unknown",
       lastCheckedAt: row.last_checked_at ?? null, lastSuccessAt: row.last_success_at ?? null,
       lastErrorClass: row.last_error_class ?? null,
@@ -205,6 +207,25 @@ export class PfSenseProvider {
          WHERE id=$4`,
         [connectionStatus, failures === 0, lastErrorClass, deviceId]
       );
+      // Optional package-version discovery is isolated from core connection health.
+      try {
+        const packageResponse = await client.get("restApiVersion");
+        const packageData = packageResponse.data && typeof packageResponse.data === "object" ? packageResponse.data as Record<string, unknown> : {};
+        const versionData = results.version && typeof results.version === "object" ? results.version as Record<string, unknown> : {};
+        const packageVersion = typeof packageData.current_version === "string" ? packageData.current_version : null;
+        const release = ["version", "product_version", "release", "version_full"].map(key => versionData[key]).find(value => typeof value === "string") as string | undefined;
+        const architecture = ["architecture", "arch", "machine_architecture", "platform_architecture"].map(key => versionData[key]).find(value => typeof value === "string") as string | undefined;
+        await this.pool.query(
+          `UPDATE managed_devices
+           SET release=COALESCE($1,release),architecture=COALESCE($2,architecture),
+               rest_api_package_version=COALESCE($3,rest_api_package_version),
+               compatibility_verified_at=CASE WHEN $3::text IS NOT NULL THEN now() ELSE compatibility_verified_at END
+           WHERE id=$4`,
+          [release ?? null, architecture ?? null, packageVersion, deviceId]
+        );
+      } catch {
+        // Preserve prior metadata. Optional discovery must not degrade operational health.
+      }
       return { results, failedOperations: failures, connectionStatus };
     } finally {
       if (selected.owned) await client.close();
@@ -216,7 +237,8 @@ export class PfSenseProvider {
       ["status.system.read", "/api/v2/status/system"], ["status.gateways.read", "/api/v2/status/gateways"],
       ["status.interfaces.read", "/api/v2/status/interfaces"], ["status.services.read", "/api/v2/status/services"],
       ["system.version.read", "/api/v2/system/version"], ["diagnostics.arpTable.read", "/api/v2/diagnostics/arp_table"],
-      ["firewall.states.read", "/api/v2/firewall/states"], ["firewall.states.size.read", "/api/v2/firewall/states/size"]
+      ["firewall.states.read", "/api/v2/firewall/states"], ["firewall.states.size.read", "/api/v2/firewall/states/size"],
+      ["system.restApiVersion.read", "/api/v2/system/restapi/version"]
     ].map(([key, endpoint]) => ({ key, endpoint, supported: true, verification: "tested" }));
   }
 }
