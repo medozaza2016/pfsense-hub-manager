@@ -4,7 +4,7 @@
 **Canonical tracking document:** `docs/PROJECT-ROADMAP.md`  
 **Active branch:** `feature/installation-onboarding`  
 **Last updated:** 2026-11-21  
-**Status:** Active development, Phase 1 local validation baseline passed; native dependency repair path corrected, final verification pending
+**Status:** Active development, Phase 1 local validation baseline passed; Windows native dependency repair verified
 
 This is the authoritative cross-session project tracker. At the end of every meaningful development session, update this document before stopping. A new chat should read this file first, then `AGENTS.md`, `docs/DECISIONS.md`, and the phase-specific documents linked below. Do not rely on chat history as the project record.
 
@@ -338,7 +338,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: validate the corrected API esbuild native dependency target, then review and commit the lockfile.**
+**Next task: commit the reviewed npm lockfile, then close remaining Phase 1 test/documentation gaps.**
 
 The user has successfully completed the corrected Windows development installer. The installer:
 - Recognized the required Windows native Rollup and esbuild packages at their expected versions.
@@ -363,18 +363,18 @@ Latest reported branch state:
 
 The two Vite React Router `use client` warnings are non-fatal. Do not change dependencies solely to silence them without checking compatibility and necessity.
 
-The latest diagnostic shows all three paths exist. `npm explain` reports the API native package under `node_modules/esbuild/node_modules/@esbuild/win32-x64`, while the lockfile explicitly records `node_modules/@esbuild/win32-x64` as the optional package entry. The root copy is consequently marked extraneous while the nested duplicate satisfies the observed tree. Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` aligns the API repair target with the lockfile's root-level location and removes the old nested duplicate only after verifying the root package name and exact version. It preserves the Vite nested package. This cleanup fix has not yet been run locally.
+Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The installer removed the obsolete API nested duplicate after verifying the root package name/version, preserved the Vite nested package, and completed audit, typecheck, production builds, Docker image builds, and Compose startup. `npm ls esbuild @esbuild/win32-x64 --all` now reports both expected native packages without an extraneous root package. The subsequent `npm ls --depth=0n` invocation contained a command-line typo (`0n` rather than `0`), producing an npm config warning; the dependency listing itself showed no extraneous package.
 
-**Next user action:** pull the lockfile-aligned repair correction and rerun the installer, then check npm's dependency tree:
+**Next user action:** check Git status and commit the reviewed lockfile locally:
 
 ```powershell
-git pull --ff-only
-.\scripts\install.ps1 -Development
-npm ls esbuild @esbuild/win32-x64 --all
-npm ls --depth=0
+git status --short
+git add package-lock.json
+git commit -m "Add npm workspace lockfile"
+git push
 ```
 
-Do not delete or regenerate the lockfile. If the installer completes and npm no longer reports the root-level API native package as extraneous, review the lockfile and commit it to improve reproducibility. If not, diagnose the mismatch first. Preserve the current working tree and all local secrets/data.
+Do not delete or regenerate the lockfile. The native dependency tree now validates without extraneous packages. The lockfile header and workspace metadata match the current root/API/web manifests, and it contains the expected optional native package entries. Commit the untracked lockfile locally to establish reproducible dependency resolution. Do not stage any other files. Preserve the current working tree and all local secrets/data.
 
 After lockfile review, continue Phase 1 with focused automated coverage and a concise manual acceptance record. No CI runs are needed.
 
@@ -393,7 +393,7 @@ After lockfile review, continue Phase 1 with focused automated coverage and a co
 - Non-fatal Vite warnings: React Router module-level `use client` directives were ignored during bundling.
 - Local Git state reported: HEAD `63731d0`, only untracked `package-lock.json`.
 
-**Next action:** pull commit `ec41fda`, rerun the development installer, and inspect `npm ls esbuild @esbuild/win32-x64 --all` plus `npm ls --depth=0`. Expected layout: API native package at root `node_modules/@esbuild/win32-x64`, Vite native package at `node_modules/vite/node_modules/@esbuild/win32-x64`, with no nested API duplicate under `node_modules/esbuild/node_modules`. The lockfile should only be committed after npm reports no extraneous native package. Then finish remaining Phase 1 automated test coverage and documentation.
+**Next action:** commit only the reviewed untracked `package-lock.json` locally, then report the commit SHA and Git status. The latest installer run passed, and `npm ls esbuild @esbuild/win32-x64 --all` shows both expected native dependencies with no extraneous package. The `npm ls --depth=0n` command had a harmless typo (`0n`); use `npm ls --depth=0` if needed. Then finish remaining Phase 1 automated test coverage and documentation.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
