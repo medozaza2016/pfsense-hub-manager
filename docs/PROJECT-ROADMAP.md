@@ -328,7 +328,23 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: validate the dependency security remediation and finish the Windows development onboarding.**
+**Next task: validate the permanent Windows native-dependency repair and commit the generated lockfile.**
+
+The user has now locally verified the upgraded dependency set:
+- `npm audit`: 0 vulnerabilities.
+- API tests: 30 tests passed, but the original command ran both source and compiled `dist` tests, duplicating the same 15 tests.
+- API and web type checks passed.
+- API and web production builds passed.
+- The successful local repair installed `@rollup/rollup-win32-x64-msvc@4.68.7` and `@esbuild/win32-x64@0.25.12` together. API esbuild `0.28.2` remained correctly installed.
+- The generated `package-lock.json` is untracked locally and should be reviewed and committed after the next installer validation.
+- `apps/web/tsconfig.tsbuildinfo` is a generated artifact; `.gitignore` now ignores `*.tsbuildinfo`.
+
+Changes just added to this branch:
+- `scripts/repair-native-deps.mjs` detects the installed Rollup/Vite/API esbuild versions and installs missing or mismatched Windows native packages in one npm operation, without changing package manifests or the lockfile.
+- `scripts/install.ps1 -Development` invokes that repair before the audit/typecheck/build stages.
+- API test script now runs `vitest run src`, preventing compiled `dist` tests from being executed twice.
+- `.gitignore` ignores TypeScript incremental build artifacts.
+- `docs/INSTALLATION.md` documents the automatic native dependency repair and source-only test behavior.
 
 On the user's Windows development machine, from PowerShell:
 
@@ -336,14 +352,14 @@ On the user's Windows development machine, from PowerShell:
 cd C:\Users\ahmed\Desktop\Projects\pfsense-hub-manager
 git status --short
 git pull --ff-only
-npm install
+.\scripts\install.ps1 -Development
 npm audit
 npm run test --workspace @pfsense-hub/api
 npm run typecheck
 npm run build
 ```
 
-Inspect the generated `package-lock.json` and dependency changes. Commit the lockfile only after the audit, tests, type checks, and build pass. If Zod 4 exposes compatibility issues, inspect and migrate the affected schemas rather than reverting to a vulnerable version. Do not use `npm audit fix --force`. Do not run CI. Do not reset, stash, or discard local changes.
+The user has local untracked `package-lock.json`. Do not delete it. Review its optional native dependency entries after pulling. Confirm the installer repairs Rollup/esbuild automatically and the API test run reports 15 source tests, not 30 duplicated source/dist tests. If validation passes, commit the lockfile and any intentional local changes. Do not run CI. Do not reset, stash, or discard local changes.
 
 After dependency validation, verify Compose configuration/build and manually test:
 - Sign-in and sign-out.
@@ -355,28 +371,16 @@ After dependency validation, verify Compose configuration/build and manually tes
 
 ## 8. Session handoff
 
-**Latest installer commits:**
-- `b64ddfada5329565b6bac7fb8737a781ec43add1` adds the Windows `-Development` prerequisite profile.
-- `6afe6705bc55a6bbf29cab4264dd603132f13da9` fixes PowerShell version parsing in the prerequisite checks.
-- `5a842c5b46b8552744f6e94691e5889fd60aa1a5` documents the development installation path.
-- `35f83f876b7bd1ae35cfb4279048ad4b33988b57` adds automatic npm audit, compatible remediation, and a post-fix audit to the Windows development profile.
-- `02014c062a197600504e05f128978dbe2ac263b3` documents npm vulnerability remediation behavior.
-- `b6ea32b46cf2cc4d31ebdfd1729c6ad42dd05abb` upgrades Zod to `^4.6.7` and Vitest to `^5.1.1` to resolve the audit findings that required major-version updates.
-- `a202684380217817823350fa96ee588f503f7da5` corrects the installer message about manager authentication.
-- `5bfd1939da1e7464f7200db4b6b2c529a12625f8` documents the patched dependency versions and validation requirement.
+**Recent dependency and installer commits:**
+- `b6ea32b46cf2cc4d31ebdfd1729c6ad42dd05abb` upgrades Zod to `^4.6.7` and Vitest to `^5.1.1`.
+- `e74b299b92cf54dbc647d7d5eec24f9cfcee782e` adds the Windows native dependency repair script.
+- `4dc4fb2ee635c142218b1feb3b1d0b7500be8e84` invokes native dependency repair from the Windows development installer.
+- `40d67beb16ec3063344a15b4e715be973f5913d3` limits API tests to source files.
+- `75c820056565f78b0df3fcbcf78b93fdfacf40cf` ignores TypeScript incremental build artifacts.
+- `b740609f4a1cfe6808271f3e50f59e7babdbfbbf` documents Windows native dependency repair.
+- CI automatic triggers were disabled on both `main` and `feature/installation-onboarding`; workflows are manual-dispatch only.
 
-**Next action on Windows:** Check the working tree, pull the latest branch, then run the development installer:
-
-```powershell
-cd C:\Users\ahmed\Desktop\Projects\pfsense-hub-manager
-git status --short
-git pull --ff-only
-.\scripts\install.ps1 -Development
-```
-
-The user previously reported a clean working tree, but check again before pulling. Stop if pull reports local changes or conflicts. Do not discard local files, secrets, certificates, or Docker volumes. The user pulled and ran the development installer successfully. The audit showed 4 findings (2 critical, 1 high, 1 moderate) requiring breaking major updates to Vitest and Zod. The dependency ranges were then upgraded in GitHub to patched major versions. Pull the latest commits and run `npm install`, `npm audit`, API tests, typecheck, and build. Inspect and commit the generated package-lock only after all checks pass. The installer status message was also corrected. No CI.
-
-**Unvalidated:** The new installer profile has not been executed on Windows. The existing React Router changes also remain unvalidated by local type-check/build.
+**Next action:** Pull the feature branch and run the installer profile plus the explicit validation commands in Section 7. The latest manual validation succeeded only after installing the native Rollup and esbuild packages manually. The new automatic repair has not yet been executed by the user and must be validated before this work is considered complete.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5.
 
