@@ -104,3 +104,101 @@ pre{border:1px solid #263d57;border-radius:12px}
   .stat-card{min-height:112px;padding:18px 19px}
   .content-card{padding:19px}
 }
+
+
+/* Hybrid theme: dark navigation shell + bright workspace */
+:root{
+  color-scheme:light;
+  --canvas:#f2f5f9;
+  --canvas-raised:#f7f9fc;
+  --surface:#ffffff;
+  --surface-raised:#ffffff;
+  --surface-hover:#f2f7fc;
+  --line:#dce5ef;
+  --line-soft:#e7edf4;
+  --text:#17283d;
+  --text-muted:#63758b;
+  --text-subtle:#8494a8;
+  --accent:#247fc0;
+  --accent-strong:#176da9;
+}
+html,body{background:#f2f5f9;color:#17283d}
+body{background:radial-gradient(ellipse at 82% -12%,#dceefa 0,transparent 38%),#f2f5f9}
+.app-layout{background:#f2f5f9}
+.sidebar{background:linear-gradient(180deg,#101e30 0%,#0b1727 100%);border-right:1px solid #20344b}
+.brand{border-bottom-color:#263b52}
+.brand-mark{background:linear-gradient(145deg,#327eae,#1d496c);color:#e4f5ff}
+.brand-copy strong{color:#f1f6fc}
+.brand-copy span{color:#8eabc8}
+.nav-link{color:#b7c7d9}
+.nav-link:hover,.sub-link:hover{background:#1b3047;color:#f4f8fd}
+.nav-link.active,.sub-link.active{background:linear-gradient(100deg,#285778,#1d405e);color:#f2f8ff;box-shadow:0 1px 0 #ffffff12 inset}
+.nav-icon{color:#91b4d5}
+.nav-divider{color:#7893b0}
+.sub-nav{border-left-color:#39536e}
+.sub-link{color:#afc0d4}
+.sidebar-bottom{border-top-color:#263b52}
+.user-copy strong{color:#e6eef8}
+.user-copy span,.signout-link{color:#a3b7ce}
+.main-column{background:transparent}
+.topbar{background:#ffffffed;border-bottom:1px solid #e0e7ef;box-shadow:0 3px 14px #203d5b08;backdrop-filter:blur(16px)}
+.breadcrumb{color:#7188a2}
+.breadcrumb span{color:#aab8c8}
+.topbar h1{color:#172b42}
+.api-indicator{background:#f4f9fd;border-color:#d8e6f2;color:#45627e}
+.topbar-avatar{background:linear-gradient(145deg,#347fac,#20577f);color:#fff}
+.page-content{color:#17283d}
+.welcome-row h2,.page-stack>div>h2{color:#172b42}
+.muted{color:#64778d}
+.eyebrow{color:#4c83ad}
+.stat-card,.content-card{
+  background:#fff;
+  border:1px solid #e0e7ef;
+  box-shadow:0 5px 18px #233e5a0a,0 1px 2px #233e5a08;
+}
+.stat-card{min-height:136px}
+.stat-card:after{background:#58a9df0d}
+.stat-label{color:#6d88a4}
+.stat-card>strong{color:#172b42}
+.stat-foot{color:#71849a}
+.stat-status{color:#1c7657!important}
+.stat-role{color:#1d4770!important}
+.card-heading h2,.content-card h2,.placeholder-card h3{color:#1b3048}
+.text-button{color:#1679bd}
+.text-button:hover{background:#edf6fc;color:#116ca9}
+.device-row{border-top-color:#e8edf3}
+.device-symbol{background:linear-gradient(145deg,#eaf4fb,#dcecf8);border:1px solid #d5e6f3;color:#2879b1}
+.device-info strong{color:#20364e}
+.device-info span{color:#71849a}
+.pill{background:#eaf8f1;color:#18764f;border-color:#c7ead9}
+.placeholder-card{background:linear-gradient(135deg,#fff 0%,#f8fbfe 100%)}
+.placeholder-icon{background:#e8f3fb;color:#287db5}
+.planned-list li{background:#f8fafc;border-color:#e1e8f0;color:#536981}
+.user-form label{color:#40566e}
+input,select{background:#fff;color:#1d3046;border-color:#d5e0eb}
+input::placeholder{color:#98a8b9}
+input:hover,select:hover{border-color:#8fb8d7}
+button{background:#edf4fa;color:#234361;border-color:#d5e2ee;box-shadow:0 1px 2px #1b36520a}
+button:hover:not(:disabled){background:#e2eff9;border-color:#a9c8e1;box-shadow:0 4px 12px #234d7010}
+.primary-button{background:linear-gradient(135deg,#267fb9,#1b669d);border-color:#1c6fa9;color:#fff}
+.primary-button:hover:not(:disabled){background:linear-gradient(135deg,#328fc9,#1d75ad);border-color:#1c6fa9}
+.notice{background:#fff7e8;border-color:#f0d5a5;color:#80551b}
+.api-health-card .health-line strong{color:#1c7657}
+.app-footer{color:#8797a9}
+pre{background:#102034;color:#c8e4ff;border-color:#263f5b}
+.auth-shell{background:radial-gradient(ellipse at top left,#244766 0,#0b1422 58%)}
+.auth-card{background:linear-gradient(145deg,#172b40,#101d2d);border-color:#304963;color:#edf4fc}
+.auth-card h1,.auth-card h2{color:#f1f6fc}
+.auth-card .muted,.auth-card .field-hint,.auth-card .security-note{color:#a5b8cd}
+.auth-card label{color:#d4dfeb}
+.auth-card input{background:#0b1523;color:#edf4fc;border-color:#344c65}
+.auth-card .security-note{border-top-color:#2b4057}
+@media(max-width:900px){
+  .sidebar{background:linear-gradient(180deg,#101e30 0%,#0b1727 100%);border-right-color:#20344b}
+  .mobile-scrim{background:#07111fc2}
+  .topbar{background:#ffffffed}
+}
+@media(max-width:620px){
+  .stat-card{background:#fff}
+  .content-card{background:#fff}
+}
