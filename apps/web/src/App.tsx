@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 
 type Role = "admin" | "user";
 type User = { id: string; name: string; email: string; role: Role; active?: boolean };
-type Device = { id: string; name: string; location: string | null; edition: string; enabled: boolean };
+type Device = { id: string; name: string; location: string | null; edition: string; enabled: boolean; canDelete?: boolean };
 type ApiResponse<T> = { data: T; meta?: { outcome?: string; failedOperations?: number; durationMs?: number }; error?: { message: string } };
 type Page = "dashboard" | "firewalls" | "add-firewall" | "monitoring" | "users" | "audit" | "manager-api" | "settings";
 
@@ -35,6 +35,7 @@ export default function App() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceChecks, setDeviceChecks] = useState<Record<string, { outcome: "success" | "partial" | "failed"; checkedAt: string; failedOperations: number }>>({});
   const [editDevice, setEditDevice] = useState<Device | null>(null);
+  const [deleteDevice, setDeleteDevice] = useState<Device | null>(null);
   const [checkModalOpen, setCheckModalOpen] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
   const checkResultsRef = useRef<HTMLPreElement | null>(null);
@@ -136,6 +137,18 @@ export default function App() {
       setDeviceChecks(current => ({ ...current, [id]: { outcome: "failed", checkedAt: new Date().toISOString(), failedOperations: 8 } }));
       setCheckError(e instanceof Error ? e.message : "Read-only check failed.");
     } finally { setBusy(false); }
+  }
+  async function confirmDeleteDevice() {
+    if (!deleteDevice) return;
+    setBusy(true); setError(null);
+    try {
+      await api<{ id: string; deleted: boolean }>("/api/v1/devices/" + encodeURIComponent(deleteDevice.id), { method: "DELETE" });
+      setDevices(current => current.filter(device => device.id !== deleteDevice.id));
+      setDeviceChecks(current => { const next = { ...current }; delete next[deleteDevice.id]; return next; });
+      if (selectedDeviceId === deleteDevice.id) { setSelectedDeviceId(null); setOverview(null); }
+      setDeleteDevice(null);
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to remove firewall."); }
+    finally { setBusy(false); }
   }
   async function saveDeviceEdit(event: FormEvent) {
     event.preventDefault();
@@ -368,7 +381,7 @@ export default function App() {
                   <p>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</p>
                   <div className="inventory-meta"><span><i className="meta-dot dot-configured"/>Configuration {device.enabled ? "enabled" : "disabled"}</span><span className={checkClass}><i className="meta-dot"/> {checkLabel}</span>{check && <span>Last checked {new Date(check.checkedAt).toLocaleString()}</span>}</div>
                 </div></div>
-                <div className="inventory-device-actions">{isAdmin && <button onClick={() => setEditDevice({ ...device })}>Edit</button>}<button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
+                <div className="inventory-device-actions">{isAdmin && <button onClick={() => setEditDevice({ ...device })}>Edit</button>}{isAdmin && device.canDelete !== false && <button className="danger-button" onClick={() => setDeleteDevice(device)}>Remove</button>}<button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
                 {selectedDeviceId === device.id && <div className="inventory-detail">
                   <div><span>Appliance</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div>
                   <div><span>Live connectivity</span><strong>{checkLabel}</strong></div><div><span>Failed operations</span><strong>{check ? check.failedOperations : "Not checked"}</strong></div>
@@ -462,6 +475,13 @@ export default function App() {
               <label className="modal-checkbox"><input type="checkbox" checked={editDevice.enabled} onChange={e => setEditDevice({ ...editDevice, enabled: e.target.checked })} /> Enable this appliance for read-only checks</label>
               <div className="modal-actions"><button type="button" onClick={() => setEditDevice(null)} disabled={busy}>Cancel</button><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button></div>
             </form>
+          </section>
+        </div>}
+        {deleteDevice && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setDeleteDevice(null); }}>
+          <section className="modal-card delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-firewall-title">
+            <div className="modal-heading"><div><span className="eyebrow">FLEET MANAGEMENT</span><h2 id="delete-firewall-title">Remove firewall?</h2><p className="muted">You are about to permanently remove <strong>{deleteDevice.name}</strong> from this manager.</p></div><button type="button" onClick={() => setDeleteDevice(null)} disabled={busy} aria-label="Close">×</button></div>
+            <div className="delete-warning"><strong>This cannot be undone.</strong><p>Its stored encrypted API credentials, certificate settings, inventory record, and associated polling history will be deleted. The pfSense appliance itself will not be changed.</p></div>
+            <div className="modal-actions"><button type="button" onClick={() => setDeleteDevice(null)} disabled={busy}>Cancel</button><button type="button" className="danger-button" onClick={() => void confirmDeleteDevice()} disabled={busy}>{busy ? "Removing…" : "Remove firewall"}</button></div>
           </section>
         </div>}
         {checkModalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setCheckModalOpen(false); }}>
