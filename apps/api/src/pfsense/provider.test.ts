@@ -300,7 +300,7 @@ describe("pfSense provider device registration and credential safety", () => {
     const result = await provider.collect(primaryDeviceId, vi.fn());
 
     expect(result).toMatchObject({ failedOperations: 1, connectionStatus: "degraded" });
-    expect(query).toHaveBeenCalledTimes(10); // Device credential lookup, eight poll records, and one lifecycle update.
+    expect(query).toHaveBeenCalledTimes(11); // Device lookup, eight poll records, lifecycle update, and capability evidence.
     const lifecycleWrite = query.mock.calls.find(([statement]) => String(statement).includes("UPDATE managed_devices"));
     expect(lifecycleWrite?.[1]).toEqual(["degraded", false, "timeout", primaryDeviceId]);
   });
