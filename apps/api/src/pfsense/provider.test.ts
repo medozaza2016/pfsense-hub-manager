@@ -204,7 +204,11 @@ describe("pfSense provider device registration and credential safety", () => {
         name: "Branch firewall",
         location: "Branch office",
         edition: "ce",
-        enabled: true
+        enabled: true,
+        connection_status: "degraded",
+        last_checked_at: "2026-11-21T12:00:00.000Z",
+        last_success_at: "2026-11-20T12:00:00.000Z",
+        last_error_class: "timeout"
       }],
       rowCount: 1
     });
@@ -212,14 +216,55 @@ describe("pfSense provider device registration and credential safety", () => {
     const devices = await provider.listDevices();
     const statement = query.mock.calls[0]?.[0] as string;
 
-    expect(statement).toContain("SELECT id,name,location,edition,enabled");
+    expect(statement).toContain("connection_status,last_checked_at,last_success_at,last_error_class");
     expect(statement).not.toContain("api_key");
     expect(JSON.stringify(devices)).not.toMatch(/ciphertext|apiKey|api_key|secret/i);
     expect(devices[0]).toMatchObject({
       id: "branch-device-id",
       name: "Branch firewall",
+      connectionStatus: "degraded",
+      lastCheckedAt: "2026-11-21T12:00:00.000Z",
+      lastSuccessAt: "2026-11-20T12:00:00.000Z",
+      lastErrorClass: "timeout",
       canDelete: true
     });
+  });
+
+
+  it("persists online status and timestamps after a fully successful read-only collection", async () => {
+    getMock.mockResolvedValue({ data: { status: "ok" } });
+    const onResult = vi.fn();
+
+    const result = await provider.collect(primaryDeviceId, onResult);
+
+    expect(result).toMatchObject({ failedOperations: 0, connectionStatus: "online" });
+    expect(query).toHaveBeenCalledOnce();
+    const [statement, values] = query.mock.calls[0] as unknown as [string, unknown[]];
+    expect(statement).toContain("UPDATE managed_devices");
+    expect(statement).toContain("last_success_at=CASE WHEN");
+    expect(values).toEqual(["online", true, null, primaryDeviceId]);
+    expect(onResult).toHaveBeenCalledTimes(8);
+  });
+
+  it("persists degraded status when only some read-only operations fail", async () => {
+    getMock
+      .mockRejectedValueOnce(new Error("Firewall request timed out."))
+      .mockResolvedValue({ data: { status: "ok" } });
+
+    const result = await provider.collect(primaryDeviceId, vi.fn());
+
+    expect(result).toMatchObject({ failedOperations: 1, connectionStatus: "degraded" });
+    expect(query).toHaveBeenCalledOnce();
+    expect(query.mock.calls[0]?.[1]).toEqual(["degraded", false, "timeout", primaryDeviceId]);
+  });
+
+  it("classifies a fully unreachable firewall as offline", async () => {
+    getMock.mockRejectedValue(new Error("Firewall request timed out."));
+
+    const result = await provider.collect(primaryDeviceId, vi.fn());
+
+    expect(result).toMatchObject({ failedOperations: 8, connectionStatus: "offline" });
+    expect(query.mock.calls[0]?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
   });
 
   it("protects the primary firewall from deletion without querying the database", async () => {
