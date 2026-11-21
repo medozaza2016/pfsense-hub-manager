@@ -377,9 +377,6 @@ app.patch("/api/v1/devices/:deviceId/credentials", async (request, reply) => {
   const parsed = updateDeviceCredentialsSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_CREDENTIAL_INPUT", message: "Enter a valid API key and optional CA certificate and TLS server name." } });
   const { deviceId } = request.params as { deviceId: string };
-  if (deviceId === config.PFSENSE_DEVICE_ID) {
-    return reply.code(409).send({ error: { code: "PRIMARY_CREDENTIALS_MANAGED_BY_INSTALLATION", message: "Update the primary firewall credentials through the protected installation secret workflow." } });
-  }
   try {
     const credentialInput = {
       apiKey: parsed.data.apiKey,
