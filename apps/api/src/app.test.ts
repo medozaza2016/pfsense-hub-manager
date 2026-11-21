@@ -234,6 +234,48 @@ describe("Fastify route authentication and authorization", () => {
     expect(response.body).not.toContain("replacement-read-only-key");
   });
 
+  it("returns a device-specific compatibility profile instead of global tested capabilities", async () => {
+    const { app, provider, cookie } = createHarness("admin");
+    apps.push(app);
+    vi.mocked(provider.listDevices).mockResolvedValue([{
+      id: "firewall-1",
+      name: "Primary firewall",
+      edition: "plus",
+      release: "26.07.2-RELEASE",
+      architecture: "arm64",
+      restApiPackageVersion: "2.3.0",
+      compatibilityVerifiedAt: "2026-11-21T12:00:00.000Z"
+    }] as never);
+    vi.mocked(provider.capabilities).mockResolvedValue([{
+      key: "status.system.read",
+      endpoint: "/api/v2/status/system",
+      method: "GET",
+      supported: true,
+      verification: "verified",
+      lastCheckedAt: "2026-11-21T12:00:00.000Z",
+      lastErrorClass: null
+    }] as never);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/devices/firewall-1/capabilities",
+      headers: { cookie }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({
+      device: {
+        id: "firewall-1",
+        edition: "plus",
+        release: "26.07.2-RELEASE",
+        architecture: "arm64",
+        restApiPackageVersion: "2.3.0"
+      },
+      capabilities: [{ key: "status.system.read", supported: true, verification: "verified" }]
+    });
+    expect(provider.capabilities).toHaveBeenCalledWith("firewall-1");
+  });
+
   it("allows an administrator to delete the configured placeholder device", async () => {
     const { app, provider, cookie } = createHarness("admin");
     apps.push(app);
