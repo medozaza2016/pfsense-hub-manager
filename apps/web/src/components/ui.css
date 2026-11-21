@@ -45,7 +45,7 @@
 .ui-filter-toggle{height:42px;display:inline-flex;align-items:center;gap:9px;padding:0 14px;border:1px solid #d8e1ed;border-radius:9px;background:#fff;color:#233b5b;font-size:13px;font-weight:650;cursor:pointer}
 .ui-filter-toggle:hover,.ui-filter-toggle.is-open{border-color:#8eb1ee;background:#f5f8ff;color:#1456b8}
 .ui-filter-toggle b{display:grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:20px;background:#e8f0ff;color:#1555b2;font-size:11px}
-.ui-filter-chevron{font-size:16px;transition:transform .15s}.ui-filter-toggle.is-open .ui-filter-chevron{transform:rotate(180deg)}
+.ui-filter-toggle-mark{display:grid;place-items:center;width:19px;height:19px;margin-left:2px;border:1px solid #cbd7e6;border-radius:50%;font-size:15px;font-weight:500;line-height:1;color:#526783}.ui-filter-toggle:hover .ui-filter-toggle-mark,.ui-filter-toggle.is-open .ui-filter-toggle-mark{border-color:#9bb8e5;color:#1456b8}
 .ui-filter-panel{margin-top:14px;padding:16px 4px 2px;border-top:1px solid #edf1f6}
 .ui-filter-panel-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}
 .ui-filter-panel-heading div{display:flex;flex-direction:column;gap:3px}.ui-filter-panel-heading strong{font-size:13px;color:#172d4c}.ui-filter-panel-heading span{font-size:11px;color:#718096}
