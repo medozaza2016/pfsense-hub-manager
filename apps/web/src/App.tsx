@@ -1,344 +1,193 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-type Device = {
-  id: string;
-  name: string;
-  location: string | null;
-  edition: string;
-  enabled: boolean;
-};
-type ApiResult<T> = {
-  data?: T;
-  meta?: { outcome?: string; failedOperations?: number; durationMs?: number };
-  error?: { message?: string };
-};
-type HubPage = "overview" | "sites" | "connectivity" | "alerts" | "settings";
-type SitePage =
-  | "overview"
-  | "monitoring"
-  | "interfaces"
-  | "rules"
-  | "aliases"
-  | "compatibility"
-  | "vpn"
-  | "site-settings";
-
-const hubNavigation: { id: HubPage; label: string; icon: string }[] = [
-  { id: "overview", label: "Hub Overview", icon: "⌂" },
-  { id: "sites", label: "Sites", icon: "▦" },
-  { id: "connectivity", label: "Connectivity", icon: "⌁" },
-  { id: "alerts", label: "Alerts", icon: "♧" },
-  { id: "settings", label: "Hub Settings", icon: "⚙" },
-];
-
-const siteNavigation: { id: SitePage; label: string; icon: string }[] = [
-  { id: "overview", label: "Overview", icon: "⌂" },
-  { id: "monitoring", label: "Monitoring", icon: "⌁" },
-  { id: "interfaces", label: "Interfaces", icon: "▤" },
-  { id: "rules", label: "Firewall Rules", icon: "◈" },
-  { id: "aliases", label: "Aliases", icon: "◇" },
-  { id: "compatibility", label: "Compatibility", icon: "✓" },
-  { id: "vpn", label: "VPN", icon: "⛨" },
-  { id: "site-settings", label: "Site Settings", icon: "⚙" },
-];
-
-const sitePageLabels: Record<SitePage, string> = {
-  overview: "Overview",
-  monitoring: "Monitoring",
-  interfaces: "Interfaces",
-  rules: "Firewall Rules",
-  aliases: "Aliases",
-  compatibility: "Compatibility",
-  vpn: "VPN",
-  "site-settings": "Site Settings",
-};
-
-export default function App() {
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [apiStatus, setApiStatus] = useState<"loading" | "connected" | "offline">("loading");
-  const [busy, setBusy] = useState(false);
-  const [overview, setOverview] = useState<Record<string, unknown> | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [hubPage, setHubPage] = useState<HubPage>("overview");
-  const [selectedSite, setSelectedSite] = useState<Device | null>(null);
-  const [sitePage, setSitePage] = useState<SitePage>("overview");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  async function loadDevices() {
-    setApiStatus("loading");
-    try {
-      const response = await fetch("/api/v1/devices");
-      if (!response.ok) throw new Error(`Manager API returned HTTP ${response.status}`);
-      const body = (await response.json()) as ApiResult<Device[]>;
-      if (!Array.isArray(body.data)) throw new Error("Manager API returned an unexpected device inventory.");
-      setDevices(body.data);
-      setApiStatus("connected");
-      setError(null);
-    } catch (err) {
-      setApiStatus("offline");
-      setError(err instanceof Error ? err.message : "Unable to load device inventory.");
-    }
-  }
-
-  async function runReadOnlyCheck(device: Device) {
-    setBusy(true);
-    setOverview(null);
-    setError(null);
-    try {
-      const response = await fetch(`/api/v1/devices/${encodeURIComponent(device.id)}/overview`);
-      const body = (await response.json()) as ApiResult<Record<string, unknown>>;
-      if (!response.ok && !body.data) {
-        throw new Error(body.error?.message ?? `Collection failed (HTTP ${response.status})`);
-      }
-      setOverview(body.data ?? null);
-      if (body.meta?.outcome !== "success") {
-        setError(`The read-only collection was incomplete. ${body.meta?.failedOperations ?? 0} operation(s) failed.`);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Read-only collection failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadDevices();
-  }, []);
-
-  const enabledCount = useMemo(() => devices.filter((device) => device.enabled).length, [devices]);
-
-  function openSite(device: Device) {
-    setSelectedSite(device);
-    setSitePage("overview");
-    setOverview(null);
-    setError(null);
-    setSidebarOpen(false);
-  }
-
-  function returnToHub() {
-    setSelectedSite(null);
-    setHubPage("overview");
-    setOverview(null);
-    setError(null);
-    setSidebarOpen(false);
-  }
-
-
-  return (
-    <div className="app-shell">
-      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
-        <div className="brand">
-          <div className="brand-mark">PF</div>
-          <div className="brand-name"><strong>pfSense Hub</strong><span>Manager</span></div>
-        </div>
-
-        {selectedSite ? (
-          <>
-            <button className="back-link" onClick={returnToHub}><span>←</span> Back to Hub</button>
-            <div className="nav-caption">SITE WORKSPACE</div>
-            <div className="site-identity">
-              <span className="site-identity-icon">▦</span>
-              <div><strong>{selectedSite.name}</strong><span>{selectedSite.location || "Location not set"}</span></div>
-            </div>
-            <nav className="navigation" aria-label="Site navigation">
-              {siteNavigation.map((item) => (
-                <button key={item.id} className={sitePage === item.id ? "nav-item active" : "nav-item"} onClick={() => { setSitePage(item.id); setSidebarOpen(false); }}>
-                  <span className="nav-icon">{item.icon}</span><span>{item.label}</span>
-                </button>
-              ))}
-            </nav>
-          </>
-        ) : (
-          <>
-            <div className="nav-caption">WORKSPACE</div>
-            <nav className="navigation" aria-label="Hub navigation">
-              {hubNavigation.slice(0, 4).map((item) => (
-                <button key={item.id} className={hubPage === item.id ? "nav-item active" : "nav-item"} onClick={() => { setHubPage(item.id); setSidebarOpen(false); }}>
-                  <span className="nav-icon">{item.icon}</span><span>{item.label}</span>
-                </button>
-              ))}
-            </nav>
-            <div className="nav-caption admin-caption">ADMINISTRATION</div>
-            <nav className="navigation" aria-label="Administration">
-              <button className={hubPage === "settings" ? "nav-item active" : "nav-item"} onClick={() => { setHubPage("settings"); setSidebarOpen(false); }}>
-                <span className="nav-icon">⚙</span><span>Hub Settings</span>
-              </button>
-            </nav>
-          </>
-        )}
-
-        <div className="sidebar-footer">
-          <span className={apiStatus === "connected" ? "status-dot good" : apiStatus === "loading" ? "status-dot pending" : "status-dot bad"} />
-          <div><strong>{apiStatus === "connected" ? "Manager connected" : apiStatus === "loading" ? "Connecting…" : "Manager unavailable"}</strong><span>API connection</span></div>
-        </div>
-      </aside>
-
-      {sidebarOpen && <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
-
-      <main className="main-area">
-        <header className="topbar">
-          <div className="topbar-leading">
-            <button className="mobile-menu" aria-label="Open navigation" onClick={() => setSidebarOpen((open) => !open)}>☰</button>
-            <div className="breadcrumb"><span>pfSense Hub Manager</span><strong>{selectedSite ? selectedSite.name : "Hub Workspace"}</strong></div>
-          </div>
-          <div className="topbar-actions">
-            <span className={`connection-chip ${apiStatus}`}><i />{apiStatus === "connected" ? "Hub connected" : apiStatus === "loading" ? "Connecting" : "Connection issue"}</span>
-            <button className="icon-button refresh-button" aria-label="Refresh inventory" title="Refresh inventory" onClick={() => void loadDevices()}>↻</button>
-            <div className="avatar" aria-label="User profile">AM</div>
-          </div>
-        </header>
-
-        <div className="page-content">
-          {selectedSite ? (
-            <SiteWorkspace
-              device={selectedSite}
-              page={sitePage}
-              overview={overview}
-              busy={busy}
-              error={error}
-              onCheck={() => void runReadOnlyCheck(selectedSite)}
-            />
-          ) : (
-            <HubWorkspace
-              page={hubPage}
-              devices={devices}
-              enabledCount={enabledCount}
-              apiStatus={apiStatus}
-              error={error}
-              onOpenSite={openSite}
-              onRefresh={() => void loadDevices()}
-            />
-          )}
-        </div>
-        <footer className="app-footer">pfSense Hub Manager <span>·</span> Read-only management mode</footer>
-      </main>
-    </div>
-  );
-}
-
-function HubWorkspace(props: {
-  page: HubPage;
-  devices: Device[];
-  enabledCount: number;
-  apiStatus: "loading" | "connected" | "offline";
-  error: string | null;
-  onOpenSite: (device: Device) => void;
-  onRefresh: () => void;
-}) {
-  const { page, devices, enabledCount, apiStatus, error, onOpenSite, onRefresh } = props;
-  const title = page === "overview" ? "Network Overview" : hubNavigation.find((item) => item.id === page)?.label ?? "Hub Overview";
-  const description = page === "overview"
-    ? "A centralized view of your managed firewall sites."
-    : page === "sites"
-      ? "Review registered firewalls and open an individual site workspace."
-      : page === "connectivity"
-        ? "A central view of relationships and reachability between your sites."
-        : page === "alerts"
-          ? "Review issues reported by the manager and connected firewalls."
-          : "Manage the Hub Manager application.";
-
-  return (
-    <>
-      <div className="page-heading">
-        <div><div className="eyebrow">HUB WORKSPACE</div><h1>{title}</h1><p>{description}</p></div>
-        <button className="primary-button" onClick={onRefresh}>↻ <span>Refresh</span></button>
-      </div>
-
-      {error && <div className="notice" role="alert"><strong>Inventory notice</strong><span>{error}</span></div>}
-
-      {page === "overview" || page === "sites" ? (
-        <>
-          <section className="metric-grid" aria-label="Inventory summary">
-            <MetricCard icon="▦" label="Registered sites" value={String(devices.length)} detail="Devices in manager inventory" tone="blue" />
-            <MetricCard icon="✓" label="Enabled configurations" value={String(enabledCount)} detail="Enabled in manager configuration" tone="green" />
-            <MetricCard icon="◷" label="Disabled configurations" value={String(devices.length - enabledCount)} detail="Disabled in manager configuration" tone="orange" />
-            <MetricCard icon="⌁" label="API connection" value={apiStatus === "connected" ? "Connected" : apiStatus === "loading" ? "Checking" : "Unavailable"} detail="Manager API status" tone={apiStatus === "connected" ? "green" : "orange"} />
-          </section>
-
-          <section className="content-card">
-            <div className="card-heading"><div><h2>Managed Sites</h2><p>{devices.length} registered {devices.length === 1 ? "firewall" : "firewalls"}</p></div><button className="text-button" onClick={onRefresh}>Refresh inventory <span>→</span></button></div>
-            {devices.length === 0 ? (
-              <div className="empty-state"><div className="empty-icon">▦</div><strong>{apiStatus === "loading" ? "Loading site inventory" : "No sites found"}</strong><p>{apiStatus === "loading" ? "Waiting for the manager API to respond." : "No firewall devices are currently returned by the manager API."}</p></div>
-            ) : (
-              <div className="site-list">
-                {devices.map((device) => (
-                  <article className="site-row" key={device.id}>
-                    <div className="site-symbol">▦</div>
-                    <div className="site-main"><strong>{device.name}</strong><span>{device.location || "Location not set"} · pfSense {device.edition.toUpperCase()}</span><small>Device ID: {device.id}</small></div>
-                    <span className={device.enabled ? "state-pill enabled" : "state-pill disabled"}><i />{device.enabled ? "Enabled" : "Disabled"}</span>
-                    <button className="row-action" onClick={() => onOpenSite(device)}>Open site <span>→</span></button>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-          <div className="info-strip"><span className="info-icon">i</span><p>Enabled indicates the device's manager configuration. It does not confirm that the firewall is currently reachable.</p></div>
-        </>
-      ) : (
-        <section className="content-card placeholder-card">
-          <div className="placeholder-icon">{page === "connectivity" ? "⌁" : page === "alerts" ? "♧" : "⚙"}</div>
-          <h2>{page === "connectivity" ? "Connectivity view is not integrated yet" : page === "alerts" ? "Alert center is not integrated yet" : "Hub settings are not available yet"}</h2>
-          <p>{page === "connectivity" ? "This section will show verified site-to-site relationships and connection health when those data sources are implemented." : page === "alerts" ? "Alerts will appear here once the backend exposes a verified alert feed." : "Hub-level configuration controls will be added in a separate implementation milestone."}</p>
-          <span className="coming-label">Not yet implemented</span>
-        </section>
-      )}
-    </>
-  );
-}
-
-function SiteWorkspace(props: {
-  device: Device;
-  page: SitePage;
-  overview: Record<string, unknown> | null;
-  busy: boolean;
-  error: string | null;
-  onCheck: () => void;
-}) {
-  const { device, page, overview, busy, error, onCheck } = props;
-  const isOverview = page === "overview";
-  const pageDescriptions: Record<SitePage, string> = {
-    overview: "Health, inventory, and key information returned by this firewall.",
-    monitoring: "Performance and health metrics collected from this firewall.",
-    interfaces: "Network interface configuration and status.",
-    rules: "Read-only view of firewall rules.",
-    aliases: "Read-only view of firewall aliases.",
-    compatibility: "API capability and compatibility information for this firewall.",
-    vpn: "VPN configuration and status for this site.",
-    "site-settings": "Connection details and site-specific manager settings.",
+type IconName = "grid" | "sites" | "network" | "bell" | "settings" | "monitor" | "layers" | "shield" | "list" | "route" | "server" | "globe" | "key" | "file" | "plus" | "search" | "refresh" | "chevron" | "menu" | "close" | "clock" | "cpu" | "database" | "harddrive" | "check" | "alert" | "wifi" | "building" | "activity" | "more";
+function Icon({name,size=18}:{name:IconName;size?:number}) {
+  const paths: Record<IconName,string> = {
+    grid:"M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z",
+    sites:"M3 21V7l9-4 9 4v14 M8 21v-7h8v7 M7 9h.01 M12 9h.01 M17 9h.01",
+    network:"M12 5v6m0 0-6 5m6-5 6 5 M12 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM6 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm12 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
+    bell:"M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4",
+    settings:"M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.8 3.1-.2-.1a1.7 1.7 0 0 0-1.8.1l-.2.1h-3.6l-.1-.2a1.7 1.7 0 0 0-1.6-1l-.2.1-3.1-1.8.1-.2a1.7 1.7 0 0 0-.1-1.8l-.1-.2v-3.6l.2-.1a1.7 1.7 0 0 0 1-1.6l-.1-.2 1.8-3.1.2.1a1.7 1.7 0 0 0 1.8-.1l.2-.1h3.6l.1.2a1.7 1.7 0 0 0 1.6 1l.2-.1 3.1 1.8-.1.2a1.7 1.7 0 0 0 .1 1.8l.1.2v3.6Z",
+    monitor:"M3 4h18v13H3z M8 21h8 M12 17v4",
+    layers:"M12 3 2 8l10 5 10-5-10-5ZM2 12l10 5 10-5M2 16l10 5 10-5",
+    shield:"M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z M9 12l2 2 4-4",
+    list:"M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
+    route:"M4 6h.01M20 18h.01M4 6c0 8 16 2 16 12",
+    server:"M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01M12 7h4M12 17h4",
+    globe:"M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20",
+    key:"M21 2l-2 2m-7.6 7.6a5 5 0 1 1-7.1-7.1 5 5 0 0 1 7.1 7.1ZM14 10l7 7-3 3-2-2-2 2-3-3",
+    file:"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8M8 17h8",
+    plus:"M12 5v14M5 12h14",
+    search:"m21 21-4.3-4.3M19 10.5a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0Z",
+    refresh:"M20 7v5h-5M4 17v-5h5 M5.6 9a7 7 0 0 1 12-2L20 12M4 12l2.4 5a7 7 0 0 0 12-2",
+    chevron:"m9 18 6-6-6-6",
+    menu:"M3 6h18M3 12h18M3 18h18",
+    close:"M18 6 6 18M6 6l12 12",
+    clock:"M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 6v6l4 2",
+    cpu:"M6 6h12v12H6zM9 9h6v6H9zM9 1v5m6-5v5M9 18v5m6-5v5M1 9h5m-5 6h5m12-6h5m-5 6h5",
+    database:"M4 5c0-2 16-2 16 0v14c0 2-16 2-16 0zM4 5c0 2 16 2 16 0M4 12c0 2 16 2 16 0",
+    harddrive:"M3 6h18v12H3zM7 14h.01M11 14h.01M7 10h10",
+    check:"m5 12 4 4L19 6",
+    alert:"M12 3 2 21h20L12 3ZM12 9v5m0 3h.01",
+    wifi:"M2 8a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19h.01",
+    building:"M3 21V3h18v18M7 7h3m4 0h3M7 11h3m4 0h3M7 15h3m4 0h3M10 21v-3h4v3",
+    activity:"M3 12h4l3-8 4 16 3-8h4",
+    more:"M5 12h.01M12 12h.01M19 12h.01"
   };
-
-  return (
-    <>
-      <div className="site-page-banner">
-        <div className="site-large-symbol">▦</div>
-        <div className="site-banner-copy"><div className="eyebrow">SITE WORKSPACE</div><h1>{device.name}</h1><p>{device.location || "Location not set"} <span>·</span> pfSense {device.edition.toUpperCase()}</p></div>
-        <span className={device.enabled ? "state-pill enabled" : "state-pill disabled"}><i />{device.enabled ? "Enabled configuration" : "Disabled configuration"}</span>
-      </div>
-
-      <div className="page-heading site-section-heading">
-        <div><h2>{sitePageLabels[page]}</h2><p>{pageDescriptions[page]}</p></div>
-        {isOverview && <button className="primary-button" disabled={busy || !device.enabled} onClick={onCheck}>{busy ? "Checking…" : "Run read-only check"}</button>}
-      </div>
-
-      {error && <div className="notice" role="alert"><strong>Collection notice</strong><span>{error}</span></div>}
-
-      {isOverview ? (
-        <section className="content-card result-card">
-          <div className="card-heading"><div><h2>Read-only inventory result</h2><p>Data is shown only after a live API collection.</p></div></div>
-          {overview ? <pre className="result-json">{JSON.stringify(overview, null, 2)}</pre> : <div className="empty-state"><div className="empty-icon">⌁</div><strong>No collection has been run</strong><p>Run a read-only check to request the latest overview from this firewall.</p></div>}
-        </section>
-      ) : (
-        <section className="content-card placeholder-card">
-          <div className="placeholder-icon">{siteNavigation.find((item) => item.id === page)?.icon}</div>
-          <h2>{sitePageLabels[page]} data is not integrated yet</h2>
-          <p>This page is part of the approved site navigation. It will be connected to the corresponding read-only API operation in a later milestone.</p>
-          <span className="coming-label">Not yet implemented</span>
-        </section>
-      )}
-    </>
-  );
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>;
 }
 
-function MetricCard(props: { icon: string; label: string; value: string; detail: string; tone: "blue" | "green" | "orange" }) {
-  return <article className="metric-card"><div className={`metric-icon ${props.tone}`}>{props.icon}</div><div className="metric-copy"><span>{props.label}</span><strong>{props.value}</strong><small>{props.detail}</small></div></article>;
+type Page = "overview"|"sites"|"connectivity"|"alerts"|"hub-settings"|"monitoring"|"interfaces"|"rules"|"aliases"|"nat"|"routing"|"gateways"|"dhcp"|"dns"|"services"|"certificates"|"vpn"|"compatibility"|"site-settings"|"users"|"audit"|"app-settings";
+type Device = {id:string;name:string;location:string;edition:string;address:string;state:"online"|"offline";lastSeen:string};
+const demoDevices:Device[]=[
+ {id:"site-main",name:"Main Office",location:"Netgate · pfSense Plus",edition:"Plus",address:"172.10.50.1",state:"online",lastSeen:"Checked 1 min ago"},
+ {id:"site-branch",name:"Branch Office",location:"pfSense CE",edition:"CE",address:"100.80.0.12",state:"online",lastSeen:"Checked 2 min ago"},
+ {id:"site-warehouse",name:"Warehouse",location:"pfSense Plus",edition:"Plus",address:"100.80.0.18",state:"offline",lastSeen:"Last seen 18 min ago"}
+];
+const hubNav:{id:Page;label:string;icon:IconName;section:string}[]=[
+ {id:"overview",label:"Hub Overview",icon:"grid",section:"WORKSPACE"},
+ {id:"sites",label:"Sites",icon:"sites",section:"WORKSPACE"},
+ {id:"connectivity",label:"Connectivity",icon:"network",section:"WORKSPACE"},
+ {id:"alerts",label:"Alerts",icon:"bell",section:"WORKSPACE"},
+ {id:"hub-settings",label:"Hub Settings",icon:"settings",section:"ADMINISTRATION"}
+];
+const siteNav:{id:Page;label:string;icon:IconName;section:string}[]=[
+ {id:"overview",label:"Overview",icon:"grid",section:"SITE"},
+ {id:"monitoring",label:"Monitoring",icon:"activity",section:"SITE"},
+ {id:"interfaces",label:"Interfaces",icon:"network",section:"NETWORK"},
+ {id:"rules",label:"Firewall Rules",icon:"shield",section:"SECURITY"},
+ {id:"aliases",label:"Aliases",icon:"layers",section:"SECURITY"},
+ {id:"nat",label:"NAT",icon:"route",section:"NETWORK"},
+ {id:"routing",label:"Routing",icon:"route",section:"NETWORK"},
+ {id:"gateways",label:"Gateways",icon:"globe",section:"NETWORK"},
+ {id:"dhcp",label:"DHCP",icon:"server",section:"SERVICES"},
+ {id:"dns",label:"DNS",icon:"globe",section:"SERVICES"},
+ {id:"services",label:"Services",icon:"settings",section:"SERVICES"},
+ {id:"certificates",label:"Certificates",icon:"key",section:"SERVICES"},
+ {id:"vpn",label:"VPN",icon:"shield",section:"SECURITY"},
+ {id:"compatibility",label:"Compatibility",icon:"check",section:"MANAGEMENT"},
+ {id:"site-settings",label:"Site Settings",icon:"settings",section:"MANAGEMENT"}
+];
+const adminNav:{id:Page;label:string;icon:IconName}[]=[
+ {id:"users",label:"User Management",icon:"sites"},
+ {id:"audit",label:"Audit Logs",icon:"file"},
+ {id:"app-settings",label:"Application Settings",icon:"settings"}
+];
+const titles:Record<Page,string>=Object.fromEntries([...hubNav,...siteNav,...adminNav].map(x=>[x.id,x.label])) as Record<Page,string>;
+const descriptions:Record<string,string>={
+ overview:"A centralized view of your managed firewall sites",
+ sites:"Review registered firewalls and open an individual site workspace",
+ connectivity:"A consolidated view of site reachability and network health",
+ alerts:"Review operational events and issues across all managed sites",
+ "hub-settings":"Configure global Hub Manager preferences",
+ monitoring:"Performance and health metrics collected for this firewall",
+ interfaces:"Network interfaces, addressing and link status",
+ rules:"Review firewall policy and rule organization",
+ aliases:"Manage reusable network and port aliases",
+ nat:"Review network address translation mappings",
+ routing:"Routing tables, static routes and policy paths",
+ gateways:"Gateway health, monitoring and failover configuration",
+ dhcp:"DHCP server scopes, leases and reservations",
+ dns:"DNS resolver, forwarding and host overrides",
+ services:"Firewall services and service health",
+ certificates:"Certificate inventory, validity and trust",
+ vpn:"VPN tunnels, peers and connection status",
+ compatibility:"API package, release and capability compatibility",
+ "site-settings":"Connection details and site-specific settings",
+ users:"Manage application users and access roles",
+ audit:"Review security-relevant activity and administrative events",
+ "app-settings":"Application preferences, security and system configuration"
+};
+const mockRows:Record<string,string[][]>={
+ interfaces:[["WAN","1.2.3.4","1.0 Gbps","Up"],["LAN","192.168.10.1","1.0 Gbps","Up"],["OPT1","192.168.20.1","1.0 Gbps","Up"]],
+ rules:[["100","Allow LAN to Internet","LAN","IPv4 *","Pass","Enabled"],["110","Allow DNS","LAN","UDP 53","Pass","Enabled"],["120","Block guest network","GUEST","IPv4 *","Block","Enabled"]],
+ aliases:[["LAN_NETWORK","Network","192.168.10.0/24","12"],["DNS_SERVERS","Host","1.1.1.1, 8.8.8.8","2"],["WEB_PORTS","Port","80, 443","2"]],
+ nat:[["WAN HTTPS","Port forward","443","192.168.10.20","Enabled"],["WireGuard","Outbound NAT","Any","Automatic","Enabled"]],
+ routing:[["Default route","0.0.0.0/0","192.0.2.1","WAN"],["Internal route","10.20.0.0/16","192.168.10.254","LAN"]],
+ gateways:[["WAN_DHCP","192.0.2.1","Online","0.8 ms"],["VPN_GW","10.8.0.1","Online","12 ms"]],
+ dhcp:[["LAN","192.168.10.100 - 199","100","Enabled"],["GUEST","192.168.30.100 - 199","100","Enabled"]],
+ dns:[["Resolver","Enabled","127.0.0.1","Active"],["Forwarder","Enabled","1.1.1.1","Active"]],
+ services:[["DHCP Server","Running","Automatic"],["DNS Resolver","Running","Automatic"],["NTP","Running","Automatic"],["OpenVPN","Stopped","Manual"]],
+ certificates:[["webConfigurator","Local CA","2027-08-12","Valid"],["vpn-server","Internal CA","2027-03-04","Valid"]],
+ vpn:[["Site-to-site VPN","IPsec","Connected","00:14:32"],["Remote access","OpenVPN","Disconnected","—"]],
+ users:[["Administrator","admin@example.local","Administrator","Active"],["Operator","operator@example.local","Read only","Active"]],
+ audit:[["14:32:08","Session authenticated","Administrator","Success"],["14:28:41","Read-only inventory refresh","System","Success"],["14:12:03","Firewall poll failed","System","Warning"]]
+};
+function Status({state,label}:{state:"online"|"offline"|"warning";label?:string}){return <span className={"status-pill "+state}><i/>{label??(state==="online"?"Online":state==="offline"?"Offline":"Attention")}</span>}
+function Metric({icon,label,value,detail,tone}:{icon:IconName;label:string;value:string;detail:string;tone:string}){return <article className="metric-card"><div className={"metric-icon "+tone}><Icon name={icon} size={23}/></div><div className="metric-copy"><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>}
+function Panel({title,action,children,className=""}:{title:string;action?:React.ReactNode;children:React.ReactNode;className?:string}){return <section className={"panel "+className}><div className="panel-heading"><h2>{title}</h2>{action}</div>{children}</section>}
+
+export default function App(){
+ const [page,setPage]=useState<Page>("overview");
+ const [selected,setSelected]=useState<Device|null>(null);
+ const [menuOpen,setMenuOpen]=useState(false);
+ const [query,setQuery]=useState("");
+ const [dialog,setDialog]=useState<"add-site"|"profile"|"none">("none");
+ const [toast,setToast]=useState("");
+ const [tab,setTab]=useState("All sites");
+ const [expanded,setExpanded]=useState<string|null>(null);
+ const [toggleStates,setToggleStates]=useState<Record<string,boolean>>({"Automatic polling":true,"Email notifications":false,"Require confirmation":true});
+ const [filter,setFilter]=useState("All");
+ const [refreshCount,setRefreshCount]=useState(0);
+ const [formName,setFormName]=useState("");
+ const [formLocation,setFormLocation]=useState("");
+ const [localSites,setLocalSites]=useState<Device[]>(demoDevices);
+ const [mobileTab,setMobileTab]=useState("Overview");
+ const notify=(message:string)=>{setToast(message);window.setTimeout(()=>setToast(""),2600)};
+ const isSite=!!selected;
+ const nav=isSite?siteNav:hubNav;
+ const filteredSites=useMemo(()=>localSites.filter(s=>(s.name+" "+s.location+" "+s.address).toLowerCase().includes(query.toLowerCase())&&(filter==="All"||s.state===filter.toLowerCase())),[localSites,query,filter]);
+ function go(id:Page){setPage(id);setMenuOpen(false);setExpanded(null);setQuery("");}
+ function openSite(d:Device){setSelected(d);go("overview");}
+ function backHub(){setSelected(null);go("overview");}
+ function refresh(){setRefreshCount(x=>x+1);notify("Preview refreshed. No firewall was contacted.");}
+ function addSite(){if(!formName.trim()){notify("Enter a site name to continue.");return;}const d:Device={id:"preview-"+Date.now(),name:formName.trim(),location:formLocation.trim()||"Location not set",edition:"Plus",address:"Not configured",state:"offline",lastSeen:"Not connected"};setLocalSites(s=>[...s,d]);setFormName("");setFormLocation("");setDialog("none");go("sites");notify("Preview site added locally. No device was registered with the backend.");}
+ const pageTitle=titles[page]??"Hub Overview";
+ const isOverview=page==="overview";
+ return <div className="app-shell">
+  <aside className={"sidebar "+(menuOpen?"sidebar-open":"")}>
+   <div className="brand"><div className="brand-mark">PF</div><div className="brand-name"><strong>pfSense Hub</strong><span>Manager</span></div></div>
+   {selected?<><button className="back-link" onClick={backHub}>← <span>Back to Hub</span></button><div className="nav-caption">SITE: {selected.name.toUpperCase()}</div>{siteNav.map((n,i)=><React.Fragment key={n.id}>{(i===2||i===3||i===5||i===8||i===12||i===13)&&<div className="nav-divider"/>}<button className={"nav-item "+(page===n.id?"active":"")} onClick={()=>go(n.id)}><Icon name={n.icon}/><span>{n.label}</span></button></React.Fragment>)}</>:<>
+    <div className="nav-caption">WORKSPACE</div>{hubNav.slice(0,4).map(n=><button key={n.id} className={"nav-item "+(page===n.id?"active":"")} onClick={()=>go(n.id)}><Icon name={n.icon}/><span>{n.label}</span>{n.id==="alerts"&&<b className="nav-count">1</b>}</button>)}
+    <div className="nav-caption admin-caption">ADMINISTRATION</div>{[hubNav[4],...adminNav].map(n=><button key={n.id} className={"nav-item "+(page===n.id?"active":"")} onClick={()=>go(n.id)}><Icon name={n.icon}/><span>{n.label}</span></button>)}
+   </>}
+   <div className="sidebar-footer"><span className="status-dot"/><div><strong>{selected?selected.state==="online"?"Site online":"Site offline":"Hub operational"}</strong><span>Preview environment</span></div></div>
+  </aside>
+  {menuOpen&&<button className="sidebar-scrim" aria-label="Close menu" onClick={()=>setMenuOpen(false)}/>}
+  <main className="main-area">
+   <header className="topbar">
+    <div className="topbar-leading"><button className="mobile-menu" aria-label="Toggle navigation" onClick={()=>setMenuOpen(v=>!v)}><Icon name="menu"/></button><div className="breadcrumb"><span>pfSense Hub Manager</span><strong>{selected?selected.name:"Hub Overview"}</strong></div></div>
+    <div className="topbar-actions"><span className="connection-chip"><i/>Hub operational</span><button className="primary-button add-site-top" onClick={()=>setDialog("add-site")}><Icon name="plus" size={16}/> Add Site</button><button className="avatar" onClick={()=>setDialog("profile")}>AM</button><button className="top-chevron" onClick={()=>setDialog("profile")}><span>⌄</span></button></div>
+   </header>
+   <div className="page-content">
+    <div className="preview-banner"><span className="preview-dot"/> FRONTEND PREVIEW · DEMONSTRATION DATA · NO FIREWALL CHANGES</div>
+    {isOverview&&!selected?<HubOverview sites={localSites} onOpen={openSite} onViewAll={()=>go("sites")} onConnectivity={()=>go("connectivity")} onAlerts={()=>go("alerts")} refreshCount={refreshCount}/>:selected&&page==="overview"?<SiteOverview device={selected} onNavigate={go}/>:page==="sites"?<SitesPage sites={filteredSites} query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} onOpen={openSite} onAdd={()=>setDialog("add-site")}/>:page==="connectivity"?<Connectivity sites={localSites}/>:page==="alerts"?<Alerts onNavigate={go}/>:page==="hub-settings"||page==="app-settings"?<SettingsPage title={pageTitle} toggles={toggleStates} setToggles={setToggleStates}/>:page==="monitoring"?<Monitoring/>:page==="compatibility"?<Compatibility device={selected}/>:page==="site-settings"?<SiteSettings device={selected} toggles={toggleStates} setToggles={setToggleStates}/>:<DataPage page={page} query={query} setQuery={setQuery} onAdd={()=>notify("This is a frontend-only preview. No firewall configuration was changed.")} />}
+   </div>
+   <footer className="app-footer">pfSense Hub Manager <span>·</span> Frontend preview <span>·</span> Live integration is intentionally deferred</footer>
+  </main>
+  <nav className="mobile-bottom-nav">{(selected?[["Overview","grid"],["Monitoring","activity"],["Interfaces","network"],["Rules","shield"],["More","more"]]:[["Overview","grid"],["Sites","sites"],["Connectivity","network"],["Alerts","bell"],["Settings","settings"]]).map(([label,icon])=><button key={label} className={mobileTab===label?"selected":""} onClick={()=>{setMobileTab(label);const match=[...hubNav,...siteNav].find(x=>x.label.toLowerCase().startsWith(label.toLowerCase()));if(label==="More")setMenuOpen(true);else if(match)go(match.id)}}><Icon name={icon as IconName} size={18}/><span>{label}</span>{label==="Alerts"&&<b>1</b>}</button>)}</nav>
+  {toast&&<div className="toast" role="status">{toast}</div>}
+  {dialog!=="none"&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setDialog("none")}}><section className="modal"><button className="modal-close" onClick={()=>setDialog("none")}><Icon name="close"/></button>{dialog==="add-site"?<><span className="eyebrow">SITE ONBOARDING · PREVIEW</span><h2>Add a site</h2><p>This creates a local preview card only. Backend registration and credentials are not connected yet.</p><label>Site name<input value={formName} onChange={e=>setFormName(e.target.value)} placeholder="e.g. Branch Office"/></label><label>Location<input value={formLocation} onChange={e=>setFormLocation(e.target.value)} placeholder="City or site description"/></label><div className="modal-actions"><button className="secondary-button" onClick={()=>setDialog("none")}>Cancel</button><button className="primary-button" onClick={addSite}>Add preview site</button></div></>:<><span className="eyebrow">ACCOUNT</span><h2>Administrator</h2><p>Profile and session management will be connected in a later integration step.</p><div className="profile-line"><span className="avatar">AM</span><div><strong>Ahmed Mohamed</strong><small>Local preview administrator</small></div></div><button className="secondary-button full-width" onClick={()=>setDialog("none")}>Close</button></>}</section></div>}
+ </div>
 }
+function HubOverview({sites,onOpen,onViewAll,onConnectivity,onAlerts,refreshCount}:{sites:Device[];onOpen:(d:Device)=>void;onViewAll:()=>void;onConnectivity:()=>void;onAlerts:()=>void;refreshCount:number}){
+ return <><div className="page-heading"><div><h1>Network Overview</h1><p>A centralized view of your managed firewall sites</p></div><div className="updated">Last updated: Just now <button className="icon-button" title="Refresh preview"><Icon name="refresh"/></button></div></div>
+ <div className="metric-grid"><Metric icon="sites" label="Total sites" value={String(sites.length)} detail="Registered firewalls" tone="blue"/><Metric icon="wifi" label="Online" value={String(sites.filter(s=>s.state==="online").length)} detail="Sites reachable" tone="green"/><Metric icon="alert" label="Offline" value={String(sites.filter(s=>s.state==="offline").length)} detail="Requires attention" tone="orange"/><Metric icon="bell" label="Active alerts" value="1" detail="Across all sites" tone="blue"/></div>
+ <div className="overview-grid"><Panel title="Managed Sites" action={<button className="text-button" onClick={onViewAll}>View all <Icon name="chevron" size={15}/></button>}><div className="site-rows">{sites.map(s=><div className="site-row" key={s.id}><div className="site-symbol"><Icon name="building" size={23}/></div><div className="site-main"><strong>{s.name}</strong><span>{s.location}</span><small><Icon name="network" size={12}/> Tailscale · {s.address}</small></div><Status state={s.state}/><div className="site-last">{s.lastSeen}</div><button className="row-link" onClick={()=>onOpen(s)}>{s.state==="online"?"Open site":"Details"} <Icon name="chevron" size={14}/></button><button className="kebab" onClick={()=>onOpen(s)} aria-label={"Open "+s.name}><Icon name="more"/></button></div>)}</div></Panel>
+ <Panel title="Network Health"><div className="health-summary"><div className="health-ring"><strong>{Math.round(sites.filter(s=>s.state==="online").length/Math.max(1,sites.length)*100)}%</strong></div><div><strong>{sites.every(s=>s.state==="online")?"All sites operational":"Needs attention"}</strong><span>{sites.filter(s=>s.state==="online").length} of {sites.length} sites currently reachable</span></div></div><div className="health-legend"><div><i className="legend-green"/>Connected <b>{sites.filter(s=>s.state==="online").length} sites</b></div><div><i className="legend-orange"/>Disconnected <b>{sites.filter(s=>s.state==="offline").length} site</b></div></div><button className="text-button" onClick={onConnectivity}>View connectivity <Icon name="chevron" size={15}/></button></Panel>
+ <Panel title="Recent Alerts" action={<button className="text-button" onClick={onAlerts}>All alerts <Icon name="chevron" size={15}/></button>}><div className="alert-row"><span className="alert-icon"><Icon name="alert"/></span><div><strong>Warehouse is unreachable</strong><span>Tailscale connection check failed</span></div><small>18m</small></div></Panel>
+ <Panel title="Recent Activity"><div className="activity-list"><div><span className="activity-icon green"><Icon name="wifi"/></span><p><strong>Main Office inventory checked</strong><small>Read-only refresh completed</small></p><time>1m</time></div><div><span className="activity-icon green"><Icon name="check"/></span><p><strong>Branch Office connected</strong><small>Connection verified</small></p><time>4m</time></div><div><span className="activity-icon orange"><Icon name="alert"/></span><p><strong>Warehouse check failed</strong><small>Connectivity alert raised</small></p><time>18m</time></div></div></Panel></div><p className="preview-footnote">Demonstration values are shown to reproduce the approved mockup. They are not live firewall telemetry. Preview refresh #{refreshCount}.</p></>
+}
+function SiteOverview({device,onNavigate}:{device:Device;onNavigate:(p:Page)=>void}){
+ return <><div className="site-header-line"><div className="site-symbol"><Icon name="building" size={24}/></div><div><strong>{device.name}</strong><span>{device.location} · Tailscale: {device.address}</span></div><Status state={device.state}/><div className="updated">Last updated: Just now <Icon name="refresh"/></div></div><div className="page-heading"><div><h1>Site Overview</h1><p>Health, performance and key information for this firewall</p></div></div><div className="metric-grid site-metrics"><Metric icon="cpu" label="CPU" value="18%" detail="Current utilization" tone="blue"/><Metric icon="database" label="Memory" value="42%" detail="System memory" tone="blue"/><Metric icon="harddrive" label="Disk" value="28%" detail="Storage utilization" tone="purple"/><Metric icon="clock" label="Uptime" value="12d 6h" detail="Since last restart" tone="green"/></div><div className="site-detail-grid"><Panel title="System Information"><dl className="detail-list"><div><dt>Hostname</dt><dd>main-fw</dd></div><div><dt>Platform</dt><dd>Netgate 6100</dd></div><div><dt>pfSense</dt><dd>23.09.1 (Plus)</dd></div><div><dt>Serial</dt><dd>NG-6100-8A3F</dd></div></dl><button className="text-button" onClick={()=>onNavigate("compatibility")}>View details <Icon name="chevron"/></button></Panel><Panel title="Interfaces" action={<span className="subtle">3 interfaces</span>}><div className="interface-list">{[["WAN","1.2.3.4","↑ 214 Mbps","↓ 38 Mbps"],["LAN","192.168.10.1","↑ 1.1 Gbps","↓ 1.1 Gbps"],["OPT1","192.168.20.1","↑ 320 Mbps","↓ 275 Mbps"]].map(x=><div key={x[0]}><i/><strong>{x[0]}</strong><span>{x[1]}</span><b>{x[2]}</b><b>{x[3]}</b></div>)}</div><button className="text-button" onClick={()=>onNavigate("interfaces")}>View interfaces <Icon name="chevron"/></button></Panel><Panel title="Firewall" action={<span className="subtle">1,248 rules</span>}><div className="firewall-status"><p><Icon name="check"/> Enabled</p><p><Icon name="shield"/> Default deny (recommended)</p><p><Icon name="list"/> Last change: 2h ago</p></div><button className="text-button" onClick={()=>onNavigate("rules")}>View rules <Icon name="chevron"/></button></Panel></div><p className="preview-footnote">All system metrics and interface details on this screen are illustrative preview values, not a live collection.</p></>
+}
+function SitesPage({sites,query,setQuery,filter,setFilter,onOpen,onAdd}:{sites:Device[];query:string;setQuery:(v:string)=>void;filter:string;setFilter:(v:string)=>void;onOpen:(d:Device)=>void;onAdd:()=>void}){
+ return <><div className="page-heading"><div><h1>Managed Sites</h1><p>All registered firewall locations and their current manager status</p></div><button className="primary-button" onClick={onAdd}><Icon name="plus"/> Add Site</button></div><div className="toolbar"><div className="search-box"><Icon name="search"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search sites, locations or addresses"/></div><div className="filter-tabs">{["All","Online","Offline"].map(x=><button className={filter===x?"chosen":""} key={x} onClick={()=>setFilter(x)}>{x}</button>)}</div></div><div className="sites-grid">{sites.map(s=><article className="site-card" key={s.id}><div className="site-card-top"><div className="site-symbol"><Icon name="building" size={23}/></div><Status state={s.state}/></div><h2>{s.name}</h2><p>{s.location}</p><div className="site-card-meta"><span>Edition</span><b>pfSense {s.edition}</b><span>Address</span><b>{s.address}</b><span>Last check</span><b>{s.lastSeen}</b></div><button className="secondary-button full-width" onClick={()=>onOpen(s)}>Open site <Icon name="chevron"/></button></article>)}</div>{sites.length===0&&<div className="empty-panel">No sites match this filter.</div>}</>
+}
+function Connectivity({sites}:{sites:Device[]}){return <><div className="page-heading"><div><h1>Connectivity</h1><p>Site reachability and connection health</p></div></div><div className="metric-grid"><Metric icon="wifi" label="Connected sites" value={String(sites.filter(s=>s.state==="online").length)} detail="Preview connection state" tone="green"/><Metric icon="alert" label="Disconnected" value={String(sites.filter(s=>s.state==="offline").length)} detail="Requires attention" tone="orange"/><Metric icon="clock" label="Last refresh" value="Just now" detail="Demonstration only" tone="blue"/></div><Panel title="Site connectivity"><div className="connectivity-list">{sites.map(s=><div key={s.id}><div className="site-symbol"><Icon name="building"/></div><div><strong>{s.name}</strong><span>{s.address}</span></div><Status state={s.state}/><span className="subtle">{s.lastSeen}</span></div>)}</div></Panel><div className="info-strip"><Icon name="alert"/><span>Connectivity values are preview fixtures. No live probes are running.</span></div></>}
+function Alerts({onNavigate}:{onNavigate:(p:Page)=>void}){return <><div className="page-heading"><div><h1>Alerts</h1><p>Operational events that may require attention</p></div><button className="secondary-button" onClick={()=>onNavigate("audit")}>View audit log</button></div><Panel title="Active alerts"><div className="table-wrap"><table><thead><tr><th>Severity</th><th>Alert</th><th>Site</th><th>First seen</th><th>Status</th></tr></thead><tbody><tr><td><Status state="offline" label="Critical"/></td><td><strong>Site unreachable</strong><small>Tailscale connection check failed</small></td><td>Warehouse</td><td>18 minutes ago</td><td><span className="table-state">Open</span></td></tr></tbody></table></div></Panel><Panel title="Recent resolved alerts"><div className="empty-state compact"><Icon name="check"/><strong>No resolved preview alerts</strong><span>Resolved events will appear here.</span></div></Panel></>}
+function SettingsPage({title,toggles,setToggles}:{title:string;toggles:Record<string,boolean>;setToggles:React.Dispatch<React.SetStateAction<Record<string,boolean>>>}){return <><div className="page-heading"><div><h1>{title}</h1><p>Application preferences and operational defaults</p></div></div><div className="settings-grid"><Panel title="General"><div className="settings-row"><div><strong>Application name</strong><span>pfSense Hub Manager</span></div><button className="secondary-button" onClick={()=>alert("Name editing will be added during settings integration.")}>Edit</button></div><div className="settings-row"><div><strong>Display timezone</strong><span>Browser local timezone</span></div><button className="secondary-button" onClick={()=>alert("Timezone selection is a preview interaction.")}>Change</button></div></Panel><Panel title="Preferences">{Object.entries(toggles).map(([name,value])=><div className="settings-row" key={name}><div><strong>{name}</strong><span>{name==="Automatic polling"?"Refresh site status on a schedule":name==="Email notifications"?"Send notifications for important events":"Ask before consequential actions"}</span></div><button role="switch" aria-checked={value} className={"switch "+(value?"on":"")} onClick={()=>setToggles(s=>({...s,[name]:!s[name]}))}><i/></button></div>)}</Panel></div></>}
+function SiteSettings({device,toggles,setToggles}:{device:Device|null;toggles:Record<string,boolean>;setToggles:React.Dispatch<React.SetStateAction<Record<string,boolean>>>}){return <><div className="page-heading"><div><h1>Site Settings</h1><p>Connection profile and local site preferences</p></div></div><Panel title="Device profile"><dl className="detail-list"><div><dt>Site name</dt><dd>{device?.name}</dd></div><div><dt>Edition</dt><dd>pfSense {device?.edition}</dd></div><div><dt>Connection address</dt><dd>{device?.address}</dd></div><div><dt>Connection state</dt><dd>{device?.state}</dd></div></dl><button className="secondary-button" onClick={()=>alert("Editing site credentials is deferred until secure backend onboarding is implemented.")}>Edit connection profile</button></Panel><SettingsPage title="Site preferences" toggles={toggles} setToggles={setToggles}/></>}
+function Monitoring(){return <><div className="page-heading"><div><h1>Monitoring</h1><p>Performance trends and system health</p></div><button className="secondary-button" onClick={()=>alert("Time range selector preview")}>Last 24 hours⌄</button></div><div className="metric-grid"><Metric icon="cpu" label="CPU average" value="18%" detail="Illustrative value" tone="blue"/><Metric icon="database" label="Memory used" value="42%" detail="Illustrative value" tone="green"/><Metric icon="harddrive" label="Disk used" value="28%" detail="Illustrative value" tone="purple"/><Metric icon="clock" label="Uptime" value="12d 6h" detail="Illustrative value" tone="green"/></div><Panel title="Resource utilization"><div className="chart-placeholder"><div><span>CPU</span><svg viewBox="0 0 600 130" preserveAspectRatio="none"><polyline points="0,100 40,92 80,98 120,70 160,76 200,65 240,80 280,48 320,55 360,43 400,60 440,38 480,42 520,22 560,30 600,12"/></svg></div><div><span>Memory</span><svg viewBox="0 0 600 130" preserveAspectRatio="none"><polyline points="0,72 40,68 80,72 120,60 160,66 200,52 240,58 280,48 320,53 360,42 400,48 440,36 480,40 520,32 560,38 600,28"/></svg></div></div></Panel><p className="preview-footnote">Trend lines are visual placeholders, not collected metrics.</p></>}
+function Compatibility({device}:{device:Device|null}){return <><div className="page-heading"><div><h1>Compatibility</h1><p>Firewall release, API package and capability support</p></div></div><Panel title="Device compatibility"><dl className="detail-list"><div><dt>Device</dt><dd>{device?.name??"Selected site"}</dd></div><div><dt>pfSense edition</dt><dd>{device?.edition??"Plus"}</dd></div><div><dt>Installed release</dt><dd>Not verified in preview</dd></div><div><dt>REST API package</dt><dd>Not verified in preview</dd></div><div><dt>Architecture</dt><dd>Pending live discovery</dd></div></dl></Panel><Panel title="Capability status"><div className="capability-list">{["System status","Gateway status","Interface status","Service status","pfSense version","ARP summary","Firewall states summary","State table size"].map(x=><div key={x}><span>{x}</span><Status state="warning" label="Integration pending"/></div>)}</div></Panel></>}
+function DataPage({page,query,setQuery,onAdd}:{page:Page;query:string;setQuery:(s:string)=>void;onAdd:()=>void}){const rows=mockRows[page]??[];const headers:Record<string,string[]>={interfaces:["Interface","Address","Link speed","Status"],rules:["ID","Description","Interface","Protocol","Action","Status"],aliases:["Name","Type","Content","Entries"],nat:["Name","Type","External","Internal","Status"],routing:["Name","Destination","Gateway","Interface"],gateways:["Gateway","Address","Status","Latency"],dhcp:["Scope","Range","Leases","Status"],dns:["Service","Status","Listen address","Health"],services:["Service","State","Startup"],certificates:["Certificate","Issuer","Expires","Status"],vpn:["Tunnel","Type","State","Uptime"],users:["Name","Email","Role","Status"],audit:["Time","Event","Actor","Result"]};const cols=headers[page]??["Name","Type","Status"];const data=rows.filter(r=>r.join(" ").toLowerCase().includes(query.toLowerCase()));return <><div className="page-heading"><div><h1>{titles[page]}</h1><p>{descriptions[page]}</p></div><button className="primary-button" onClick={onAdd}><Icon name="plus"/> {page==="rules"?"Add rule":page==="aliases"?"Add alias":page==="nat"?"Add mapping":page==="users"?"Add user":"Add new"}</button></div><div className="toolbar"><div className="search-box"><Icon name="search"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={"Search "+titles[page].toLowerCase()}/></div><button className="secondary-button" onClick={()=>setQuery("")}>Clear filters</button></div><Panel title={titles[page]} action={<span className="subtle">{data.length} preview records</span>}><div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c}>{c}</th>)}<th/></tr></thead><tbody>{data.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{j===r.length-1&&(v==="Enabled"||v==="Up"||v==="Online"||v==="Valid"||v==="Active"||v==="Success"||v==="Connected")?<Status state="online" label={v}/>:j===r.length-1&&(v==="Stopped"||v==="Disconnected"||v==="Warning")?<Status state="warning" label={v}/>:v}</td>)}<td><button className="kebab" onClick={()=>alert("Row details are a local preview interaction.")}><Icon name="more"/></button></td></tr>)}</tbody></table></div></Panel><p className="preview-footnote">Rows are illustrative UI fixtures. Create, edit, delete and apply operations are not connected to a firewall.</p></>}
