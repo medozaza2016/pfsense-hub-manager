@@ -190,3 +190,35 @@
  .ui-mobile-record-actions{justify-content:stretch}
  .ui-mobile-record-actions>*{flex:1}
 }
+
+
+/* Mobile layout refinements from device review */
+@media(max-width:760px){
+ .ui-mobile-record-actions.user-mobile-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:14px}
+ .ui-mobile-role-field{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+ .ui-mobile-role-field>span,.ui-user-toggle-wrap>span{font-size:10px;color:#718096}
+ .ui-mobile-role-field select{width:100%;min-width:0}
+ .ui-user-toggle-wrap{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;min-width:62px}
+ .ui-mobile-record-actions.user-mobile-actions .user-status-toggle{flex:0 0 42px;width:42px;min-width:42px;max-width:42px;height:24px;padding:3px;box-sizing:border-box}
+ .ui-mobile-record-actions.user-mobile-actions .user-status-toggle i{width:18px;height:18px;flex:0 0 18px}
+ .ui-mobile-record-actions.user-mobile-actions .user-status-toggle.on i{transform:translateX(18px)}
+ .ui-audit-mobile-summary{margin-top:11px;padding-top:10px;border-top:1px solid #edf1f6;color:#52627d;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+ .ui-table-shell.has-mobile-cards .ui-table-footer{padding:12px 2px}
+ .ui-bulk-actions{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px}
+ .ui-bulk-actions>strong{text-align:right;margin:0}
+ .ui-bulk-action-buttons{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .ui-bulk-action-buttons button{width:100%;min-width:0}
+ .ui-select-all{display:flex;align-items:center;gap:8px;color:#243b5b;font-size:12px;font-weight:650}
+ .ui-select-all input,.ui-selection-cell input{width:18px;height:18px;accent-color:#075df5}
+ .ui-mobile-record-check{justify-content:flex-start}
+}
+.ui-selection-cell{width:42px;text-align:center!important;white-space:nowrap}
+.ui-selection-cell input{vertical-align:middle}
+.ui-desktop-alert-actions{display:flex;justify-content:flex-end;align-items:center;gap:6px;white-space:nowrap}
+.ui-desktop-alert-actions button{min-height:30px;padding:5px 8px;font-size:11px}
+@media(min-width:761px){
+ .ui-bulk-actions{justify-content:flex-start}
+ .ui-bulk-action-buttons{display:flex;align-items:center;gap:8px;margin-left:auto}
+ .ui-select-all{display:flex;align-items:center;gap:8px;color:#243b5b;font-size:12px;font-weight:650}
+ .ui-select-all input,.ui-selection-cell input{width:18px;height:18px;accent-color:#075df5}
+}
