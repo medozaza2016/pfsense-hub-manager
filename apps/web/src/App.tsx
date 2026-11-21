@@ -17,6 +17,34 @@ function connectionStatusLabel(status: Device["connectionStatus"]): string {
   };
   return labels[status ?? "unknown"];
 }
+
+type DiagnosticRecord = Record<string, unknown>;
+function diagnosticRecord(value: unknown): DiagnosticRecord {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as DiagnosticRecord : {};
+}
+function diagnosticLabel(value: string): string {
+  return value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[._-]+/g, " ").replace(/\\s+/g, " ").trim().replace(/\\b\\w/g, letter => letter.toUpperCase());
+}
+function diagnosticValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Not reported";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return Number.isFinite(value) ? new Intl.NumberFormat().format(value) : "Not reported";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
+}
+function redactDiagnosticData(value: unknown): unknown {
+  const sensitiveKey = /(serial|netgate|mac|(^|[_\\.])ip($|[_\\.])|address|hostname|host_name|fqdn|token|secret|key|password|credential|uuid|arp|source|destination)/i;
+  if (Array.isArray(value)) return value.map(item => redactDiagnosticData(item));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as DiagnosticRecord).map(([key, child]) =>
+      [key, sensitiveKey.test(key) ? "[redacted]" : redactDiagnosticData(child)]
+    ));
+  }
+  return value;
+}
+function diagnosticJson(value: unknown): string {
+  return JSON.stringify(redactDiagnosticData(value), null, 2);
+}
 type ApiResponse<T> = { data: T; meta?: { outcome?: string; failedOperations?: number; durationMs?: number }; error?: { message: string } };
 type Page = "dashboard" | "firewalls" | "add-firewall" | "monitoring" | "users" | "audit" | "manager-api" | "settings";
 
@@ -676,7 +704,7 @@ export default function App() {
             <div className="check-modal-body">
               {busy && !overview && <div className="check-loading"><span className="check-spinner"/> <strong>Running read-only checks…</strong><p className="muted">Waiting for the firewall API responses.</p></div>}
               {checkError && <div className="notice">{checkError}</div>}
-              {overview && <><div className="check-result-summary"><strong>{deviceChecks[selectedDeviceId ?? ""]?.outcome === "success" ? "Check completed successfully" : "Check completed with issues"}</strong><span>{deviceChecks[selectedDeviceId ?? ""]?.failedOperations ?? 0} failed operations</span></div><pre ref={checkResultsRef}>{JSON.stringify(overview,null,2)}</pre><p className="muted">The response contains data returned by read-only firewall endpoints. Sensitive credential values are not displayed.</p></>}
+              {overview && <DiagnosticResults overview={overview} failedOperations={deviceChecks[selectedDeviceId ?? ""]?.failedOperations ?? 0} resultsRef={checkResultsRef} />}
             </div>
             <div className="modal-actions"><button onClick={() => setCheckModalOpen(false)} disabled={busy}>Close</button>{selectedDeviceId && <button className="primary-button" onClick={() => void runCheck(selectedDeviceId)} disabled={busy}>Run again</button>}</div>
           </section>
@@ -684,6 +712,60 @@ export default function App() {
         <footer className="app-footer">pfSense Hub Manager <span>·</span> {isAdmin ? "Administrator access" : "Read-only access"} <span>·</span> Firewall configuration changes are not enabled in this release</footer>
       </main>
     </div>
+  </div>;
+}
+
+
+function DiagnosticResults({overview,failedOperations,resultsRef}:{overview:DiagnosticRecord;failedOperations:number;resultsRef:React.RefObject<HTMLPreElement | null>}) {
+  const system = diagnosticRecord(overview.system);
+  const version = diagnosticRecord(overview.version);
+  const stateSize = diagnosticRecord(overview.firewallStateSize);
+  const systemEntries = Object.entries(system).filter(([,value]) => value !== null && ["string","number","boolean"].includes(typeof value)).slice(0,8);
+  const recordCount = (key:string) => {
+    const value = diagnosticRecord(overview[key]).recordCount;
+    return typeof value === "number" && Number.isFinite(value) ? new Intl.NumberFormat().format(value) : "Not reported";
+  };
+  const numberValue = (value:unknown) => typeof value === "number" && Number.isFinite(value) ? value : null;
+  const currentStates = numberValue(stateSize.currentstates);
+  const configuredLimit = numberValue(stateSize.maximumstates) ?? numberValue(stateSize.defaultmaximumstates);
+  const statePercent = currentStates !== null && configuredLimit !== null && configuredLimit > 0 ? (currentStates / configuredLimit) * 100 : null;
+  const versionValue = ["version","product_version","release","version_full"].map(key => version[key]).find(value => typeof value === "string" && value.length > 0);
+  const successfulOperations = Math.max(0,8-failedOperations);
+  const outcome = failedOperations === 0 ? "success" : "partial";
+  return <div className="diagnostic-results">
+    <div className={outcome === "success" ? "check-result-summary diagnostic-summary-success" : "check-result-summary diagnostic-summary-warning"}>
+      <div><strong>{outcome === "success" ? "All core checks responded" : "Some core checks did not complete"}</strong><span>{successfulOperations} of 8 core operations succeeded</span></div>
+      <span>{failedOperations} failed</span>
+    </div>
+    <section className="diagnostic-section">
+      <div className="diagnostic-section-heading"><div><span className="eyebrow">COLLECTION OVERVIEW</span><h3>Firewall services and network</h3></div><span className="diagnostic-section-note">Read-only data</span></div>
+      <div className="diagnostic-stat-grid">
+        <article className="diagnostic-stat"><span>Gateways</span><strong>{recordCount("gateways")}</strong><small>Records returned</small></article>
+        <article className="diagnostic-stat"><span>Interfaces</span><strong>{recordCount("interfaces")}</strong><small>Records returned</small></article>
+        <article className="diagnostic-stat"><span>Services</span><strong>{recordCount("services")}</strong><small>Records returned</small></article>
+        <article className="diagnostic-stat"><span>ARP entries</span><strong>{diagnosticValue(overview.arpEntryCount)}</strong><small>Count returned</small></article>
+        <article className="diagnostic-stat"><span>Firewall states</span><strong>{diagnosticValue(overview.firewallStateEntryCount)}</strong><small>Active state entries</small></article>
+        <article className="diagnostic-stat"><span>State table usage</span><strong>{currentStates === null ? "Not reported" : diagnosticValue(currentStates)}</strong><small>{configuredLimit === null ? "Configured limit unavailable" : `of ${diagnosticValue(configuredLimit)} configured default limit`}{statePercent === null ? "" : ` · ${statePercent.toFixed(1)}%`}</small></article>
+      </div>
+    </section>
+    <div className="diagnostic-detail-grid">
+      <section className="diagnostic-info-card">
+        <span className="eyebrow">SYSTEM INFORMATION</span>
+        <h3>System metrics</h3>
+        {systemEntries.length ? <dl>{systemEntries.map(([key,value]) => <div key={key}><dt>{diagnosticLabel(key)}</dt><dd>{diagnosticValue(value)}</dd></div>)}</dl> : <p className="diagnostic-empty">No system metrics were returned by this check.</p>}
+      </section>
+      <section className="diagnostic-info-card">
+        <span className="eyebrow">SOFTWARE</span>
+        <h3>pfSense version</h3>
+        <strong className="diagnostic-version">{versionValue ? diagnosticValue(versionValue) : "Not reported"}</strong>
+        <dl>{["base","patch","buildtime"].filter(key => version[key] !== undefined && version[key] !== null).map(key => <div key={key}><dt>{diagnosticLabel(key)}</dt><dd>{diagnosticValue(version[key])}</dd></div>)}</dl>
+      </section>
+    </div>
+    <details className="technical-details">
+      <summary><span><strong>Technical details</strong><small>Redacted JSON response from the read-only endpoints</small></span><span className="technical-details-toggle">Expand</span></summary>
+      <pre ref={resultsRef}>{diagnosticJson(overview)}</pre>
+    </details>
+    <p className="muted diagnostic-disclaimer">These figures describe data returned by the available endpoints. A successful collection confirms API responses, not the operational health of every gateway, interface, or service.</p>
   </div>;
 }
 
