@@ -17,7 +17,7 @@ For a Windows development setup that also prepares and validates the local npm w
 
 The development profile requires Node.js 22 or newer and npm 10 or newer. It checks both versions, installs workspace dependencies when needed, verifies that the local TypeScript compiler is available, and runs the repository type-check and production build before continuing with Docker installation. If Node.js is missing or too old, install the current Node.js LTS release and reopen PowerShell before rerunning the command.
 
-The installer uses `npm install` when the local dependency directory is absent or TypeScript is unavailable. The project does not currently commit a package lockfile, so a reproducible `npm ci` installation is not yet available.
+After dependencies are installed, the development installer runs `npm audit`. If vulnerabilities are reported, it automatically runs `npm audit fix`, which applies compatible updates allowed by the dependency constraints, then runs a second audit and reports any remaining findings. It never runs `npm audit fix --force` and does not automatically accept breaking major-version upgrades. Review and commit any dependency or lockfile changes produced by the fix. The project does not currently commit a package lockfile, so a reproducible `npm ci` installation is not yet available.
 
 ## Linux
 
