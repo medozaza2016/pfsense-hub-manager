@@ -74,7 +74,7 @@ Status meanings:
 - [x] The injectable Fastify app factory and separated runtime bootstrap compile and pass the latest tests.
 
 ### Remaining foundation work
-- [~] UI refresh in progress: persistent non-collapsible desktop navigation, simplified firewall links, refined inventory layout, page/card/detail/dialog motion, and reduced-motion support committed; awaiting Windows local build and visual acceptance.
+- [x] UI refresh accepted by the user: persistent non-collapsible desktop navigation, simplified firewall links, refined inventory layout, page/card/detail/dialog motion, and reduced-motion support committed. A fresh local build after these changes is still pending.
 - [x] Add route-level coverage for device registration, metadata updates, credential rotation, authorization, primary-device protection, and relevant error paths.
 - [x] Add provider and route tests for credential revalidation, TLS CA/server-name propagation, certificate discovery metadata, and invalid non-HTTPS discovery input.
 - [ ] Review the non-fatal React Router build warnings only if a compatible, low-risk fix is identified; they do not currently fail the build.
@@ -150,7 +150,7 @@ The phases are ordered. A phase may overlap with documentation or design work, b
 - [x] Certificate inspection/discovery during onboarding.
 - [ ] Add explicit device connection profile and lifecycle states.
 - [~] Backend credential replacement/rotation route implemented for additional devices, with read-only connection re-test before encrypted credentials and TLS settings are persisted; primary-device rotation remains installation-secret managed.
-- [ ] Add frontend credential-edit workflow and clear operator feedback for connection/TLS failures.
+- [~] Frontend credential/TLS editor implemented for additional devices: replacement API key, optional CA PEM import/paste or explicit clear, TLS server-name update or explicit clear, read-only revalidation before save, and failure feedback. Local typecheck/build and manual workflow validation pending.
 - [ ] Define and document the operational credential rotation/revocation procedure.
 - [ ] Record pfSense edition, release, architecture, REST API package version, and verified capability profile per device.
 - [ ] Add a compatibility matrix and capability discovery process.
@@ -345,7 +345,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: pull and visually verify the UI refresh on Windows at desktop and mobile widths, then adjust based on the rendered result.**
+**Next task: validate the new credential/TLS editor locally, then continue Phase 2 device connection profiles and compatibility discovery.**
 
 The user has successfully completed the corrected Windows development installer. The installer:
 - Recognized the required Windows native Rollup and esbuild packages at their expected versions.
@@ -374,21 +374,27 @@ The two Vite React Router `use client` warnings are non-fatal. Do not change dep
 
 Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The installer removed the obsolete API nested duplicate after verifying the root package name/version, preserved the Vite nested package, and completed audit, typecheck, production builds, Docker image builds, and Compose startup. `npm ls esbuild @esbuild/win32-x64 --all` now reports both expected native packages without an extraneous root package. The subsequent `npm ls --depth=0n` invocation contained a command-line typo (`0n` rather than `0`), producing an npm config warning; the dependency listing itself showed no extraneous package.
 
-**Next action:** continue Phase 1 by adding focused route tests for device registration and credential updates, then TLS configuration/certificate handling. Keep all firewall operations read-only. Do not enable writes, expand firewall API privileges, run CI, or touch the production LXC. No destructive Git or database operations are authorized.
+**Previous action completed:** Phase 1 route/provider tests for registration, credential rotation, authorization, TLS configuration, and certificate discovery are implemented and recorded above. The user accepted the UI refresh. The next implementation increment is the Phase 2 frontend credential/TLS editor, now committed but not yet locally validated.
 
 ## 8. Session handoff
 
-**Validated baseline (latest user-provided Windows output):**
-- `git pull --ff-only origin feature/installation-onboarding`: already up to date.
-- `npm test`: 29 tests passed across 7 test files.
+**Previously validated Windows baseline (2026-11-21):**
+- `npm test`: 42 tests passed across 7 API test files.
 - `npm run typecheck`: API and web passed.
 - `npm run build`: API and web production builds passed.
-- Vite emitted two non-fatal React Router `use client` directive warnings.
-- These latest commands verify the app-factory refactor and route authorization tests. They do not newly verify Docker Compose health, `npm audit`, or live firewall connectivity.
+- These results predate the UI and credential-editor commits below. They must be rerun against the current branch.
 
-**Latest relevant commit:** `24b15b0` (`test(api): cover session and route authorization`).
+**User acceptance:** The user reviewed and accepted the UI refresh.
 
-**Next action:** run `git pull --ff-only origin feature/installation-onboarding`, `npm run typecheck`, and `npm run build`, then inspect the refreshed inventory and sidebar in the local browser at desktop and mobile widths. Latest UI commits: `a41cca8` (navigation and route transition hook), `cb96b00` (inventory/sidebar styling and motion), `1e946e8` (dialog entrance motion). Keep firewall operations read-only and preserve all existing local data and secrets.
+**Latest implementation commits:**
+- `a41cca8`: persistent sidebar navigation and page transition hook.
+- `cb96b00`: inventory layout, sidebar styling, and motion.
+- `1e946e8`: dialog entrance motion.
+- `8837bb8`: frontend credential and TLS editor.
+- `01aeeff`: credential form state reset and editor markup correction.
+- `e6b8c20`: credential/TLS editor styling.
+
+**Next action:** run `git pull --ff-only origin feature/installation-onboarding`, then `npm test`, `npm run typecheck`, and `npm run build`. Manually test credential rotation on an additional firewall with a valid replacement key, then test a deliberately invalid key and confirm the old credentials remain usable. Verify CA preservation, replacement, and explicit clearing, plus TLS server-name preservation/update/clearing. Do not attempt primary firewall rotation through this screen. No firewall configuration writes are involved.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
