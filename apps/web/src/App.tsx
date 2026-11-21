@@ -126,7 +126,7 @@ export default function App() {
   async function testFirewallConnection() {
     setBusy(true); setError(null); setFirewallTested(false); setFirewallTestResult(null);
     try {
-      const result = await api<{ reachable: boolean; version: unknown }>("/api/v1/devices/test-connection", { method: "POST", body: JSON.stringify(firewallPayload()) });
+      await api<{ reachable: boolean; version: unknown }>("/api/v1/devices/test-connection", { method: "POST", body: JSON.stringify(firewallPayload()) });
       setFirewallTested(true);
       setFirewallTestResult("Connection successful. pfSense API version endpoint responded.");
     } catch (e) {
