@@ -58,14 +58,12 @@ This milestone is frontend-first. All pages, navigation, layouts, responsive beh
 
 ## Validation still required
 
-This source update has not been run through the local Windows/Docker build or browser. Before treating the frontend milestone as complete:
+The Windows validation run on November 21, 2026 passed the web TypeScript check and production Vite build as part of the root commands. Browser-based visual acceptance remains pending. Before treating the frontend milestone as complete:
 
-1. Run `npm run typecheck --workspace @pfsense-hub/web`.
-2. Run `npm run build --workspace @pfsense-hub/web`.
-3. Run the application through the existing Docker Compose workflow.
-4. Compare desktop and mobile screenshots directly against the approved image.
-5. Exercise every navigation item, dialog, filter, toggle, and row action.
-6. Correct any visual or functional differences, then repeat the checks.
+1. Run the application through the existing Docker Compose workflow.
+2. Compare desktop and mobile screenshots directly against the approved image.
+3. Exercise every navigation item, dialog, filter, toggle, and row action.
+4. Correct any visual or functional differences, then repeat the checks.
 
 This document records implementation coverage, not a claim that visual acceptance or frontend completion has already passed.
 

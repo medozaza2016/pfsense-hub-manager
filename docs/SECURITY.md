@@ -1,13 +1,11 @@
 # Security Design and Current Controls
 
 ## Current security posture
-
 The first firewall integration is intentionally read-only. The manager authenticates using a dedicated pfSense local account and API key. The account is not an administrator and has only the eight GET endpoint privileges documented in INTEGRATION-STATUS.md.
 
 This is a development-stage configuration, not a completed production security review.
 
 ## Credential handling
-
 - Never commit API keys, passwords, tokens, private keys, firewall backups, or credential-bearing configuration.
 - Never expose firewall credentials to browser-delivered JavaScript or client-side environment variables.
 - Keep credentials server-side and inject them through a protected secret mechanism.
@@ -17,9 +15,7 @@ This is a development-stage configuration, not a completed production security r
 - Never place real API key material in automated tests or fixtures.
 
 ## Least privilege
-
 The pfsense_hub account is a regular local user, not an administrator. Its effective API access is limited to these GET endpoints:
-
 - /api/v2/status/system
 - /api/v2/status/gateways
 - /api/v2/status/interfaces
@@ -32,54 +28,42 @@ The pfsense_hub account is a regular local user, not an administrator. Its effec
 Do not grant POST, PUT, PATCH, or DELETE privileges for the initial read-only milestone. Do not add broad WebConfigurator privileges merely to make the restricted account's GUI display pages.
 
 ## TLS
-
-The current direct-IP endpoint presented a self-signed certificate. curl rejected it under normal certificate validation. The diagnostic test used -k, which disables certificate verification.
-
-This is not acceptable for production. Before production polling:
-1. Install or issue a certificate whose identity matches the endpoint hostname.
-2. Ensure the manager trusts the issuing CA.
-3. Verify hostname and certificate chain validation from the manager.
-4. Remove all insecure TLS flags from application code and operational scripts.
-
-Do not treat encryption without peer verification as sufficient server authentication.
+The current direct-IP endpoint presented a self-signed certificate. This is not acceptable for production. Install or issue a certificate whose identity matches the endpoint hostname, trust the issuing CA, verify hostname and certificate chain validation, and remove insecure TLS flags. Do not treat encryption without peer verification as sufficient server authentication.
 
 ## Network exposure
-
-Prefer a private management path or VPN between the manager and each firewall. Do not expose the firewall API directly to the public internet by default.
-
-The current manager-to-Plus test used the direct address 172.10.50.1 on port 10443. The public hostname timed out from the manager LXC during the captured test, while it responded from the user's XPS-13. The final network architecture remains open.
-
-The 172.10.x.x address plan is retained for now at the user's explicit direction. Do not change it as a prerequisite.
+Prefer a private management path or VPN between the manager and each firewall. Do not expose the firewall API directly to the public internet by default. The 172.10.x.x address plan is retained for now at the user's explicit direction.
 
 ## Application security requirements
+Before application release, implement authenticated administrative access, authorization checks on every manager API operation, input validation, bounded timeouts/retries/response sizes, redaction, audit events, and per-device isolation. Keep the initial pfSense integration read-only. Any future write capability requires a separate approved design and explicit authorization.
 
-Before application release, implement:
-- Server-side credential storage and retrieval.
-- Authenticated administrative access to the manager.
-- Authorization checks on every manager API operation.
-- Input validation at all external boundaries.
-- Timeouts, bounded retries, and rate controls for firewall polling.
-- Redaction of secrets and sensitive firewall payloads.
-- Audit events for security-relevant access.
-- Per-device isolation so one compromised or unavailable device does not expose or disable all others.
-- Tests for authentication failure, authorization denial, timeout, invalid responses, and unsupported capabilities.
+## Encrypted credential storage and key lifecycle
+DEC-024 selects per-site credential encryption in PostgreSQL, with AES-256-GCM. The installer generates one high-entropy application key, provides a recovery copy, and places a separate runtime copy in a protected host-side location. The backend loads it automatically. The key must never be stored in PostgreSQL, source control, browser storage, logs, or API responses.
 
-If write operations are ever proposed, require a separate product decision, explicit user authorization, granular privileges, audit records, confirmation safeguards, tests, and recovery/rollback planning before implementation.
-
-## Data minimization
-
-Do not persist full firewall state tables or ARP tables by default without an explicit retention and privacy requirement. These may contain internal addresses, device identifiers, and traffic metadata. Define collection purpose, retention, access controls, and redaction before storing such data.
+Implementation now in this branch:
+- The Windows provisioning script creates a 32-byte key represented as 64 hexadecimal characters.
+- Docker Compose mounts the runtime file read-only at /run/secrets/app_encryption_key.
+- API startup fails closed if the key file is missing or is not exactly 32 bytes encoded as 64 hexadecimal characters. It never regenerates the key.
+- Credential encryption uses Node.js crypto AES-256-GCM, a fresh 12-byte nonce per encryption, a 16-byte authentication tag, and a versioned envelope. Decryption rejects malformed or unauthenticated data.
+- Migration 002 adds a per-device credential table containing ciphertext, nonce, authentication tag, algorithm, and key version. Plaintext credentials are not stored.
+- Database and encryption-key backups must be protected and restored separately. Losing the key makes encrypted credentials unrecoverable.
+- Docker Compose file secrets are mounted as files, not encrypted at rest. Windows host ACLs and container access controls are separate security boundaries and both require validation.
+- Key rotation, Linux production provisioning, credential-management API, and end-to-end container permission tests remain outstanding.
 
 ## Incident response
-
-If a key or password is exposed:
-1. Revoke or rotate it on the firewall.
-2. Update the protected secret store.
-3. Review logs and repository history for exposure.
-4. Determine whether other credentials or systems were affected.
-5. Record the incident and remediation without copying the secret into the incident record.
+If a key or password is exposed, revoke or rotate it, update the protected secret store, review logs and repository history, assess other affected systems, and record remediation without copying the secret into the incident record.
 
 
-## OpenAPI and API-operation safety
+## Manager roles and monitoring authorization (DEC-027)
 
-The upstream OpenAPI JSON includes read and write operations. Its presence does not authorize implementation or invocation. The initial release is read-only. Do not create a generic arbitrary-path proxy to the firewall API. Any future write capability must meet the explicit preview, authorization, backup/recovery, audit, confirmation, and post-apply verification requirements above.
+The initial manager-user model for System Monitoring and Recovery has two roles: `admin` and `user`. Both roles may view authenticated monitoring status and bounded, sanitized service logs. Only `admin` may invoke service or stack operations and Compose validation. The frontend keeps those controls visible but disabled for `user`; this is usability behavior only. Fastify must derive the role from the database-backed authenticated session and enforce authorization on every privileged route. Requests without a valid session return 401; authenticated sessions without `admin` return 403. Never trust a role, user ID, or authorization claim supplied in a request body, query string, or browser storage. The initial administrator must remain an administrator; user provisioning and role changes must be admin-only, and the system must prevent demotion or deletion of the last administrator. Docker execution remains unavailable until the restricted host-side agent and its fixed project/service allowlists are implemented and reviewed.
+
+
+### Manager role implementation status, November 21, 2026
+
+The first API role increment is committed on `feature/linux-production-gui-onboarding`:
+
+- Migration `003_manager_roles_and_sessions.sql` creates the manager account/session tables when absent and adds a constrained `role` column. Existing rows receive the `admin` role by default; no account deletion or password reset is part of the migration.
+- Session lookup reads the role from PostgreSQL. Setup and login responses include the role from the database.
+- A Fastify pre-handler enforces administrator access on the reserved `/api/v1/system/operations` and `/api/v1/users` API namespaces. It returns 403 for authenticated non-admin users. The existing authentication hook returns 401 when there is no valid session.
+- Unit tests cover the role decision outcomes and passed in the Windows source test run on November 21, 2026. The migration has not yet been executed against a local test database or an existing database copy.
+- No Docker operation endpoints, host agent, or container controls have been added. Deployment and database migration are intentionally not performed by these source changes.

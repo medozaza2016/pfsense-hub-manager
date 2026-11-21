@@ -58,6 +58,7 @@ The editor workspace is ./workspace. The code-server container is isolated from 
 - [Roadmap](docs/ROADMAP.md)
 - [Decision log](docs/DECISIONS.md)
 - [Deployment guide](docs/DEPLOYMENT.md)
+- [Hub access configuration](docs/HUB-ACCESS-CONFIGURATION.md)
 - [Metrics](docs/METRICS.md)
 - [Monitoring](docs/MONITORING.md)
 

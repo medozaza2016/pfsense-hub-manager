@@ -1,60 +1,414 @@
-import Fastify from "fastify";
-import {loadConfig,loadApiKey} from "./config.js";
-import {createPool} from "./db/pool.js";
-import {migrate} from "./db/migrate.js";
-import {PfSenseClient} from "./pfsense/client.js";
-import {PfSenseProvider} from "./pfsense/provider.js";
-import {registry,requests,requestDuration,polls,pollErrors,pollDuration,deviceUp,lastSuccess} from "./metrics.js";
+import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
+import { z } from "zod";
+import { loadConfig, loadApiKey, loadEncryptionKey } from "./config.js";
+import { createPool } from "./db/pool.js";
+import { migrate } from "./db/migrate.js";
+import { PfSenseClient } from "./pfsense/client.js";
+import { PfSenseProvider } from "./pfsense/provider.js";
+import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
+import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
+import { appendAudit, upsertAlert } from "./audit.js";
 
-const config=loadConfig();
-const apiKey=await loadApiKey(config.PFSENSE_API_KEY_FILE);
-const pool=createPool(config);
+const config = loadConfig();
+const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
+const encryptionKey = await loadEncryptionKey(config.APP_ENCRYPTION_KEY_FILE);
+void encryptionKey;
+const pool = createPool(config);
 await migrate(pool);
-const client=new PfSenseClient(config,apiKey);
-const provider=new PfSenseProvider(client,config,pool);
+const client = new PfSenseClient(config, apiKey);
+const provider = new PfSenseProvider(client, config, pool);
 await provider.ensureDevice();
-const app=Fastify({logger:{level:config.NODE_ENV==="production"?"info":"debug",redact:["req.headers.x-api-key","req.headers.authorization"]},bodyLimit:65536,requestTimeout:15000});
-app.addHook("onRequest",async request=>{(request as typeof request & {metricStart?:bigint}).metricStart=process.hrtime.bigint();});
-app.addHook("onResponse",async(request,reply)=>{
- const route=request.routeOptions.url??"unmatched";
- const start=(request as typeof request & {metricStart?:bigint}).metricStart??process.hrtime.bigint();
- requests.inc({method:request.method,route,status:String(reply.statusCode)});
- requestDuration.observe({method:request.method,route},Number(process.hrtime.bigint()-start)/1e9);
+const app = Fastify({
+  logger: { level: config.NODE_ENV === "production" ? "info" : "debug", redact: ["req.headers.x-api-key", "req.headers.authorization", "req.headers.cookie"] },
+  bodyLimit: 65536,
+  requestTimeout: 15000
 });
-app.get("/health/live",async()=>({status:"ok"}));
-app.get("/health/ready",async(_request,reply)=>{try{await pool.query("SELECT 1");return {status:"ready",database:"connected"};}catch{return reply.code(503).send({status:"not_ready"});}});
-app.get("/metrics",async(_request,reply)=>{reply.header("Content-Type",registry.contentType);return registry.metrics();});
-app.get("/api/v1/version",async()=>({data:{name:"pfSense Hub Manager",version:"0.1.0",apiVersion:"v1"}}));
-app.get("/api/v1/devices",async()=>({data:await provider.listDevices()}));
-app.get("/api/v1/devices/:deviceId",async(request,reply)=>{
- const {deviceId}=request.params as {deviceId:string};
- const device=(await provider.listDevices()).find(item=>item.id===deviceId);
- if(!device)return reply.code(404).send({error:{code:"DEVICE_NOT_FOUND",message:"Managed device was not found."}});
- return {data:device};
+
+const COOKIE_NAME = "pfsense_hub_session";
+const usernameSchema = z.string().trim().min(3).max(64).regex(/^[a-zA-Z0-9._-]+$/);
+const passwordSchema = z.string().min(14).max(128);
+const userCreateSchema = z.object({ username: usernameSchema, password: passwordSchema, role: z.enum(["admin", "user"]) }).strict();
+const userUpdateSchema = z.object({ role: z.enum(["admin", "user"]).optional(), isActive: z.boolean().optional(), password: passwordSchema.optional() }).strict().refine(v => Object.keys(v).length > 0);
+const setupSchema = z.object({ username: usernameSchema, password: passwordSchema }).strict();
+const loginSchema = z.object({ username: usernameSchema, password: z.string().min(1).max(128) }).strict();
+const hubSettingsSchema = z.object({
+  reachabilityMethod: z.enum(["local", "tailscale", "hostname"]),
+  addressType: z.enum(["magic_dns", "tailscale_ip", "hostname", "ip"]).nullable(),
+  address: z.string().trim().max(253).nullable(),
+  httpsPort: z.number().int().min(1).max(65535)
+}).strict();
+
+const loginAttempts = new Map<string, { count: number; windowStartedAt: number }>();
+function getCookie(raw: string | undefined): string | null {
+  if (!raw) return null;
+  for (const part of raw.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator < 0) continue;
+    if (part.slice(0, separator).trim() === COOKIE_NAME) {
+      try { return decodeURIComponent(part.slice(separator + 1).trim()); } catch { return null; }
+    }
+  }
+  return null;
+}
+function setSessionCookie(reply: { header: (name: string, value: string) => unknown }, token: string, secure: boolean): void {
+  reply.header("Set-Cookie", `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200${secure ? "; Secure" : ""}`);
+}
+function clearSessionCookie(reply: { header: (name: string, value: string) => unknown }, secure: boolean): void {
+  reply.header("Set-Cookie", `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? "; Secure" : ""}`);
+}
+async function adminCount(): Promise<number> {
+  const result = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM admin_users");
+  return Number(result.rows[0]?.count ?? 0);
+}
+
+async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const user = (request as typeof request & { admin?: AdminUser }).admin ?? null;
+  const failure = authorizationFailure(user);
+  if (failure === 401) {
+    await reply.code(401).send({ error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in to access this resource." } });
+    return;
+  }
+  if (failure === 403) {
+    await reply.code(403).send({ error: { code: "ADMINISTRATOR_REQUIRED", message: "Administrator permissions are required for this operation." } });
+  }
+}
+
+app.addHook("onRequest", async (request, reply) => {
+  (request as typeof request & { metricStart?: bigint }).metricStart = process.hrtime.bigint();
+  const path = (request.raw.url ?? "").split("?")[0] ?? "";
+  if (!path.startsWith("/api/v1/") || path === "/api/v1/version" || path.startsWith("/api/v1/auth/")) return;
+  const token = getCookie(request.headers.cookie);
+  const admin = token ? await findSession(pool, token) : null;
+  if (!admin) {
+    return reply.code(401).send({ error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in to access this resource." } });
+  }
+  (request as typeof request & { admin?: typeof admin }).admin = admin;
 });
-app.get("/api/v1/devices/:deviceId/capabilities",async(request,reply)=>{
- const {deviceId}=request.params as {deviceId:string};
- if(deviceId!==config.PFSENSE_DEVICE_ID)return reply.code(404).send({error:{code:"DEVICE_NOT_FOUND",message:"Managed device was not found."}});
- return {data:await provider.capabilities()};
+
+// Keep operational and user-administration API namespaces administrator-only.
+app.addHook("preHandler", async (request, reply) => {
+  const path = (request.raw.url ?? "").split("?")[0] ?? "";
+  const adminOnly = path === "/api/v1/system/operations"
+    || path.startsWith("/api/v1/system/operations/")
+    || path === "/api/v1/users"
+    || path.startsWith("/api/v1/users/")
+    || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
+    || (path === "/api/v1/hub-settings" && request.method === "PUT")
+    || (path.startsWith("/api/v1/alerts/") && request.method !== "GET");
+  if (adminOnly) await requireAdmin(request, reply);
 });
-app.get("/api/v1/devices/:deviceId/overview",async(request,reply)=>{
- const {deviceId}=request.params as {deviceId:string};
- if(deviceId!==config.PFSENSE_DEVICE_ID)return reply.code(404).send({error:{code:"DEVICE_NOT_FOUND",message:"Managed device was not found."}});
- const started=Date.now();
- const result=await provider.collect(deviceId,(group,outcome,errorClass,durationMs)=>{
-  polls.inc({device_id:deviceId,operation_group:group,result:outcome});
-  pollDuration.observe({device_id:deviceId,operation_group:group},(durationMs??0)/1000);
-  if(outcome==="failure")pollErrors.inc({device_id:deviceId,operation_group:group,error_class:errorClass??"unknown"});
-  else lastSuccess.set({device_id:deviceId},Date.now()/1000);
- });
- const failures=result?.failedOperations??8;
- deviceUp.set({device_id:deviceId},failures===0?1:0);
- return reply.code(failures===8?502:200).send({data:result?.results??{},meta:{deviceId,outcome:failures===0?"success":"partial",failedOperations:failures,durationMs:Date.now()-started}});
+
+app.addHook("onResponse", async (request, reply) => {
+  const route = request.routeOptions.url ?? "unmatched";
+  const start = (request as typeof request & { metricStart?: bigint }).metricStart ?? process.hrtime.bigint();
+  requests.inc({ method: request.method, route, status: String(reply.statusCode) });
+  if (reply.statusCode === 401 || reply.statusCode === 403) { const actor = (request as typeof request & { admin?: AdminUser }).admin; void appendAudit(pool, { actorId: actor?.id ?? null, actorUsername: actor?.username ?? null, actorType: actor ? "user" : "anonymous", action: reply.statusCode === 403 ? "auth.access_denied" : "auth.authentication_required", outcome: "denied", summary: "Protected API request was denied", requestId: request.id, metadata: { method: request.method, route } }).catch(() => undefined); }
+  requestDuration.observe({ method: request.method, route }, Number(process.hrtime.bigint() - start) / 1e9);
 });
-app.setNotFoundHandler((_request,reply)=>reply.code(404).send({error:{code:"NOT_FOUND",message:"Route not found."}}));
-app.setErrorHandler((error,request,reply)=>{request.log.error({err:error},"Request failed");reply.code(500).send({error:{code:"INTERNAL_ERROR",message:"The request could not be completed.",requestId:request.id}});});
-await app.listen({host:config.HOST,port:config.PORT});
+
+app.get("/health/live", async () => ({ status: "ok" }));
+app.get("/health/ready", async (_request, reply) => {
+  try { await pool.query("SELECT 1"); return { status: "ready", database: "connected" }; }
+  catch { return reply.code(503).send({ status: "not_ready" }); }
+});
+
+app.get("/api/v1/auth/status", async () => ({ data: { setupRequired: (await adminCount()) === 0 } }));
+app.post("/api/v1/auth/setup", async (request, reply) => {
+  const parsed = setupSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_SETUP", message: "Use a 3 to 64 character username and a password of at least 14 characters." } });
+  const credentials = await hashPassword(parsed.data.password);
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    await db.query("SELECT pg_advisory_xact_lock($1)", [741928362]);
+    const existing = await db.query("SELECT 1 FROM admin_users LIMIT 1");
+    if (existing.rowCount) {
+      await db.query("ROLLBACK");
+      return reply.code(409).send({ error: { code: "SETUP_ALREADY_COMPLETED", message: "An administrator account already exists." } });
+    }
+    const created = await db.query<{ id: string; username: string; role: "admin" | "user" }>(
+      "INSERT INTO admin_users(username,password_hash,password_salt,password_iterations) VALUES($1,$2,$3,$4) RETURNING id,username,role",
+      [parsed.data.username, credentials.hash, credentials.salt, credentials.iterations]
+    );
+    const user = created.rows[0];
+    if (!user) throw new Error("Administrator account creation returned no user.");
+    await db.query("COMMIT");
+    const token = await createSession(pool, user.id);
+    await appendAudit(pool, { actorId: user.id, actorUsername: user.username, action: "auth.setup", outcome: "success", summary: "Initial administrator account created", requestId: request.id });
+    setSessionCookie(reply, token.token, ((request.protocol === "https" || request.headers["x-forwarded-proto"] === "https") || request.headers["x-forwarded-proto"] === "https"));
+    return reply.code(201).send({ data: { id: user.id, username: user.username, role: user.role } });
+  } catch (error) {
+    try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
+    throw error;
+  } finally {
+    db.release();
+  }
+});
+app.post("/api/v1/auth/login", async (request, reply) => {
+  const ip = request.ip;
+  const now = Date.now();
+  const attempts = loginAttempts.get(ip);
+  if (attempts && now - attempts.windowStartedAt < 15 * 60 * 1000 && attempts.count >= 10) {
+    return reply.code(429).send({ error: { code: "LOGIN_RATE_LIMITED", message: "Too many sign-in attempts. Wait 15 minutes and try again." } });
+  }
+  const parsed = loginSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_LOGIN", message: "Enter a valid username and password." } });
+  const found = await pool.query<{ id: string; username: string; role: "admin" | "user"; is_active: boolean; password_hash: string; password_salt: string; password_iterations: number }>(
+    "SELECT id,username,role,is_active,password_hash,password_salt,password_iterations FROM admin_users WHERE lower(username)=lower($1)",
+    [parsed.data.username]
+  );
+  const user = found.rows[0];
+  const valid = user ? await verifyPassword(parsed.data.password, user.password_hash, user.password_salt, user.password_iterations) : false;
+  if (!user || !user.is_active || !valid) {
+    await appendAudit(pool, { actorType: "anonymous", actorUsername: parsed.data.username, action: "auth.login", outcome: "failure", summary: "Sign-in failed", requestId: request.id });
+    const current = attempts && now - attempts.windowStartedAt < 15 * 60 * 1000 ? attempts : { count: 0, windowStartedAt: now };
+    loginAttempts.set(ip, { count: current.count + 1, windowStartedAt: current.windowStartedAt });
+    return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Username or password is incorrect." } });
+  }
+  loginAttempts.delete(ip);
+  await appendAudit(pool, { actorId: user.id, actorUsername: user.username, action: "auth.login", outcome: "success", summary: "User signed in", requestId: request.id });
+  const session = await createSession(pool, user.id);
+  setSessionCookie(reply, session.token, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
+  return { data: { id: user.id, username: user.username, role: user.role } };
+});
+app.post("/api/v1/auth/logout", async (request, reply) => {
+  const token = getCookie(request.headers.cookie);
+  if (token) { const user = await findSession(pool, token); if (user) await appendAudit(pool, { actorId: user.id, actorUsername: user.username, action: "auth.logout", outcome: "success", summary: "User signed out", requestId: request.id }); await deleteSession(pool, token); }
+  clearSessionCookie(reply, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
+  return { data: { signedOut: true } };
+});
+app.get("/api/v1/auth/me", async (request, reply) => {
+  const token = getCookie(request.headers.cookie);
+  const admin = token ? await findSession(pool, token) : null;
+  if (!admin) return reply.code(401).send({ error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in to continue." } });
+  return { data: admin };
+});
+
+
+app.get("/api/v1/users", async (request) => {
+  const query = z.object({ search: z.string().trim().max(100).optional() }).safeParse(request.query);
+  const search = query.success ? query.data.search ?? "" : "";
+  const result = await pool.query(
+    `SELECT id,username,role,is_active AS "isActive",created_at AS "createdAt",updated_at AS "updatedAt"
+       FROM admin_users
+      WHERE ($1 = '' OR username ILIKE '%' || $1 || '%')
+      ORDER BY lower(username)`, [search]
+  );
+  return { data: result.rows };
+});
+app.post("/api/v1/users", async (request, reply) => {
+  const parsed = userCreateSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_USER", message: "Provide a valid username, a password of at least 14 characters, and a supported role." } });
+  const actor = (request as typeof request & { admin: AdminUser }).admin;
+  const credentials = await hashPassword(parsed.data.password);
+  try {
+    const result = await pool.query(
+      `INSERT INTO admin_users(username,password_hash,password_salt,password_iterations,role)
+       VALUES($1,$2,$3,$4,$5)
+       RETURNING id,username,role,is_active AS "isActive",created_at AS "createdAt",updated_at AS "updatedAt"`,
+      [parsed.data.username,credentials.hash,credentials.salt,credentials.iterations,parsed.data.role]
+    );
+    const created = result.rows[0];
+    await appendAudit(pool, { actorId: actor.id, actorUsername: actor.username, action: "user.create", outcome: "success", targetType: "user", targetId: created.id, summary: "Created manager user", metadata: { username: created.username, role: created.role }, requestId: request.id });
+    return reply.code(201).send({ data: created });
+  } catch (error) {
+    if ((error as { code?: string }).code === "23505") return reply.code(409).send({ error: { code: "USERNAME_EXISTS", message: "That username is already in use." } });
+    throw error;
+  }
+});
+app.patch("/api/v1/users/:userId", async (request, reply) => {
+  const parsed = userUpdateSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_USER_UPDATE", message: "Provide at least one valid account change." } });
+  const { userId } = request.params as { userId: string };
+  if (!z.string().uuid().safeParse(userId).success) return reply.code(400).send({ error: { code: "INVALID_USER_ID", message: "Invalid user identifier." } });
+  const actor = (request as typeof request & { admin: AdminUser }).admin;
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    await db.query("SELECT pg_advisory_xact_lock($1)", [741928363]);
+    const current = await db.query<{ id:string; username:string; role:"admin"|"user"; is_active:boolean }>(
+      "SELECT id,username,role,is_active FROM admin_users WHERE id=$1 FOR UPDATE", [userId]
+    );
+    const target = current.rows[0];
+    if (!target) { await db.query("ROLLBACK"); return reply.code(404).send({ error: { code: "USER_NOT_FOUND", message: "User was not found." } }); }
+    const nextRole = parsed.data.role ?? target.role;
+    const nextActive = parsed.data.isActive ?? target.is_active;
+    if (target.role === "admin" && target.is_active && (nextRole !== "admin" || !nextActive)) {
+      const count = await db.query<{ count:string }>("SELECT count(*)::text AS count FROM admin_users WHERE role='admin' AND is_active=true");
+      if (Number(count.rows[0]?.count ?? 0) <= 1) { await db.query("ROLLBACK"); return reply.code(409).send({ error: { code: "LAST_ACTIVE_ADMIN", message: "The last active administrator cannot be disabled or demoted." } }); }
+    }
+    let result;
+    if (parsed.data.password) {
+      const credentials = await hashPassword(parsed.data.password);
+      result = await db.query(
+        `UPDATE admin_users SET role=$2,is_active=$3,password_hash=$4,password_salt=$5,password_iterations=$6,updated_at=now()
+         WHERE id=$1 RETURNING id,username,role,is_active AS "isActive",created_at AS "createdAt",updated_at AS "updatedAt"`,
+        [userId,nextRole,nextActive,credentials.hash,credentials.salt,credentials.iterations]
+      );
+    } else {
+      result = await db.query(
+        `UPDATE admin_users SET role=$2,is_active=$3,updated_at=now()
+         WHERE id=$1 RETURNING id,username,role,is_active AS "isActive",created_at AS "createdAt",updated_at AS "updatedAt"`,
+        [userId,nextRole,nextActive]
+      );
+    }
+    if (target.role !== nextRole || target.is_active !== nextActive || parsed.data.password) await db.query("DELETE FROM admin_sessions WHERE admin_user_id=$1", [userId]);
+    await db.query("COMMIT");
+    await appendAudit(pool, { actorId: actor.id, actorUsername: actor.username, action: "user.update", outcome: "success", targetType: "user", targetId: userId, summary: "Updated manager user", metadata: { roleChanged: target.role !== nextRole, activeChanged: target.is_active !== nextActive, passwordReset: Boolean(parsed.data.password) }, requestId: request.id });
+    return { data: result.rows[0] };
+  } catch (error) {
+    try { await db.query("ROLLBACK"); } catch { /* transaction already closed */ }
+    throw error;
+  } finally { db.release(); }
+});
+app.get("/api/v1/audit", async (request) => {
+  const parsed = z.object({ search:z.string().trim().max(100).optional(), limit:z.coerce.number().int().min(1).max(200).default(100) }).safeParse(request.query);
+  const search = parsed.success ? parsed.data.search ?? "" : "";
+  const limit = parsed.success ? parsed.data.limit : 100;
+  const result = await pool.query(
+    `SELECT id,occurred_at AS "occurredAt",actor_username AS "actorUsername",actor_type AS "actorType",
+      action,outcome,target_type AS "targetType",target_id AS "targetId",summary,request_id AS "requestId",metadata
+     FROM audit_events
+     WHERE ($1='' OR actor_username ILIKE '%' || $1 || '%' OR action ILIKE '%' || $1 || '%' OR summary ILIKE '%' || $1 || '%')
+     ORDER BY occurred_at DESC,id DESC LIMIT $2`, [search,limit]
+  );
+  return { data: result.rows };
+});
+app.get("/api/v1/alerts", async (request) => {
+  const parsed = z.object({ status:z.enum(["active","acknowledged","resolved","all"]).default("all"), severity:z.enum(["critical","warning","info"]).optional() }).safeParse(request.query);
+  const status = parsed.success ? parsed.data.status : "all";
+  const severity = parsed.success ? parsed.data.severity ?? null : null;
+  const result = await pool.query(
+    `SELECT a.id,a.severity,a.title,a.message,a.source,a.resource_type AS "resourceType",a.resource_id AS "resourceId",
+      a.status,a.first_seen_at AS "firstSeenAt",a.last_seen_at AS "lastSeenAt",a.occurrence_count AS "occurrenceCount",
+      a.acknowledged_at AS "acknowledgedAt",u.username AS "acknowledgedBy",a.resolved_at AS "resolvedAt",r.username AS "resolvedBy"
+     FROM alerts a LEFT JOIN admin_users u ON u.id=a.acknowledged_by LEFT JOIN admin_users r ON r.id=a.resolved_by
+     WHERE ($1='all' OR a.status=$1) AND ($2::text IS NULL OR a.severity=$2)
+     ORDER BY CASE a.severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,a.last_seen_at DESC LIMIT 250`, [status,severity]
+  );
+  return { data: result.rows };
+});
+app.post("/api/v1/alerts/:alertId/acknowledge", async (request, reply) => {
+  const { alertId } = request.params as { alertId:string };
+  const actor = (request as typeof request & { admin: AdminUser }).admin;
+  const result = await pool.query(
+    `UPDATE alerts SET status='acknowledged',acknowledged_at=now(),acknowledged_by=$2
+      WHERE id=$1 AND status='active' RETURNING id`, [alertId,actor.id]
+  );
+  if (!result.rowCount) return reply.code(409).send({ error: { code:"ALERT_NOT_ACTIVE",message:"Alert is not active or no longer exists." } });
+  await appendAudit(pool,{actorId:actor.id,actorUsername:actor.username,action:"alert.acknowledge",outcome:"success",targetType:"alert",targetId:alertId,summary:"Acknowledged alert",requestId:request.id});
+  return { data:{ acknowledged:true } };
+});
+app.post("/api/v1/alerts/:alertId/resolve", async (request, reply) => {
+  const { alertId } = request.params as { alertId:string };
+  const actor = (request as typeof request & { admin: AdminUser }).admin;
+  const result = await pool.query(
+    `UPDATE alerts SET status='resolved',resolved_at=now(),resolved_by=$2
+      WHERE id=$1 AND status IN ('active','acknowledged') RETURNING id`, [alertId,actor.id]
+  );
+  if (!result.rowCount) return reply.code(409).send({ error: { code:"ALERT_NOT_OPEN",message:"Alert is already resolved or no longer exists." } });
+  await appendAudit(pool,{actorId:actor.id,actorUsername:actor.username,action:"alert.resolve",outcome:"success",targetType:"alert",targetId:alertId,summary:"Resolved alert",requestId:request.id});
+  return { data:{ resolved:true } };
+});
+
+app.get("/api/v1/hub-settings", async () => {
+  const result = await pool.query(
+    "SELECT reachability_method AS \"reachabilityMethod\", address_type AS \"addressType\", address, https_port AS \"httpsPort\", updated_at AS \"updatedAt\" FROM hub_settings WHERE id=1"
+  );
+  return { data: result.rows[0] ?? { reachabilityMethod: "local", addressType: null, address: null, httpsPort: 443 } };
+});
+app.put("/api/v1/hub-settings", async (request, reply) => {
+  const parsed = hubSettingsSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Check the reachability method, address type, address, and HTTPS port." } });
+  const value = parsed.data;
+  if (value.reachabilityMethod === "local" && (value.addressType !== null || value.address !== null)) {
+    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Local access uses the default local binding and does not need an address." } });
+  }
+  if (value.reachabilityMethod !== "local" && (!value.addressType || !value.address)) {
+    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "An address is required for the selected optional reachability method." } });
+  }
+  if (value.reachabilityMethod === "tailscale" && !["magic_dns", "tailscale_ip"].includes(value.addressType ?? "")) {
+    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Choose a Tailscale MagicDNS hostname or Tailscale IPv4 address." } });
+  }
+  if (value.reachabilityMethod === "hostname" && !["hostname", "ip"].includes(value.addressType ?? "")) {
+    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Choose a hostname or IP address." } });
+  }
+  const ipSchema = value.addressType === "tailscale_ip" ? z.ipv4() : z.union([z.ipv4(), z.ipv6()]);
+  if (["tailscale_ip", "ip"].includes(value.addressType ?? "") && !ipSchema.safeParse(value.address).success) {
+    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid IP address." } });
+  }
+  if (["magic_dns", "hostname"].includes(value.addressType ?? "")) {
+    const hostname = z.string().min(1).max(253).regex(/^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/);
+    if (!hostname.safeParse(value.address).success) {
+      return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid fully qualified hostname." } });
+    }
+  }
+  const admin = (request as typeof request & { admin?: { id: string } }).admin;
+  const result = await pool.query(
+    `UPDATE hub_settings SET reachability_method=$1,address_type=$2,address=$3,https_port=$4,updated_at=now(),updated_by=$5
+      WHERE id=1
+      RETURNING reachability_method AS "reachabilityMethod",address_type AS "addressType",address,https_port AS "httpsPort",updated_at AS "updatedAt"`,
+    [value.reachabilityMethod, value.addressType, value.address, value.httpsPort, admin?.id ?? null]
+  );
+  await appendAudit(pool, { actorId: admin?.id ?? null, action: "hub.settings.update", outcome: "success", targetType: "hub_settings", targetId: "1", summary: "Updated Hub reachability preferences", requestId: request.id, metadata: { reachabilityMethod: value.reachabilityMethod, addressType: value.addressType, httpsPort: value.httpsPort } });
+  return { data: { ...result.rows[0], applyStatus: "not_applied", note: "Saved as a preference only. This does not change Docker host bindings, DNS, Tailscale, or firewall reachability." } };
+});
+
+app.get("/metrics", async (_request, reply) => {
+  reply.header("Content-Type", registry.contentType);
+  return registry.metrics();
+});
+app.get("/api/v1/version", async () => ({ data: { name: "pfSense Hub Manager", version: "0.1.0", apiVersion: "v1" } }));
+app.get("/api/v1/devices", async () => ({ data: await provider.listDevices() }));
+app.get("/api/v1/devices/:deviceId", async (request, reply) => {
+  const { deviceId } = request.params as { deviceId: string };
+  const device = (await provider.listDevices()).find(item => item.id === deviceId);
+  if (!device) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  return { data: device };
+});
+app.get("/api/v1/devices/:deviceId/capabilities", async (request, reply) => {
+  const { deviceId } = request.params as { deviceId: string };
+  if (deviceId !== config.PFSENSE_DEVICE_ID) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  return { data: await provider.capabilities() };
+});
+app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
+  const { deviceId } = request.params as { deviceId: string };
+  if (deviceId !== config.PFSENSE_DEVICE_ID) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  const started = Date.now();
+  const result = await provider.collect(deviceId, (group, outcome, errorClass, durationMs) => {
+    polls.inc({ device_id: deviceId, operation_group: group, result: outcome });
+    pollDuration.observe({ device_id: deviceId, operation_group: group }, (durationMs ?? 0) / 1000);
+    if (outcome === "failure") pollErrors.inc({ device_id: deviceId, operation_group: group, error_class: errorClass ?? "unknown" });
+    else lastSuccess.set({ device_id: deviceId }, Date.now() / 1000);
+  });
+  const failures = result?.failedOperations ?? 8;
+  if (failures > 0) {
+    await upsertAlert(pool, {
+      deduplicationKey: "device-poll:" + deviceId,
+      severity: failures === 8 ? "critical" : "warning",
+      title: failures === 8 ? "Firewall is unreachable" : "Firewall polling is degraded",
+      message: failures + " of 8 read-only status operations failed. Review the integration and network path.",
+      source: "pfSense integration",
+      resourceType: "device",
+      resourceId: deviceId
+    });
+  } else {
+    const resolved = await pool.query(
+      `UPDATE alerts SET status='resolved',resolved_at=now(),last_seen_at=now()
+        WHERE deduplication_key='device-poll:' || $1 AND status IN ('active','acknowledged') RETURNING id`, [deviceId]
+    );
+    if (resolved.rowCount) await appendAudit(pool, { actorType: "system", action: "alert.auto_resolve", outcome: "success", targetType: "device", targetId: deviceId, summary: "Automatically resolved recovered firewall polling alert", metadata: { resolvedCount: resolved.rowCount }, requestId: request.id });
+  }
+  deviceUp.set({ device_id: deviceId }, failures === 0 ? 1 : 0);
+  return reply.code(failures === 8 ? 502 : 200).send({ data: result?.results ?? {}, meta: { deviceId, outcome: failures === 0 ? "success" : "partial", failedOperations: failures, durationMs: Date.now() - started } });
+});
+app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: { code: "NOT_FOUND", message: "Route not found." } }));
+app.setErrorHandler((error, request, reply) => {
+  request.log.error({ err: error }, "Request failed");
+  reply.code(500).send({ error: { code: "INTERNAL_ERROR", message: "The request could not be completed.", requestId: request.id } });
+});
+await app.listen({ host: config.HOST, port: config.PORT });
 app.log.info("pfSense Hub Manager API started");
-const shutdown=async()=>{await app.close();await client.close();await pool.end();};
-process.on("SIGINT",()=>void shutdown().then(()=>process.exit(0)));
-process.on("SIGTERM",()=>void shutdown().then(()=>process.exit(0)));
+const shutdown = async () => { await app.close(); await client.close(); await pool.end(); };
+process.on("SIGINT", () => void shutdown().then(() => process.exit(0)));
+process.on("SIGTERM", () => void shutdown().then(() => process.exit(0)));

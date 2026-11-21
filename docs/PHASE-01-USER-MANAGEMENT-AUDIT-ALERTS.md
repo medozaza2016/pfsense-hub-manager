@@ -1,6 +1,6 @@
 # Phase 1: User Management, Audit Logs, and Alerts
 
-**Status:** Approved scope, implementation not yet started  
+**Status:** Implemented on feature branch, automated and local verification pending  
 **Planning date:** November 21, 2026  
 **Target:** Deliver User Management, Audit Logs, and Alerts together as one coherent phase.
 
@@ -137,3 +137,32 @@ These are to be resolved by inspecting the existing code before building, not gu
 - Existing database migration and transaction conventions.
 - Initial alert rules and which notification channels are actually configured.
 - Audit and alert retention period, export format, and any compliance requirements.
+
+
+## Implementation record, November 21, 2026
+
+Delivered on the feature branch:
+- Account activation state, append-only audit event storage, and persisted alert lifecycle migration.
+- Central audit service with recursive secret-key redaction and bounded metadata.
+- Administrator-only user listing/search, creation, role changes, activation/deactivation, and password reset API.
+- Last-active-administrator protection and session revocation after role, activation, or password changes.
+- Disabled accounts are rejected during login and session lookup.
+- Audit retrieval and event coverage for setup/login/logout, failed authentication, access denials, user changes, Hub reachability settings, alert lifecycle, and automatic polling recovery.
+- Deduplicated Critical/Warning alerts for firewall polling failures, automatically resolved after a fully successful polling cycle.
+- User Management, Audit Logs, and Alerts screens now use API-backed data and include loading, empty, error, and action states.
+- Service-level tests cover audit metadata sanitization and alert deduplication.
+
+## Verification and remaining release gates
+
+- GitHub Actions typecheck, test, production build, Compose validation, and container build must pass on the final pull request head.
+- Verify administrator and regular-user access in the Windows Docker environment.
+- Validate migration 004 against a copy of the current PostgreSQL database, including existing migration history.
+- Verify last-active-admin protection and append-only enforcement against PostgreSQL.
+- Define audit/alert retention, backup, restore, and any notification delivery policy before production release.
+
+## Known limitations
+
+- Alert generation is tied to the existing device overview polling request. There is no background scheduler.
+- Notification delivery, audit export, configurable retention, and alert mute controls are not implemented.
+- The wider dashboard still contains demonstration data outside these three administration screens.
+- No pfSense configuration-changing operation is introduced.

@@ -1,5 +1,9 @@
 name: CI
 on:
+  push:
+    branches: [main, feature/**]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 concurrency:
   group: pfsense-app-${{ github.ref }}
@@ -12,7 +16,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+          cache: npm
+      - run: npm ci
+      - name: Restore Rollup Linux native optional package
+        run: node scripts/repair-rollup-linux.mjs
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build

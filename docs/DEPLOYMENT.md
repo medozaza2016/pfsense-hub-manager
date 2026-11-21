@@ -1,102 +1,67 @@
 # Local and Proxmox Deployment
 
 ## Current deployment shape
+Docker Compose runs the React/Vite web application served by Nginx, the Fastify API, PostgreSQL, and code-server. PostgreSQL and the API are not published to the LXC host. The application UI binds to 127.0.0.1 by default. You can instead bind it to the host's Tailscale IPv4 address by setting HUB_BIND_ADDRESS in .env. This publishes the UI only on that selected interface, not on the host's LAN or public interfaces. Do not use 0.0.0.0. Code-server remains bound to 127.0.0.1. Do not publish either service directly to the public internet.
 
-Docker Compose runs four services: the React/Vite web application served by Nginx, the Fastify API, PostgreSQL, and code-server (VS Code in the browser). PostgreSQL and the API are not published to the LXC host. The application UI and code-server are both bound to 127.0.0.1 on the LXC host by default. Use SSH tunnels for workstation access. Do not publish either service directly to the internet.
-
-The code-server container has a persistent project workspace at ./workspace, persistent editor configuration and extension data in named volumes, and password authentication using a Docker secret. It is intentionally isolated from the application backend network and does not receive the Docker socket. This prevents the editor terminal from automatically gaining control of the host Docker daemon.
-
-The Docker Compose configuration and application images were previously built successfully in GitHub Actions. The updated four-service stack must be validated in CI and then deployed on the target Proxmox LXC. Live deployment and firewall connectivity validation remain pending. Manager-user authentication for the pfSense Hub web application has not been implemented. Do not place that application behind a public reverse proxy until authentication and authorization are implemented and reviewed.
+The code-server container has a persistent project workspace and persistent editor configuration. It is isolated from the application backend network and does not receive the Docker socket.
 
 ## Prerequisites
-
 - Docker Engine and Docker Compose plugin.
-- Node.js 22 only if running the application development scripts outside containers.
-- A trusted CA certificate for the firewall API, if it is not signed by a CA already trusted by the API container.
+- Node.js 22 only if running application development scripts outside containers.
+- A trusted CA certificate for the firewall API, if required.
 - The dedicated read-only pfSense API key.
 - A strong, unique code-server password.
+- The application encryption key provisioned by scripts/setup-encryption-key.ps1 on Windows.
 
 ## First-time setup
+On Windows 11, run the provisioning script from the repository root in PowerShell:
 
-```bash
-cp .env.example .env
-chmod 600 .env
-openssl rand -hex 32
+```powershell
+.\scripts\setup-encryption-key.ps1
 ```
 
-Set the generated random value as POSTGRES_PASSWORD in .env. Keep the password alphanumeric as generated so it can be safely embedded in the Compose connection URL.
+Save the one-time recovery value in a password manager. Do not copy it into chat, source control, .env, or a terminal transcript. The runtime file is created at secrets/runtime/app_encryption_key. The script refuses to overwrite an existing key. If the script reports that a key already exists, preserve it and do not regenerate it.
 
-Create both Docker secret files:
+On Linux, create the runtime key once using a cryptographically secure random generator, then store the recovery copy in an approved password manager without printing it into shell history or logs. The Linux installer/provisioning workflow still requires a dedicated implementation and review.
 
-```bash
-mkdir -p secrets certs workspace
-umask 077
-printf '%s' 'YOUR_PFSENSE_API_KEY' > secrets/pfsense_api_key
-printf '%s' 'A_LONG_UNIQUE_CODE_SERVER_PASSWORD' > secrets/code_server_password
-chown 1000:1000 secrets/pfsense_api_key
-chmod 400 secrets/pfsense_api_key secrets/code_server_password
+For the existing Compose secrets, create the pfSense API key and code-server password files as described below. Do not commit any secret files.
+
+```powershell
+New-Item -ItemType Directory -Force .\secrets, .\certs, .\workspace | Out-Null
 ```
 
-The API container runs as UID 1000. The code-server image runs as its non-root coder user. Keep the code-server password separate from the pfSense API key and PostgreSQL password. Do not commit either secret file.
+Set POSTGRES_PASSWORD in .env to a strong random value. Keep it alphanumeric as generated so it can be safely embedded in the Compose connection URL.
 
-If the firewall uses a private/self-signed CA, place the CA certificate at certs/pfsense-ca.pem. Set PFSENSE_CA_FILE=/run/certs/pfsense-ca.pem in .env. The API client always verifies TLS and hostname identity. Never disable verification. The certificate must contain a SAN matching the configured API URL host.
+For Linux deployments, restrict secret file permissions to the API container's runtime user. For Windows Docker Desktop, the key file is protected by the Windows ACL created by the provisioning script, but verify that Docker Desktop can mount and read it before relying on it in operation.
 
-Set the device name, edition, base URL, and UUID in .env. The sample address is the previously tested LAN endpoint. Confirm it is still the intended route from the manager LXC.
+If the firewall uses a private CA, place the CA certificate at certs/pfsense-ca.pem and set PFSENSE_CA_FILE=/run/certs/pfsense-ca.pem in .env. The API client always verifies TLS and hostname identity. Never disable verification.
 
 ## Start and access
-
-```bash
+```powershell
 docker compose config
 docker compose up -d --build
 docker compose ps
 docker compose logs -f api
 ```
 
-The pfSense Hub application UI is available on the LXC at http://127.0.0.1:8080. The browser-based VS Code editor is available on the LXC at http://127.0.0.1:8443. The editor prompts for the password stored in secrets/code_server_password.
+The pfSense Hub application UI is available at http://127.0.0.1:8080 when HUB_BIND_ADDRESS is left at its default. For Tailscale access, set HUB_BIND_ADDRESS to the Tailscale IPv4 address assigned to the machine running Docker, then access http://TAILSCALE-IP:8080 from an authorized tailnet device. The browser-based VS Code editor remains available at http://127.0.0.1:8443 and requires a local connection or SSH forwarding. Do not expose code-server or the application directly to the public internet.
 
-For access from an administrator workstation, create SSH tunnels from that workstation:
-
-```bash
-ssh -N \
-  -L 8080:127.0.0.1:8080 \
-  -L 8443:127.0.0.1:8443 \
-  USER@PFSENSE_HUB_LXC_IP
-```
-
-Then open http://127.0.0.1:8080 for the application and http://127.0.0.1:8443 for VS Code in the browser. Replace the SSH username and LXC address with the actual values for your environment.
-
-The code-server workspace is the host-side ./workspace directory. Clone repositories into that directory from the integrated terminal. Editor settings and installed extensions persist across container recreation.
-
-Do not expose code-server directly to the public internet. The password is an additional control, not a substitute for HTTPS and a protected access layer. If remote browser access without SSH is needed, put it behind a properly configured HTTPS reverse proxy and an access-control layer such as Cloudflare Access. Preserve WebSocket support. Do not disable code-server password authentication unless an upstream access layer has been fully configured and tested.
-
-The code-server container does not mount /var/run/docker.sock. That is deliberate: Docker socket access effectively grants root-level control over the LXC's Docker host. If container orchestration from the editor is later required, design and review that privilege boundary explicitly rather than mounting the socket by default.
-
-Run the API overview check from the application UI. It calls only the eight fixed GET routes recorded in the integration reference. ARP rows and individual firewall states are not returned or persisted; only aggregate counts are returned. Poll outcomes and duration metadata are written to PostgreSQL.
+The API container reads the application encryption key from /run/secrets/app_encryption_key. Missing or malformed key material prevents API startup. Do not delete or replace the key file while encrypted credentials exist.
 
 ## Updates and backup
-
-```bash
-docker compose pull
-docker compose up -d --build
-```
-
-Back up PostgreSQL with pg_dump before upgrades. Back up ./workspace and the code_server_config and code_server_data named volumes if you want to preserve projects, editor settings, and extensions. Docker volumes persist across container recreation, but they are not backups. Protect .env, both secret files, the CA certificate, and database backups separately.
-
-## Development mode
-
-```bash
-npm install
-npm run dev
-```
-
-The Vite development server proxies /api and /health to the API. Run PostgreSQL separately and provide the same validated environment variables to the API. For browser-based editing, use the code-server service described above.
+Back up PostgreSQL and the runtime encryption key separately. Protect the recovery copy independently. A database backup without its corresponding encryption key cannot restore credentials. Also back up .env, the pfSense API key, code-server password, CA certificate, and any persistent workspace or editor volumes that need preservation.
 
 ## Security limitations before production
+- No manager-user authentication or role-based authorization is implemented. Keep the web UI bound to localhost or the host's Tailscale interface only. Restrict tailnet access with Tailscale ACLs or grants. Tailscale network access is not a substitute for manager-user authentication and authorization.
+- The first firewall is still configured from environment variables. Multi-device CRUD and credential lifecycle APIs are not implemented.
+- Key rotation and Linux key provisioning remain outstanding.
+- Docker Compose file secrets are not encrypted at rest.
+- Windows host ACLs do not by themselves prove container-side access restrictions.
+- The eight upstream routes are fixed in code. No arbitrary proxy, command execution, or write operation exists.
 
-- No manager-user authentication or role-based authorization is implemented for the pfSense Hub application. Its web UI is deliberately bound to localhost only.
-- code-server has password authentication and is also bound to localhost only. Use SSH forwarding, or add HTTPS and an access-control layer before enabling remote network exposure.
-- The code-server terminal does not have Docker daemon access by default.
-- The first firewall is configured from environment variables. Multi-device CRUD and secret lifecycle management are not implemented.
-- TLS verification is enforced. A private CA can be mounted as described above.
-- The eight upstream routes are fixed in code. No arbitrary proxy, command execution, or write operation exists in the pfSense Hub API.
-- Define retention, database backup/restore testing, authentication, and credential rotation before production use.
+
+## GUI-managed Hub access settings, planned behavior
+
+The initial installation remains bound to `127.0.0.1`. The future Administration → Hub Settings page will store optional Tailscale IPv4 and later hostname/proxy settings in PostgreSQL. Entering an address does not install Tailscale, configure DNS, create a proxy, change Docker's host-port publication, or prove remote reachability.
+
+Do not change `HUB_BIND_ADDRESS` or enable a remote binding until manager authentication/authorization and a reviewed apply workflow exist. Docker host-port publication is controlled outside the application container. A future apply mechanism must be narrowly scoped, validate that the address belongs to a host interface, preserve rollback to the previous binding, and report applied state separately from reachability. Do not mount the Docker socket into the web or API container. See `HUB-ACCESS-CONFIGURATION.md` and DEC-025.

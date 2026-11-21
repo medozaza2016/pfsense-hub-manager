@@ -41,7 +41,7 @@ The product does not replace pfSense itself, require Netgate Nexus, assume every
 
 **Initial scenario:** The administrator opens one dashboard and can identify both locations, see whether each firewall is reachable, and review the operational information that its installed REST API version supports.
 
-Additional user roles and multi-user collaboration requirements have not yet been specified.
+The application uses two roles for the initial manager-user model: `admin` and `user`. Both authenticated roles may view System Monitoring and Recovery status in Administration. Operational controls are visible but disabled for `user`; only `admin` may invoke service or stack operations. The backend must enforce this authorization on every operation. Unauthenticated requests are denied.
 
 ## 6. Functional requirements and phased delivery
 
@@ -85,6 +85,9 @@ For consequential changes, the application shall validate input, show a human-re
 
 Administrators shall be able to add further supported pfSense firewalls without a fixed device-count assumption. Each device shall have independent credentials, connectivity settings, compatibility detection, and health state.
 
+### FR-11: Installation and first-run onboarding
+The product shall provide a guided installation and first-run setup experience that accounts for all required infrastructure, configuration, security, and operational prerequisites. The installation workflow and its documentation shall be updated with each feature increment that introduces a new dependency or setup requirement. Infrastructure setup and one-time bootstrap shall be automated wherever practical. Normal site registration, credential entry and rotation, connection testing, and site lifecycle management shall be available through the GUI without routine shell commands. Production deployment shall target Linux, while the supported local development workflow uses Windows 11 and Docker Desktop.
+
 ## 7. Initial non-functional requirements
 
 - **Security:** Least privilege, secret protection, TLS verification, and private connectivity preferred.
@@ -98,10 +101,11 @@ Quantitative availability, performance, and retention targets remain open.
 
 ## 8. Deployment and technology decisions
 
-The application will be deployed on the existing Proxmox LXC `pfsense-hub-manager`, using Docker Compose to manage application containers. Cloudflare Workers and Cloudflare hosting are not used for this project.
+Development is performed locally on Windows 11 using VS Code and Docker Desktop. Production will run on Linux, with the existing Proxmox LXC `pfsense-hub-manager` remaining the currently intended target unless changed by a later decision. Docker Compose manages application containers in both environments. The exact production Linux distribution, host provisioning, and deployment topology remain to be finalized. Cloudflare Workers and Cloudflare hosting are not used for this project.
 
-The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript Fastify service exposing a REST API. PostgreSQL runs as a dedicated Docker Compose service. The initial API key is mounted as a Docker secret. Manager-user authentication and roles remain undecided; therefore, the initial web UI is loopback-only and must not be publicly exposed. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
+The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript Fastify service exposing a REST API. PostgreSQL runs as a dedicated Docker Compose service. The current single-device API key is file-mounted, but this is not the final multi-site credential architecture. Manager-user authentication and roles remain undecided. Until authentication and authorization are implemented, the UI must remain restricted to a trusted local development boundary and must not be publicly exposed. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
 
+Installation and first-run onboarding are product requirements. Their workflow and documentation must evolve with each implementation increment. The setup process must automate infrastructure prerequisites and one-time bootstrap wherever practical. Routine site registration, credential entry and rotation, connection testing, and site lifecycle management must be performed through the GUI without routine shell commands. Per-site credentials shall be encrypted in PostgreSQL. Installation shall generate the application encryption key, provide a recovery copy for the administrator's password manager, and install a protected runtime copy for automatic backend access. See DEC-024. Key protection, recovery, and rotation must be implemented before production use.
 ## 9. Integration constraints and risks
 
 The pfSense REST API discussed for this project is community-maintained and unofficial. Its compatibility depends on the exact pfSense release and package release. Not all operations are necessarily available across Plus and CE.
@@ -130,7 +134,7 @@ The first milestone is acceptable when:
 2. How will the manager reach each firewall site?
 3. Will the backend require a private connector/agent?
 4. Which authentication method will administrators use to sign in?
-7. Where will firewall API credentials be stored, rotated, and revoked?
+7. How will encrypted firewall API credentials and the application encryption key be backed up, recovered, rotated, and revoked?
 8. PostgreSQL is approved for device inventory, status history, users, and audit records. The schema, retention, and backup policy still need to be designed.
 9. What are the exact CE release, Plus release, API package versions, and architectures at both locations?
 10. Which API endpoints and capabilities are verified on each installation?
@@ -186,3 +190,23 @@ The repository now contains a first executable scaffold: React/Vite frontend, Fa
 
 ## 17. Frontend workspace foundation
 The approved frontend direction uses a light content workspace with a dark navy sidebar and responsive navigation. Hub-level navigation and site-level navigation are contextual: opening a site replaces the Hub navigation with the Site workspace navigation and a **Back to Hub** action. The first UI increment must use existing API data only. It must not imply live reachability from a device's enabled/disabled manager configuration state, and it must label unimplemented views rather than displaying fabricated telemetry. The initial frontend foundation is being developed on the `feature/frontend-foundation` branch; local build and browser validation remain required before the increment is considered complete.
+
+
+## 18. Hub access configuration requirements
+
+### FR-12: GUI-managed Hub access settings
+The administrator shall manage Hub access configuration from the existing **Administration → Hub Settings** page. A fresh installation shall use `127.0.0.1` as its safe default and shall remain usable locally without Tailscale, a reverse proxy, or a custom domain. The page shall allow the administrator to save an optional Tailscale IPv4 address and shall be extensible to hostname and reverse-proxy metadata. Configuration shall be persisted in PostgreSQL and validated server-side.
+
+The UI and API shall distinguish at least: configured desired address, pending application, applied deployment binding, and verified reachability. Saving an address must not be presented as proof that the host is reachable. A real probe from an appropriate client/network vantage point is required to mark reachability verified.
+
+The application container cannot change the Docker host's published-port binding merely by updating a database row. Applying a binding change requires a separate, narrowly scoped host-side deployment mechanism or an explicit operator apply workflow. The implementation must not grant the web/API containers unrestricted Docker socket access. Until manager authentication/authorization and the host-side apply boundary are implemented and reviewed, remote binding remains unavailable and loopback remains enforced. Public reverse-proxy exposure is out of scope for the unauthenticated stage.
+
+
+
+## Manager identity, audit, and alert administration
+
+The manager authentication baseline uses database-backed sessions and the two supported roles, `admin` and `user`. The initial manager-user administration capability shall allow administrators to create accounts, assign these roles, enable or disable accounts, and reset account passwords. Password material must never be returned to clients. Disabled accounts cannot authenticate, and security-sensitive account changes revoke existing sessions. The last active administrator cannot be disabled or demoted.
+
+Audit events are persisted as append-only records. The initial implementation records authentication outcomes, access denials, user administration, Hub reachability preference changes, alert lifecycle actions, and automatic recovery of firewall polling alerts. Audit records include UTC timestamps, actor information, action, outcome, target, safe summary, request ID, and sanitized metadata. Secrets and password material must be redacted.
+
+Alerts are persisted separately from audit events. The initial rule creates or updates a deduplicated warning/critical alert when read-only firewall polling fails, and automatically resolves it after a fully successful poll. Administrators can acknowledge and resolve alerts. Notification delivery, retention policy, export, and production backup policy remain separate release requirements and must not be represented as implemented.

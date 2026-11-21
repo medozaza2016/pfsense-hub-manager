@@ -206,3 +206,10 @@ The OpenAPI JSON is the upstream contract reference. The application must use a 
 ## Initial scaffold implementation status
 
 The repository now includes React/Vite frontend and Fastify API workspaces, PostgreSQL migrations and poll-run persistence, Docker Compose, separate frontend/backend Dockerfiles, a server-side pfSense API client with exactly eight fixed GET routes, runtime envelope validation, strict TLS verification with optional private CA trust, Docker-secret API-key injection, an internal metrics endpoint, health/readiness routes, and a loopback-bound web entry point. The frontend can trigger a read-only overview collection. Manager-user authentication is not implemented; loopback-only exposure is a deliberate temporary security boundary. See DEPLOYMENT.md for setup and limitations.
+
+
+## Hub access configuration boundary (DEC-025)
+
+The administrator-facing controls belong in the existing Administration → Hub Settings page. The first-run default remains loopback-only (`127.0.0.1`); Tailscale is optional and is not an application dependency. PostgreSQL stores validated desired access settings, while the host deployment owns the actual published-port binding. The application must separately represent desired, pending, applied, and reachability-verified state.
+
+A containerized Fastify process cannot reconfigure the Docker host's published port by updating PostgreSQL. A later implementation must use a narrowly scoped host-side deployment agent or an explicit operator apply workflow. Do not mount the Docker socket into the web or API container, and do not add arbitrary command execution. Remote access remains gated on manager authentication/authorization and a reviewed host-side apply boundary. See `HUB-ACCESS-CONFIGURATION.md` for the workflow and acceptance criteria.

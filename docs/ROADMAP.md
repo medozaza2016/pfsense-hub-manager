@@ -13,7 +13,7 @@ This is a separate UI implementation milestone, not completion of the live-data 
 - [x] Implement the Hub and Site navigation surfaces and local preview interactions.
 - [x] Simplify Hub Overview site rows to one primary Open Site/Details action.
 - [x] Make the Site navigation sidebar vertically scrollable.
-- [ ] Run local Windows/Docker typecheck and production build after the latest branch pull.
+- [x] Run local Windows typecheck, API tests, and production build after the latest branch pull (November 21, 2026).
 - [ ] Validate desktop and mobile layouts against the approved mockup in a running browser.
 - [ ] Replace local demonstration fixtures with database-backed site inventory and verified API state.
 
@@ -119,15 +119,105 @@ The initial application scaffold is committed: React/Vite web app, Fastify API, 
 
 This is not a production release. The manager has no user login or role model yet. Only one firewall is configured through environment variables. The live TLS trust chain, Compose build on the LXC, API response compatibility, and CI run must be verified before calling the foundation operational. No write API, shell execution, reboot, halt, apply, or arbitrary upstream proxy is implemented.
 
-## Phase 1, User Management, Audit Logs, and Alerts
 
-**Approved scope, November 21, 2026.** These three Hub areas will be delivered together as one phase. Reuse the existing login, users, and role model, do not rebuild authentication. Audit every consequential action, then generate severity-based alerts for events that warrant attention. Audit history is complete and durable; alerts are a filtered attention layer, not a duplicate of every audit entry.
+## Hub system monitoring and recovery, approved November 21, 2026
 
-- [ ] Inspect and preserve existing authentication, user persistence, roles, and authorization checks.
-- [ ] Implement durable, append-only audit events with secret redaction.
-- [ ] Complete persisted User Management workflows using the existing role model.
-- [ ] Implement Critical, Warning, and Info alerts, including deduplication and acknowledge/resolve lifecycle.
-- [ ] Connect User Management, Audit Logs, and Alerts screens to real backend data.
-- [ ] Add authorization, audit coverage, alert lifecycle, migration, and UI integration tests.
+**Scope:** Administration-only operational controls for the pfSense Hub Manager Compose stack on its dedicated host. This does not turn the product into a general-purpose Docker manager and does not manage unrelated containers.
 
-See [Phase 1 specification](PHASE-01-USER-MANAGEMENT-AUDIT-ALERTS.md) for scope, security rules, delivery sequence, and acceptance criteria.
+### Initial delivery
+- [ ] Show host CPU, memory, and disk usage where reliable host-side telemetry is available.
+- [ ] Show status and health for Web, API, PostgreSQL, and Code Server, including uptime and last health-check result where available.
+- [ ] Provide bounded, sanitized per-service log viewing.
+- [ ] Provide individual service start, stop, and restart operations.
+- [ ] Provide whole-stack start, stop, and restart operations.
+- [ ] Provide Docker Compose configuration validation without applying changes.
+- [ ] Record operator, requested action, target, timestamp, outcome, and sanitized error in an operations history.
+- [ ] Add explicit confirmation for stopping the stack and other disruptive operations.
+- [ ] Document host-side recovery because stopping/downing the stack also stops the management GUI.
+
+### Security and lifecycle constraints
+- Use a narrowly scoped host-side management boundary that permits only predefined actions against this project's Compose file/project name.
+- Never mount the Docker socket into the web or API containers, and never expose arbitrary command execution or arbitrary Compose arguments.
+- Never remove named or anonymous volumes as part of routine stop, restart, or recovery actions. Database data must persist.
+- Keep rebuild, recreate, image update, volume operations, database restore, and management of unrelated containers out of the initial release. Review them separately before implementation.
+- Distinguish a successful command submission from confirmed service health. Refresh runtime state after every operation and report partial failures.
+
+This is an approved product scope, not an implemented feature. Implementation and host-runtime validation remain pending.
+
+
+### System Monitoring and Recovery implementation sequence, November 21, 2026
+
+- [x] Approve the four-service monitoring scope and fixed-project boundary (DEC-026).
+- [x] Approve `admin` and `user` visibility/operation permissions (DEC-027).
+- [x] Add database-backed `admin` / `user` roles. The additive migration defaults existing accounts to `admin` and includes the session schema.
+- [x] Include the database role in authenticated session, setup, and login responses.
+- [x] Add a Fastify pre-handler that returns 401 for unauthenticated requests and 403 for non-admin requests under the reserved system-operations and user-management API paths.
+- [x] Add unit coverage for admin allow, regular-user 403, and unauthenticated 401 decisions.
+- [x] Run API typecheck and source unit tests on Windows (November 21, 2026, 19 tests passed). Migration validation against both a fresh database and a copy of the existing database remains pending.
+- [ ] Add integration tests that exercise the Fastify pre-handler and last-admin protection.
+- [ ] Add safe user provisioning/role management and last-admin protection.
+- [ ] Add read-only monitoring contracts and bounded sanitized logs.
+- [ ] Implement and review the restricted cross-platform host-side management agent.
+- [ ] Add individual and stack operations only after agent boundary, confirmation, audit, and host recovery tests pass.
+- [ ] Add the Administration UI, preserving the approved design; keep controls visible but disabled for regular users.
+- [ ] Validate on Windows 11 with Docker Desktop and Linux production deployment separately.
+
+**Gate:** No Docker operation endpoint or UI action may be enabled until role enforcement and the host-agent security boundary are tested. Host resource metrics must come from reliable host-side telemetry, not be inferred from container process metrics.
+
+## Database persistence and recovery architecture, approved November 21, 2026
+
+**Status:** Approved design direction. This is a planned future implementation phase, not implemented functionality. The current Windows Docker Desktop database remains a separate, newly initialized local database. This decision does not migrate or recover any earlier database.
+
+### Design decisions
+- Treat application containers and the application installation directory as replaceable. Rebuilding or moving the application must not destroy application data.
+- Keep the live PostgreSQL data on reliable persistent storage independent of the application container lifecycle. Do not place PostgreSQL's live data directory on an ordinary NAS network share as a bind mount.
+- Support a standard installation using a Docker-managed persistent volume, with an advanced option for a dedicated local database directory where the host platform supports it safely.
+- Keep the NAS and/or cloud as independent backup destinations, not as the default live PostgreSQL data directory. Evaluate a PostgreSQL service running directly on capable NAS hardware only as a separately validated deployment option.
+- Keep the database connection configurable so a future deployment can use an independently hosted PostgreSQL service without changing application behavior.
+- Keep application files, live database storage, and backup storage as distinct locations. The installer should provide safe defaults and avoid requiring ordinary users to understand Docker storage internals.
+
+### Onboarding and lifecycle requirements
+- [ ] Onboarding selects or confirms the application installation directory and configures persistent database storage automatically using a platform-appropriate default.
+- [ ] Offer an advanced database-directory override where supported, with validation of path, permissions, available capacity, and storage suitability.
+- [ ] Generate and protect database credentials; do not expose them to the browser or commit them to source control.
+- [ ] Detect an existing database directory or initialized database before initialization. Never silently initialize, overwrite, or replace existing data; stop and require an explicit recovery or migration decision.
+- [ ] Make routine stop, restart, rebuild, and upgrade operations preserve database storage. Never include volume deletion in routine lifecycle commands.
+- [ ] Clearly warn that destructive volume-removal commands (including `docker compose down -v`) can delete persistent data.
+- [ ] Back up the database before schema-changing upgrades and provide a documented restore workflow.
+
+### Backup and recovery requirements
+- [ ] Provide scheduled automated PostgreSQL backups to storage independent of the application container and live database volume.
+- [ ] Support NAS backup storage and an optional off-site cloud destination, with encryption, retention settings, and backup-failure reporting.
+- [ ] Define and document backup frequency, retention, credential/key recovery, and restore-point expectations before release.
+- [ ] Verify backup integrity and test restoration into a separate database before declaring the recovery workflow complete.
+- [ ] Evaluate WAL archiving / point-in-time recovery against the required recovery-point and recovery-time objectives; do not claim point-in-time recovery until implemented and tested.
+- [ ] Document migration to a replacement server: install the application, connect to an existing external database or restore a verified backup, then validate the existing administrator and application records.
+
+### Implementation sequence and release gate
+1. Finalize the PostgreSQL lifecycle, migration, backup, retention, and recovery design.
+2. Implement persistent storage defaults and safe existing-data detection in the onboarding/install scripts and Compose configuration.
+3. Implement backup-before-upgrade, scheduled backup, retention, encryption, and failure reporting.
+4. Implement restore and replacement-server procedures, including credential/key recovery.
+5. Test clean installation, ordinary container recreation, application upgrade, host replacement, interrupted backup, and restoration from NAS/off-site backup.
+6. Update installation, administration, and disaster-recovery documentation.
+
+**Release gate:** Do not call database persistence/recovery complete until automated tests and a documented restore drill demonstrate that application containers can be rebuilt or replaced without losing the database, and that a backup can restore the application state on a replacement host. This work is intentionally deferred to a later development phase; do not interrupt the current frontend validation and real-data integration sequence to implement it now.
+
+
+
+## Manager administration phase, November 2026
+
+- [x] Add migration for account activation state, append-only audit events, and persisted alert lifecycle.
+- [x] Add audit metadata sanitization and centralized audit persistence service.
+- [x] Add administrator-only user listing, creation, role changes, activation/deactivation, password reset API, last-active-admin protection, and session revocation.
+- [x] Reject sessions for disabled accounts.
+- [x] Add audit API and record authentication, access-denied, user administration, Hub settings, and alert lifecycle events.
+- [x] Add deduplicated critical/warning alerts for firewall polling failures and automatic resolution after recovery.
+- [x] Replace User Management, Audit Logs, and Alerts fixture content with API-backed views.
+- [x] Add service-level tests for metadata sanitization and alert deduplication.
+- [ ] Run API tests, typecheck, production build, migration validation, and Compose build in CI.
+- [ ] Verify administrator and regular-user behavior in the Windows Docker environment.
+- [ ] Define audit/alert retention, backup, and restore policy before production release.
+- [ ] Implement and verify an external notification delivery channel only when one is selected and configured.
+
+**Scope note:** This phase does not make the overall dashboard live. Other Hub and Site pages still contain preview data. The alert producer currently uses the existing firewall polling endpoint, which runs when the device overview is requested; it is not a background polling scheduler.
