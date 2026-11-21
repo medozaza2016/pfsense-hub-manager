@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import type { AppConfig } from "../config.js";
 import { decryptSecret } from "../auth/credential-crypto.js";
 import { PfSenseProvider, type FirewallInput } from "./provider.js";
+import { PfSenseApiError } from "./errors.js";
 
 const { getMock, closeMock, constructorMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
@@ -238,8 +239,8 @@ describe("pfSense provider device registration and credential safety", () => {
     const result = await provider.collect(primaryDeviceId, onResult);
 
     expect(result).toMatchObject({ failedOperations: 0, connectionStatus: "online" });
-    expect(query).toHaveBeenCalledOnce();
-    const [statement, values] = query.mock.calls[0] as unknown as [string, unknown[]];
+    expect(query).toHaveBeenCalledTimes(9); // Eight poll records plus one lifecycle update.
+    const [statement, values] = query.mock.calls.at(-1) as unknown as [string, unknown[]];
     expect(statement).toContain("UPDATE managed_devices");
     expect(statement).toContain("last_success_at=CASE WHEN");
     expect(values).toEqual(["online", true, null, primaryDeviceId]);
@@ -248,23 +249,24 @@ describe("pfSense provider device registration and credential safety", () => {
 
   it("persists degraded status when only some read-only operations fail", async () => {
     getMock
-      .mockRejectedValueOnce(new Error("Firewall request timed out."))
+      .mockRejectedValueOnce(new PfSenseApiError("Firewall request timed out.", "timeout"))
       .mockResolvedValue({ data: { status: "ok" } });
 
     const result = await provider.collect(primaryDeviceId, vi.fn());
 
     expect(result).toMatchObject({ failedOperations: 1, connectionStatus: "degraded" });
-    expect(query).toHaveBeenCalledOnce();
-    expect(query.mock.calls[0]?.[1]).toEqual(["degraded", false, "timeout", primaryDeviceId]);
+    expect(query).toHaveBeenCalledTimes(9); // Eight poll records plus one lifecycle update.
+    expect(query.mock.calls.at(-1)?.[1]).toEqual(["degraded", false, "timeout", primaryDeviceId]);
   });
 
   it("classifies a fully unreachable firewall as offline", async () => {
-    getMock.mockRejectedValue(new Error("Firewall request timed out."));
+    getMock.mockRejectedValue(new PfSenseApiError("Firewall request timed out.", "timeout"));
 
     const result = await provider.collect(primaryDeviceId, vi.fn());
 
     expect(result).toMatchObject({ failedOperations: 8, connectionStatus: "offline" });
-    expect(query.mock.calls[0]?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
+    expect(query).toHaveBeenCalledTimes(9); // Eight poll records plus one lifecycle update.
+    expect(query.mock.calls.at(-1)?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
   });
 
   it("returns lifecycle metadata in the manager API naming convention after inventory edits", async () => {
