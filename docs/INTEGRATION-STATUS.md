@@ -1,8 +1,9 @@
 # Integration Status
 
-**Last verified:** 2026-11-19 (America/New_York; command output timestamps were 2026-11-20 UTC)  
-**Status:** First pfSense Plus REST API connection verified, read-only scope  
-**Environment:** Proxmox LXC named pfsense-hub-manager
+**Historical firewall-side verification:** 2026-11-19 (America/New_York; command output timestamps were 2026-11-20 UTC)  
+**Latest application test reported:** 2026-11-21, Windows 11 local Docker Compose development environment  
+**Status:** First pfSense Plus connection test and read-only collection reported successful; read-only scope  
+**Environment:** Windows 11 development workstation connecting through Tailscale subnet routing to the Branch LAN. This is separate from validation on the production Proxmox LXC.
 
 ## Verified firewall
 
@@ -25,7 +26,7 @@ The manager LXC successfully reached the API at 172.10.50.1:10443. The endpoint 
 
 The public hostname, pfsense.luxoritpro.com, timed out from the manager LXC on port 443 during the recorded test. The same public hostname returned the API's structured HTTP 401 response when opened from the XPS-13. This is a separate routing/path issue and is not a blocker for the direct LAN endpoint currently used by the manager.
 
-The direct-IP TLS certificate was self-signed and failed normal curl certificate validation. Tests therefore used curl -k / --insecure temporarily. This is a diagnostic workaround only. Production integration must validate the firewall certificate and must not disable TLS verification.
+The original direct-IP TLS certificate was self-signed and failed normal curl certificate validation. The initial command-line investigation used curl -k / --insecure temporarily for diagnosis only. The application implementation subsequently added certificate discovery, per-device CA configuration, TLS server-name identity, and strict TLS verification. Certificate discovery inspects the remote certificate without authenticating or trusting it. Trust must still be established through a valid CA/trust configuration. The user later reported that the application connection test succeeded and the pfSense API version endpoint responded. Do not infer from this report that the target Proxmox LXC deployment or the second CE firewall has been validated.
 
 ## API account and authentication
 
@@ -65,13 +66,13 @@ Do not copy a real key into shell history, source files, issue comments, logs, o
 
 ## Known limitations and pending work
 
-1. Replace temporary certificate bypass with verified TLS trust.
-2. Record the exact REST API package version and confirm compatibility for the installed Plus release and ARM architecture.
+1. Record the exact REST API package version and confirm compatibility for the installed Plus release and ARM architecture.
+2. Re-run and record strict TLS verification from the intended production manager host, including the exact CA and TLS server-name configuration.
 3. Test the corresponding endpoints on pfSense CE when that firewall is connected.
-4. Investigate why the manager LXC cannot reach the public hostname on port 443, if that hostname is needed for the final design.
-5. Confirm endpoint pagination, response schemas, and rate/collection behavior before designing persistent polling.
+4. Investigate why the manager LXC cannot reach the public hostname on port 443, only if that hostname is needed for the final design.
+5. Confirm endpoint pagination, response schemas, response-size limits, and rate/collection behavior before designing persistent polling.
 6. Do not infer that all eight endpoints have been validated on CE from the Plus test.
-7. Do not enable write endpoints as part of the initial monitoring integration.
+7. Do not enable write endpoints until the change-safety requirements in Phase 5 of `PROJECT-ROADMAP.md` have passed.
 
 ## Network addressing note
 
@@ -82,4 +83,4 @@ The existing 172.10.x.x addressing is intentionally being left unchanged for thi
 
 The repository now contains an initial Fastify backend provider wired to exactly the eight GET paths above. The manager API's read-only overview route invokes these operations sequentially, records per-operation outcome and duration in PostgreSQL, and emits bounded Prometheus metrics. ARP and firewall-state response rows are reduced to counts when the upstream data is an array; the raw rows are not returned or stored. System, gateway, interface, and service payloads are not exposed as raw records by the provider; only collection indicators/counts are returned. The state-size and version responses are included for initial inspection.
 
-This is code implementation, not yet a successful live application run. The CI workflow has verified TypeScript, unit tests, and frontend/backend builds on GitHub Actions. Docker Compose image build validation and deployment on the target LXC are still pending. TLS verification is enforced, but the manager's trust of the firewall certificate has not yet been verified.
+This implementation has since been exercised in the Windows local Docker Compose environment. The user reported a successful firewall connection test with the API version endpoint responding, followed by successful read-only collection. This is a user-reported manual result, not an independently captured test transcript in this document. Local validation of the newest React Router changes remains pending. Deployment and validation on the target Proxmox LXC remain separate pending work.
