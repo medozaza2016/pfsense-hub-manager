@@ -69,9 +69,7 @@ export default function App() {
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<Role>("user");
   const [status, setStatus] = useState("Connecting to manager API");
-  const [firewallsOpen, setFirewallsOpen] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [firewallName, setFirewallName] = useState("");
   const [firewallLocation, setFirewallLocation] = useState("");
   const [firewallEdition, setFirewallEdition] = useState<"plus" | "ce" | "unknown">("plus");
@@ -322,7 +320,7 @@ export default function App() {
 
   const isAdmin = currentUser?.role === "admin";
   function navigate(next: Page) { routerNavigate(pagePaths[next]); setMobileNavOpen(false); setOverview(null);  }
-  const navClass = (sidebarCollapsed ? "app-layout sidebar-collapsed" : "app-layout") + (mobileNavOpen ? " mobile-nav-open" : "");
+  const navClass = "app-layout" + (mobileNavOpen ? " mobile-nav-open" : "");
   const visibleDevices = devices.filter(device => {
     const query = firewallSearch.trim().toLowerCase();
     const matchesQuery = !query || [device.name, device.location || "", device.edition].some(value => value.toLowerCase().includes(query));
@@ -334,18 +332,13 @@ export default function App() {
     <div className="brand">
       <div className="brand-mark">pf</div>
       <div className="brand-copy"><strong>pfSense Hub</strong><span>MANAGER</span></div>
-      <button className="icon-button sidebar-toggle desktop-only" aria-label="Collapse sidebar" onClick={() => setSidebarCollapsed(true)}>‹</button>
     </div>
     <nav className="side-nav" aria-label="Main navigation">
       <div className="nav-divider"><span>WORKSPACE</span></div>
       <button className={page === "dashboard" ? "nav-link active" : "nav-link"} onClick={() => navigate("dashboard")}><span className="nav-icon">▦</span><span>Dashboard</span></button>
       <div className="nav-divider"><span>FLEET MANAGEMENT</span></div>
-      <div className="nav-group">
-        <button className="nav-link group-toggle" aria-expanded={firewallsOpen} onClick={() => setFirewallsOpen(v => !v)}><span className="nav-icon">◈</span><span>Firewalls</span><span className="nav-chevron">{firewallsOpen ? "⌄" : "›"}</span></button>
-        {firewallsOpen && <div className="sub-nav">
-          <button className={page === "firewalls" ? "sub-link active" : "sub-link"} onClick={() => navigate("firewalls")}>Inventory <span className="nav-count">{devices.length}</span></button>
-        </div>}
-      </div>
+      <button className={page === "firewalls" ? "nav-link active" : "nav-link"} onClick={() => navigate("firewalls")}><span className="nav-icon">◈</span><span>Firewalls</span><span className="nav-count">{devices.length}</span></button>
+      {isAdmin && <button className={page === "add-firewall" ? "nav-link active" : "nav-link"} onClick={() => navigate("add-firewall")}><span className="nav-icon">＋</span><span>Add firewall</span></button>}
       <div className="nav-divider"><span>OBSERVABILITY</span></div>
       <button className={page === "monitoring" ? "nav-link active" : "nav-link"} onClick={() => navigate("monitoring")}><span className="nav-icon">⌁</span><span>Monitoring</span></button>
       <div className="nav-divider"><span>ADMINISTRATION</span></div>
@@ -367,13 +360,12 @@ export default function App() {
     <div className="main-column">
       <header className="topbar">
         <div className="topbar-left">
-          {sidebarCollapsed && <button className="icon-button expand-sidebar" aria-label="Expand sidebar" onClick={() => setSidebarCollapsed(false)}>☰</button>}
           <button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}>☰</button>
           <div><p className="breadcrumb">NETWORK OPERATIONS <span>/</span> {pageTitles[page].toUpperCase()}</p><h1>{pageTitles[page]}</h1></div>
         </div>
         <div className="topbar-right"><div className="api-indicator"><span className="dot online" />{status}</div><div className="topbar-avatar" title={currentUser?.name}>{(currentUser?.name || "U").slice(0,1).toUpperCase()}</div></div>
       </header>
-      <main className="page-content">
+      <main className="page-content page-transition" key={location.pathname}>
         
         {page === "dashboard" && <div className="dashboard-layout">
           <div className="dashboard-heading">
