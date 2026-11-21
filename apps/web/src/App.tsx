@@ -204,7 +204,7 @@ function Connectivity({sites}:{sites:Device[]}){
 type ApiUser={id:string;username:string;role:"admin"|"user";isActive:boolean;createdAt:string;updatedAt:string};
 type ApiAlert={id:string;severity:"critical"|"warning"|"info";title:string;message:string;source:string;resourceType?:string;resourceId?:string;status:"active"|"acknowledged"|"resolved";firstSeenAt:string;lastSeenAt:string;occurrenceCount:number};
 type AuditRecord={id:number;occurredAt:string;actorUsername:string|null;actorType:string;action:string;outcome:string;targetType:string|null;targetId:string|null;summary:string;requestId:string|null};
-async function apiRequest<T>(url:string,init?:RequestInit):Promise<T>{const response=await fetch(url,{credentials:"same-origin",...init,headers:{"Content-Type":"application/json",...(init?.headers??{})}});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error?.message??"The request could not be completed.");return body.data as T;}
+async function apiRequest<T>(url:string,init?:RequestInit):Promise<T>{const headers=new Headers(init?.headers);if(init?.body!==undefined&&init.body!==null&&!headers.has("Content-Type"))headers.set("Content-Type","application/json");const response=await fetch(url,{credentials:"same-origin",...init,headers});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error?.message??"The request could not be completed.");return body.data as T;}
 function UserManagement({currentUsername}:{currentUsername:string}){
  const {notify}=useToast();
  const [users,setUsers]=useState<ApiUser[]>([]);
