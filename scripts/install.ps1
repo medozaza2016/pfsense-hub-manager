@@ -33,7 +33,7 @@ if ($LASTEXITCODE -ne 0) { throw "Docker Compose v2 is required." }
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 $db=Get-Env "POSTGRES_PASSWORD"
 if (-not $db -or $db -match '^replace-with-') {
-  $db=([Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))).ToLowerInvariant()
+  $random=[Security.Cryptography.RandomNumberGenerator]::Create(); $randomBytes=[byte[]]::new(32); $random.GetBytes($randomBytes); $random.Dispose(); $db=[BitConverter]::ToString($randomBytes).Replace("-","").ToLowerInvariant()
   Set-Env "POSTGRES_PASSWORD" $db
 }
 $url=Get-Env "PFSENSE_API_BASE_URL" "https://172.10.50.1:10443"
@@ -58,7 +58,7 @@ if ($enable -match '^(y|yes)$') {
   if (-not (Test-Path secrets\code_server_password)) {
     $generate=Read-Host "Generate strong code-server password automatically? [Y/n]"
     if ($generate -match '^(n|no)$') { $password=Read-Hidden "Code-server password, minimum 16 characters"; if ($password.Length -lt 16) { throw "Password must be at least 16 characters." } }
-    else { $b=[byte[]]::new(32); [Security.Cryptography.RandomNumberGenerator]::Fill($b); $password=[Convert]::ToBase64String($b).TrimEnd('=').Replace('+','-').Replace('/','_') }
+    else { $rng=[Security.Cryptography.RandomNumberGenerator]::Create(); $b=[byte[]]::new(32); $rng.GetBytes($b); $rng.Dispose(); $password=[Convert]::ToBase64String($b).TrimEnd('=').Replace('+','-').Replace('/','_') }
     [IO.File]::WriteAllText((Join-Path (Get-Location) "secrets\code_server_password"),$password,[Text.UTF8Encoding]::new($false))
   } else { $password=[IO.File]::ReadAllText("secrets\code_server_password").Trim() }
   Protect-File "secrets\code_server_password"
