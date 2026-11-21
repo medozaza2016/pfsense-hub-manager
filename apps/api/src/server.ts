@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { z } from "zod";
 import { loadConfig, loadApiKey, loadEncryptionKey } from "./config.js";
 import { createPool } from "./db/pool.js";
@@ -54,11 +54,11 @@ function clearSessionCookie(reply: { header: (name: string, value: string) => un
   reply.header("Set-Cookie", `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? "; Secure" : ""}`);
 }
 async function adminCount(): Promise<number> {
-  const result = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM admin_users WHERE role = 'admin'");
+  const result = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM admin_users");
   return Number(result.rows[0]?.count ?? 0);
 }
 
-async function requireAdmin(request: typeof app extends never ? never : import("fastify").FastifyRequest, reply: import("fastify").FastifyReply): Promise<void> {
+async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const user = (request as typeof request & { admin?: AdminUser }).admin ?? null;
   const failure = authorizationFailure(user);
   if (failure === 401) {
