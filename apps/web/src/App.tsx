@@ -628,8 +628,7 @@ export default function App() {
                 <h3>API credentials and TLS</h3>
                 <p>Replace the API key or update the trust settings for this appliance.</p>
               </div>
-              <>
-                <form className="credential-form" onSubmit={updateDeviceCredentials}>
+              <form className="credential-form" onSubmit={updateDeviceCredentials}>
                   <label>New read-only API key<input type="password" value={credentialApiKey} onChange={e => setCredentialApiKey(e.target.value)} autoComplete="new-password" placeholder="Enter replacement API key" required /></label>
                   <p className="field-hint">The replacement key is tested against this firewall before it is encrypted and saved. The current key remains active if the test fails.</p>
                   <label>Replacement CA certificate (PEM, optional)<input type="file" accept=".pem,.crt,.cer,.txt,application/x-pem-file,application/x-x509-ca-cert" onChange={event => void importCredentialCa(event)} /></label>
@@ -638,8 +637,7 @@ export default function App() {
                   <label>TLS server name<input value={credentialTlsServername} onChange={e => {setCredentialTlsServername(e.target.value);setClearCredentialTls(false);}} maxLength={253} placeholder="Leave blank to keep the current TLS server name" /></label>
                   <label className="modal-checkbox"><input type="checkbox" checked={clearCredentialTls} onChange={e => {setClearCredentialTls(e.target.checked);if(e.target.checked)setCredentialTlsServername("");}} /> Clear the currently saved TLS server name</label>
                   <div className="credential-submit-row"><button className="primary-button" type="submit" disabled={busy || !credentialApiKey.trim() || clearCredentialCa && Boolean(credentialCa.trim()) || clearCredentialTls && Boolean(credentialTlsServername.trim())}>{busy ? "Testing and saving…" : "Verify and update credentials"}</button></div>
-                </form>
-              </>}
+              </form>
               </section>
             </div>
           </section>
