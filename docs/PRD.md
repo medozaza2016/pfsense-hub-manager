@@ -41,7 +41,7 @@ The product does not replace pfSense itself, require Netgate Nexus, assume every
 
 **Initial scenario:** The administrator opens one dashboard and can identify both locations, see whether each firewall is reachable, and review the operational information that its installed REST API version supports.
 
-Additional user roles and multi-user collaboration requirements have not yet been specified.
+Manager accounts and two roles are now implemented: Admin and User (read-only). Further role granularity and multi-user collaboration requirements remain open.
 
 ## 6. Functional requirements and phased delivery
 
@@ -100,7 +100,7 @@ Quantitative availability, performance, and retention targets remain open.
 
 The application will be deployed on the existing Proxmox LXC `pfsense-hub-manager`, using Docker Compose to manage application containers. Cloudflare Workers and Cloudflare hosting are not used for this project.
 
-The frontend uses React with TypeScript and Vite. The backend is a separate Node.js and TypeScript Fastify service exposing a REST API. PostgreSQL runs as a dedicated Docker Compose service. The initial API key is mounted as a Docker secret. Manager-user authentication and roles remain undecided; therefore, the initial web UI is loopback-only and must not be publicly exposed. The firewall-to-hub connection method is deferred. See `docs/ARCHITECTURE.md` and `docs/DECISIONS.md`.
+The frontend uses React, TypeScript, Vite, and React Router. The backend is a separate Node.js and TypeScript Fastify service exposing a REST API. PostgreSQL runs as a dedicated Docker Compose service. Manager authentication uses local accounts, scrypt password hashes, and database-backed sessions, with Admin and User roles. The initial firewall API key and the device-credential encryption key are Docker secrets; additional firewall API keys are encrypted in PostgreSQL. The UI remains loopback-only pending production security review. The firewall-to-hub transport architecture remains deferred. See `docs/ARCHITECTURE.md`, `docs/AUTHENTICATION.md`, and `docs/DECISIONS.md`.
 
 ## 9. Integration constraints and risks
 
@@ -129,12 +129,12 @@ The first milestone is acceptable when:
 1. What exact read-only information should the first dashboard show?
 2. How will the manager reach each firewall site?
 3. Will the backend require a private connector/agent?
-4. Which authentication method will administrators use to sign in?
-7. Where will firewall API credentials be stored, rotated, and revoked?
+4. Whether to add an external identity provider or MFA after the initial local-account authentication milestone.
+7. Define and test credential rotation, revocation, backup, and administrator recovery procedures.
 8. PostgreSQL is approved for device inventory, status history, users, and audit records. The schema, retention, and backup policy still need to be designed.
 9. What are the exact CE release, Plus release, API package versions, and architectures at both locations?
 10. Which API endpoints and capabilities are verified on each installation?
-11. Is the product single-administrator initially, or must it support multiple users and roles?
+11. Whether additional roles or more granular per-device authorization are needed beyond the implemented Admin and User roles.
 12. What backup, retention, and recovery requirements apply?
 
 ## 12. Milestone outline
@@ -181,4 +181,28 @@ See `API-SPECIFICATION.md`, `API-MATRIX.md`, `API-COMPATIBILITY.md`, `METRICS.md
 
 ## 16. Initial application foundation implementation
 
-The repository now contains a first executable scaffold: React/Vite frontend, Fastify/TypeScript backend, PostgreSQL container and initial migration, fixed read-only provider for the eight previously verified GET routes, HTTPS certificate validation with optional private CA trust, runtime configuration validation, file-mounted API-key secret, device/poll inventory persistence, internal metrics endpoint, liveness/readiness checks, and CI build/test workflow. The UI can request a read-only collection. This scaffold has not yet been built and exercised on the target Proxmox LXC. Endpoint-specific response mapping, automatic polling, manager authentication, multi-device onboarding, and production backup/restore remain incomplete.
+The repository has progressed beyond the initial scaffold. Implemented capabilities include first-run administrator setup, sign-in/sign-out, Admin/User authorization, multi-firewall registration and inventory, encrypted per-device API credentials, TLS certificate discovery and configurable server identity, optional per-device CA trust, read-only connection checks and overview collection, inventory metadata editing, enable/disable, protected primary-device deletion, confirmation-based removal of additional devices, responsive navigation, and React Router URL routes. Local Windows Docker Compose startup, firewall connection testing, and read-only collection have been exercised by the user. The latest routing changes still require a local build/type-check. The target Proxmox LXC deployment, live CE compatibility, scheduled polling, full monitoring pages, production security review, and backup/restore validation remain outstanding.
+
+
+## 17. Current implementation status (2026-11-21)
+
+The current branch implements a development-stage management application, not a production-ready full firewall configuration manager.
+
+### Implemented
+- Local manager administrator bootstrap, login/logout, Admin and User roles, session validation, and server-side authorization.
+- Multi-device firewall inventory and administrator-only connection testing/registration.
+- Additional-device API credentials encrypted at rest with AES-256-GCM using a separately mounted Docker secret key.
+- Per-device TLS configuration, optional CA certificate, TLS server-name identity, and certificate discovery during onboarding. Discovery inspects the presented certificate but does not automatically establish trust.
+- Read-only firewall connectivity checks and collection through the approved fixed GET operation set.
+- Inventory metadata editing, enable/disable, and removal of eligible registered devices with confirmation. The environment-configured primary device is protected from deletion.
+- Read-only check results presented in a modal with automatic scrolling.
+- Responsive dashboard/navigation shell and URL-based page routing with React Router. The routing standard is recorded in repository AGENTS.md and DEC-021.
+
+### Not yet complete or not yet verified
+- Full firewall configuration write operations remain disabled by design.
+- The current Edit workflow changes inventory metadata and enabled state, not stored API credentials or connection settings.
+- Full monitoring pages, scheduled polling, expanded CE compatibility validation, complete audit-event implementation, password recovery, MFA, distributed login throttling, administrator recovery, and credential rotation/recovery workflows remain future work.
+- Production security review, database backup/restore testing, and target Proxmox LXC deployment validation remain outstanding.
+- The latest React Router dependency and navigation changes have not yet been locally type-checked or built.
+
+This status supplements the original implementation preparation record above. Where earlier sections describe manager authentication or multi-device onboarding as undecided or unimplemented, this section and the current implementation documents supersede those older statements.
