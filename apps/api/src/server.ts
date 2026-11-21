@@ -102,8 +102,8 @@ app.post("/api/v1/auth/setup", async (request, reply) => {
     );
     const user = created.rows[0];
     if (!user) throw new Error("Administrator account creation returned no user.");
-    const token = await import("./auth.js").then(({ createSession }) => createSession(pool, user.id));
     await db.query("COMMIT");
+    const token = await createSession(pool, user.id);
     setSessionCookie(reply, token.token, request.protocol === "https");
     return reply.code(201).send({ data: { id: user.id, username: user.username } });
   } catch (error) {
