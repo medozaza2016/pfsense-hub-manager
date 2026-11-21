@@ -1,4 +1,8 @@
-# Roadmap
+# Implementation Checklist
+
+> **Canonical roadmap and cross-session handoff:** [PROJECT-ROADMAP.md](PROJECT-ROADMAP.md). That document is the authoritative phased plan, feature-domain register, current position, next action, and session handoff. Update it at the end of every meaningful session. This file remains a concise engineering checklist and must not contradict the canonical roadmap.
+
+# Implementation Checklist
 
 ## Current status
 
