@@ -71,6 +71,7 @@ export default function App() {
   const [clearCredentialCa, setClearCredentialCa] = useState(false);
   const [clearCredentialTls, setClearCredentialTls] = useState(false);
   const [deleteDevice, setDeleteDevice] = useState<Device | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [checkModalOpen, setCheckModalOpen] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
   const checkResultsRef = useRef<HTMLPreElement | null>(null);
@@ -210,6 +211,7 @@ export default function App() {
       setDeviceChecks(current => { const next = { ...current }; delete next[deleteDevice.id]; return next; });
       if (selectedDeviceId === deleteDevice.id) { setSelectedDeviceId(null); setOverview(null); }
       setDeleteDevice(null);
+      setDeleteConfirmation("");
       notify("Firewall removed from inventory.", "success");
     } catch (e) { reportError(e instanceof Error ? e.message : "Unable to remove firewall."); }
     finally { setBusy(false); }
@@ -526,7 +528,7 @@ export default function App() {
                   <p>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</p>
                   <div className="inventory-meta"><span><i className="meta-dot dot-configured"/>Configuration {device.enabled ? "enabled" : "disabled"}</span><span className={checkClass}><i className="meta-dot"/> Connection {checkLabel}</span>{device.lastCheckedAt && <span>Last checked {new Date(device.lastCheckedAt).toLocaleString()}</span>}</div>
                 </div></div>
-                <div className="inventory-device-actions">{isAdmin && <button onClick={() => openDeviceEditor(device)}>Edit</button>}{isAdmin && device.canDelete !== false && <button className="danger-button" onClick={() => setDeleteDevice(device)}>Remove</button>}<button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
+                <div className="inventory-device-actions">{isAdmin && <button onClick={() => openDeviceEditor(device)}>Edit</button>}{isAdmin && <button className="danger-button" onClick={() => { setDeleteConfirmation(""); setDeleteDevice(device); }}>Remove</button>}<button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
                 {selectedDeviceId === device.id && <div className="inventory-detail">
                   <div><span>Appliance</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div>
                   <div><span>Connection status</span><strong>{checkLabel}</strong></div>
@@ -648,9 +650,10 @@ export default function App() {
         </div>}
         {deleteDevice && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setDeleteDevice(null); }}>
           <section className="modal-card delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-firewall-title">
-            <div className="modal-heading"><div><span className="eyebrow">FLEET MANAGEMENT</span><h2 id="delete-firewall-title">Remove firewall?</h2><p className="muted">You are about to permanently remove <strong>{deleteDevice.name}</strong> from this manager.</p></div><button type="button" onClick={() => setDeleteDevice(null)} disabled={busy} aria-label="Close">×</button></div>
-            <div className="delete-warning"><strong>This cannot be undone.</strong><p>Its stored encrypted API credentials, certificate settings, inventory record, and associated polling history will be deleted. The pfSense appliance itself will not be changed.</p></div>
-            <div className="modal-actions"><button type="button" onClick={() => setDeleteDevice(null)} disabled={busy}>Cancel</button><button type="button" className="danger-button" onClick={() => void confirmDeleteDevice()} disabled={busy}>{busy ? "Removing…" : "Remove firewall"}</button></div>
+            <div className="modal-heading"><div><span className="eyebrow">FLEET MANAGEMENT</span><h2 id="delete-firewall-title">Remove firewall?</h2><p className="muted">You are about to permanently remove <strong>{deleteDevice.name}</strong> from this manager.</p></div><button type="button" onClick={() => { setDeleteDevice(null); setDeleteConfirmation(""); }} disabled={busy} aria-label="Close">×</button></div>
+            <div className="delete-warning"><strong>Danger zone, this action cannot be undone.</strong><p>Removing <strong>{deleteDevice.name}</strong> permanently deletes its stored encrypted API credentials, certificate settings, inventory record, and associated polling history. The pfSense appliance itself will not be changed.</p></div>
+            <label className="delete-confirm-label">Type <strong>DELETE</strong> to confirm<input autoFocus value={deleteConfirmation} onChange={event => setDeleteConfirmation(event.target.value)} placeholder="Type DELETE" autoComplete="off" /></label>
+            <div className="modal-actions"><button type="button" onClick={() => { setDeleteDevice(null); setDeleteConfirmation(""); }} disabled={busy}>Cancel</button><button type="button" className="danger-button" onClick={() => void confirmDeleteDevice()} disabled={busy || deleteConfirmation !== "DELETE"}>{busy ? "Deleting…" : "Delete firewall"}</button></div>
           </section>
         </div>}
         {checkModalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setCheckModalOpen(false); }}>
