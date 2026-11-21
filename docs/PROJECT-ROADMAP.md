@@ -4,7 +4,7 @@
 **Canonical tracking document:** `docs/PROJECT-ROADMAP.md`  
 **Active branch:** `feature/installation-onboarding`  
 **Last updated:** 2026-11-21  
-**Status:** Active development, local Windows Docker Compose environment
+**Status:** Active development, Phase 1 local validation baseline passed; lockfile review remains
 
 This is the authoritative cross-session project tracker. At the end of every meaningful development session, update this document before stopping. A new chat should read this file first, then `AGENTS.md`, `docs/DECISIONS.md`, and the phase-specific documents linked below. Do not rely on chat history as the project record.
 
@@ -61,12 +61,21 @@ Status meanings:
 - [x] React Router navigation standard recorded in `AGENTS.md` and DEC-021.
 - [x] User reported a successful local firewall connection test and read-only collection.
 
-### Implemented but awaiting local validation
-- [~] Latest React Router dependency, URL routing, and navigation changes. Local TypeScript check and production build have not yet been reported after these changes.
-- [x] Windows installer development profile checks Node.js 22+ and npm 10+, installs workspace dependencies when needed, verifies TypeScript, runs `npm audit`, applies compatible fixes with `npm audit fix` (never `--force`), reports remaining findings, then runs type-check and production build. User executed it successfully; 4 findings remained because the existing dependency ranges required major upgrades.
-- [~] Upgraded API workspace dependencies to Zod `^4.6.7` and Vitest `^5.1.1` to address the reported advisories. Requires local npm install, audit, API tests, type-check, and build validation.
-- [~] Windows development installer now audits npm dependencies, runs `npm audit fix` when vulnerabilities are found, and verifies the final audit. It does not use `--force`; this change is committed but still needs local validation.
-- [~] Latest documentation synchronization. The current branch contains documentation updates, but links and all cross-document claims should be reviewed as the project evolves.
+### Validated local development baseline
+- [x] Windows development installer completed successfully, including native Rollup/esbuild verification, dependency audit, type checks, production builds, Docker image builds, and Compose startup.
+- [x] `npm audit`: 0 vulnerabilities.
+- [x] API unit tests: 15 tests passed across 5 test files.
+- [x] `npm run typecheck`: API and web passed.
+- [x] `npm run build`: API and web production builds passed. Vite emitted two non-fatal React Router `use client` directive warnings.
+- [x] Docker Compose services `api`, `db`, and `web` reported healthy; web bound only to `127.0.0.1:8080`.
+- [x] User reports application acceptance check passed.
+- [~] Untracked `package-lock.json` exists locally and is awaiting review before deciding whether to commit it.
+
+### Remaining foundation work
+- [ ] Review lockfile contents and confirm it is appropriate for the npm workspace before tracking it.
+- [ ] Add focused automated tests for device registration, TLS configuration, credential encryption, route behavior, and API authorization.
+- [ ] Review the non-fatal React Router build warnings and determine whether a dependency/configuration adjustment is warranted.
+- [~] Latest documentation synchronization. Continue reconciling older documents as the project evolves.
 
 ### Not yet completed
 - [ ] Full monitoring pages and useful normalized per-firewall detail views.
@@ -115,12 +124,13 @@ The phases are ordered. A phase may overlap with documentation or design work, b
 - [x] Multi-device onboarding and encrypted credential storage.
 - [x] TLS certificate discovery and configurable server identity.
 - [x] React Router adoption.
-- [ ] Run local frontend type-check and production build after routing changes.
-- [ ] Run local API type-check/build and relevant unit tests.
-- [ ] Run Docker Compose config validation and local image build.
-- [ ] Manually verify setup, login/logout, refresh/deep links, role restrictions, add firewall, test connection, inventory actions, read-only check, and restart persistence.
-- [ ] Fix any issues found and record actual command output/results.
-- [ ] Add focused automated tests for auth, device registration, TLS configuration, credential encryption, route behavior, and API authorization.
+- [x] Run local frontend and API type checks and production builds after routing/dependency changes.
+- [x] Run API unit tests: 15 tests passed across 5 test files.
+- [x] Run `npm audit`: 0 vulnerabilities.
+- [x] Complete Windows development installer, Docker image builds, and Compose startup.
+- [x] User reports the application acceptance check passed; all three Compose services are healthy.
+- [ ] Review the untracked npm workspace lockfile before committing it.
+- [ ] Add focused automated tests for device registration, TLS configuration, credential encryption, route behavior, and API authorization.
 
 **Exit gate:** Clean local build and documented manual acceptance test, without data loss or CI requirement.
 
@@ -328,84 +338,58 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: validate the corrected Windows native-dependency verification.**
+**Next task: review the generated npm lockfile, then close the remaining Phase 1 test/documentation gaps.**
 
-The user ran the isolated installer repair. npm successfully installed both native packages into the intended locations:
-- Vite esbuild `0.25.12` at `node_modules/vite/node_modules/@esbuild/win32-x64`.
-- API esbuild `0.28.2` at `node_modules/@esbuild/win32-x64`.
+The user has successfully completed the corrected Windows development installer. The installer:
+- Recognized the required Windows native Rollup and esbuild packages at their expected versions.
+- Reported 0 npm vulnerabilities.
+- Passed API and web TypeScript checks.
+- Built the API and web production bundles.
+- Built both Docker images and started the Compose stack successfully.
 
-The script then incorrectly reported both as missing because its verification used `require.resolve()` on native packages that are not necessarily resolvable as JavaScript entry points. The repair itself succeeded; the verification method was wrong.
+The user separately ran and confirmed:
+- `npm audit`: 0 vulnerabilities.
+- `npm run test --workspace @pfsense-hub/api`: 15 tests passed across 5 files.
+- `npm run typecheck`: passed.
+- `npm run build`: passed.
+- Application acceptance check: passed.
+- `docker compose ps`: API, database, and web containers all healthy.
+- Web is bound to `127.0.0.1:8080`, not exposed on all interfaces.
 
-The verification now reads each package's `package.json` directly from the expected sibling `node_modules` location, then checks its name and version. This avoids requiring a JavaScript entry point from a native binary package.
+Latest reported branch state:
+- Branch: `feature/installation-onboarding`
+- HEAD: `63731d0` (`Record native dependency verification correction`)
+- Working tree: only untracked `package-lock.json`.
 
-Fix commit:
-- `566c9163a134401e7ccf5c977f66cf1f01b23619` verifies native packages from their installed filesystem paths.
+The two Vite React Router `use client` warnings are non-fatal. Do not change dependencies solely to silence them without checking compatibility and necessity.
 
-On the user's Windows machine, run:
+**Next user action:** inspect the lockfile header and workspace metadata before deciding to track it:
 
 ```powershell
-git pull --ff-only
-.\scripts\install.ps1 -Development
+Get-Content .\package-lock.json -TotalCount 100
+npm ls --depth=0
 ```
 
-The two native packages should already be installed from the previous run. The corrected script should recognize them and continue to the npm audit, typecheck, and build stages.
+Do not delete or regenerate the lockfile. If its root package/workspace metadata and resolved versions are consistent with the current manifests, commit it to improve reproducibility. If not, diagnose the mismatch first. Preserve the current working tree and all local secrets/data.
 
-If the installer completes, run:
-
-```powershell
-npm audit
-npm run test --workspace @pfsense-hub/api
-npm run typecheck
-npm run build
-```
-
-Expected audit: 0 vulnerabilities. Expected API test run: 15 source tests, not duplicated compiled tests. If the repair fails, capture the complete output and stop before manual package installation. Keep the untracked `package-lock.json`. Do not delete it, reset the working tree, or remove node_modules. No CI.
-
-After validation, review and commit the generated lockfile, then continue Phase 1 manual acceptance testing: Compose config/build, authentication, route refresh/deep links, role restrictions, firewall inventory operations, read-only checks, and restart persistence.
+After lockfile review, continue Phase 1 with focused automated coverage and a concise manual acceptance record. No CI runs are needed.
 
 ## 8. Session handoff
 
-**Current state:** npm successfully installed the Vite and API native esbuild packages at their separate intended paths. The prior script's final verification incorrectly used module resolution and reported them missing. That check has now been corrected to inspect the package manifests directly. The new verification has not yet been run by the user.
+**Validated baseline (2026-11-21):**
+- Corrected Windows native dependency verification passed.
+- Development installer completed successfully.
+- `npm audit`: 0 vulnerabilities.
+- API tests: 15 passed, 5 test files.
+- API and web type checks passed.
+- API and web production builds passed.
+- Docker API and web images built successfully.
+- Docker Compose API, database, and web containers all healthy.
+- User reports application acceptance check passed.
+- Non-fatal Vite warnings: React Router module-level `use client` directives were ignored during bundling.
+- Local Git state reported: HEAD `63731d0`, only untracked `package-lock.json`.
 
-**Next action:** Pull the latest feature branch and rerun ` .\scripts\install.ps1 -Development`. Do not proceed to firewall feature work until local install/test/build is stable.
+**Next action:** inspect the untracked lockfile using the commands in Section 7. Decide whether to commit it only after checking workspace metadata and dependency consistency. Then finish remaining Phase 1 automated test coverage and documentation.
 
-**Preserve:** Keep the untracked `package-lock.json`; do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5.
+**Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
-**Update this section at every session end:** Record latest commit, actual validation results, blockers, and next exact action.
-
-## 8. Session handoff
-
-**Current state:** The user's Windows installer reached the native dependency repair but failed because npm tried to resolve the repository workspace while installing into a nested node_modules prefix. The script has now been changed to use isolated temporary npm projects, then copy the packages into the correct owning node_modules directories. This latest implementation has not yet been run by the user.
-
-**Next action:** Pull the latest feature branch and rerun ` .\scripts\install.ps1 -Development`. Do not proceed to firewall feature work until local install/test/build is stable.
-
-**Preserve:** Keep the untracked `package-lock.json`; do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5.
-
-**Update this section at every session end:** Record latest commit, actual validation results, blockers, and next exact action.
-
-## 8. Session handoff
-
-**Current state:** User's Windows installer run failed because the first native repair script incorrectly collapsed two different esbuild versions. The repair was corrected in GitHub, but the corrected script has not yet been run by the user.
-
-**Next action:** Pull the latest feature branch and rerun ` .\scripts\install.ps1 -Development` as shown above. Do not proceed to firewall feature work until the local install/test/build baseline is stable.
-
-**Preserve:** Keep the untracked `package-lock.json`; do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5.
-
-**Update this section at every session end:** Record latest commit, actual validation results, blockers, and next exact action.
-
-## 8. Session handoff
-
-**Recent dependency and installer commits:**
-- `b6ea32b46cf2cc4d31ebdfd1729c6ad42dd05abb` upgrades Zod to `^4.6.7` and Vitest to `^5.1.1`.
-- `e74b299b92cf54dbc647d7d5eec24f9cfcee782e` adds the Windows native dependency repair script.
-- `4dc4fb2ee635c142218b1feb3b1d0b7500be8e84` invokes native dependency repair from the Windows development installer.
-- `40d67beb16ec3063344a15b4e715be973f5913d3` limits API tests to source files.
-- `75c820056565f78b0df3fcbcf78b93fdfacf40cf` ignores TypeScript incremental build artifacts.
-- `b740609f4a1cfe6808271f3e50f59e7babdbfbbf` documents Windows native dependency repair.
-- CI automatic triggers were disabled on both `main` and `feature/installation-onboarding`; workflows are manual-dispatch only.
-
-**Next action:** Pull the feature branch and run the installer profile plus the explicit validation commands in Section 7. The latest manual validation succeeded only after installing the native Rollup and esbuild packages manually. The new automatic repair has not yet been executed by the user and must be validated before this work is considered complete.
-
-**Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5.
-
-**Update this section at every session end:** Record latest commit, actual validation results, blockers, and next exact action.
