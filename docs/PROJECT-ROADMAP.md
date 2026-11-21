@@ -4,7 +4,7 @@
 **Canonical tracking document:** `docs/PROJECT-ROADMAP.md`  
 **Active branch:** `feature/installation-onboarding`  
 **Last updated:** 2026-11-21  
-**Status:** Dashboard status-only experience passed Windows typecheck, production build, and Docker Compose rebuild/startup. Human-readable diagnostic presentation is implemented and awaiting local validation.
+**Status:** Dashboard and diagnostic presentation have been locally validated. Per-firewall compatibility evidence API and dedicated compatibility subpage are implemented; frontend validation is pending.
 
 This is the authoritative cross-session project tracker. At the end of every meaningful development session, update this document before stopping. A new chat should read this file first, then `AGENTS.md`, `docs/DECISIONS.md`, and the phase-specific documents linked below. Do not rely on chat history as the project record.
 
@@ -55,7 +55,7 @@ Status meanings:
 - [x] Per-firewall CA certificate and TLS server-name configuration.
 - [x] TLS certificate discovery during onboarding. Discovery inspects the presented certificate; it does not automatically trust it.
 - [x] Fixed allowlist of eight initial read-only pfSense GET operations.
-- [~] Add the ninth approved GET operation for REST API package-version discovery, persist compatibility metadata, and validate the live response on the Plus firewall.
+- [~] Per-device compatibility discovery: persist edition/release/architecture/package metadata and nine GET endpoint evidence records. API and persistence tests pass; live secondary CE verification remains deferred until that firewall is connected.
 - [x] User-triggered per-device read-only checks and overview collection.
 - [x] Inventory metadata editing and enable/disable for all registered devices. Any registered device, including the legacy installation-configured placeholder, can be deleted after administrator confirmation. The UI requires typing DELETE before enabling the destructive action.
 - [x] Removed startup seeding of the dummy primary firewall. All real firewalls now use the same database-backed encrypted credential and lifecycle path.
@@ -63,7 +63,8 @@ Status meanings:
 - [x] React Router navigation standard recorded in `AGENTS.md` and DEC-021.
 - [x] User reported a successful local firewall connection test and read-only collection.
 - [x] Dashboard appliance cards are status-only. Administrators navigate to Firewall Inventory for edit, remove, details, and read-only checks. User confirmed the revised dashboard and the Windows typecheck/build/Compose startup passed after the change.
-- [~] Read-only diagnostic modal now presents a human-readable collection summary, returned counts, system metrics, pfSense version, and state-table usage, with expandable redacted technical JSON. Awaiting Windows typecheck/build and manual UI acceptance.
+- [x] Read-only diagnostic modal presents a human-readable collection summary, returned counts, system metrics, pfSense version, and state-table usage, with expandable redacted technical JSON. User validated the Windows typecheck/build/Compose startup and accepted the UI.
+- [~] Per-firewall Compatibility subpage is implemented at `/firewalls/:deviceId/compatibility`, linked from the inventory details panel. It displays device metadata and per-endpoint Verified/Unsupported/Unknown evidence. Awaiting Windows typecheck/build and manual UI acceptance.
 
 ### Validated local development baseline
 - [x] Windows development installer completed successfully, including native Rollup/esbuild verification, dependency audit, type checks, production builds, Docker image builds, and Compose startup (earlier validated session).
@@ -353,7 +354,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Immediate acceptance task: validate the newly implemented diagnostic summary UI on Windows (`npm run typecheck`, `npm run build`, and a manual read-only check). Once accepted, resume the Phase 2 roadmap task: inspect and implement per-device compatibility discovery. Record pfSense edition, release, architecture, REST API package version, and a verified capability profile per device. The transport-specific connection profile remains deferred until DEC-010 is resolved.**
+**Immediate acceptance task: pull the per-firewall Compatibility subpage and validate on Windows (`npm run typecheck`, `npm run build`, and a manual visit to a firewall inventory detail link). Confirm metadata and all nine endpoint statuses render correctly, including Unknown for unverified evidence. Live secondary CE verification remains deferred until the CE firewall is connected. The transport-specific connection profile remains deferred until DEC-010 is resolved.**
 
 The user has successfully completed the corrected Windows development installer. The installer:
 - Recognized the required Windows native Rollup and esbuild packages at their expected versions.
