@@ -4,7 +4,7 @@
 **Canonical tracking document:** `docs/PROJECT-ROADMAP.md`  
 **Active branch:** `feature/installation-onboarding`  
 **Last updated:** 2026-11-21  
-**Status:** User accepted the dialog and sidebar visual refinements; persisted firewall connection lifecycle implementation is committed and awaiting Windows validation
+**Status:** Persisted firewall connection lifecycle implementation passed Windows tests, type checks, production builds, and Docker Compose rebuild/startup
 
 This is the authoritative cross-session project tracker. At the end of every meaningful development session, update this document before stopping. A new chat should read this file first, then `AGENTS.md`, `docs/DECISIONS.md`, and the phase-specific documents linked below. Do not rely on chat history as the project record.
 
@@ -64,11 +64,11 @@ Status meanings:
 ### Validated local development baseline
 - [x] Windows development installer completed successfully, including native Rollup/esbuild verification, dependency audit, type checks, production builds, Docker image builds, and Compose startup (earlier validated session).
 - [x] `npm audit`: 0 vulnerabilities (earlier user-reported validation; not rerun in the latest command sequence).
-- [x] API tests: 42 tests passed across 7 test files in the latest Windows run (2026-11-21).
-- [x] `npm run typecheck`: API and web passed after the credential-update exact-optional-property fix.
-- [x] `npm run build`: API and web production builds passed. Vite emitted two non-fatal React Router `use client` directive warnings.
-- [x] Local branch is synchronized with `origin/feature/installation-onboarding` at `1c4724f` (`fix(api): omit undefined credential update fields`); working tree reported clean.
-- [x] Earlier Docker Compose validation reported `api`, `db`, and `web` healthy, with web bound only to `127.0.0.1:8080`; not rerun in the latest command sequence.
+- [x] API tests: 46 tests passed across 7 test files in the latest Windows run (2026-11-21), including persisted lifecycle status coverage.
+- [x] `npm run typecheck`: API and web passed after lifecycle implementation (2026-11-21).
+- [x] `npm run build`: API and web production builds passed after lifecycle implementation (2026-11-21). Vite emitted two non-fatal React Router `use client` directive warnings.
+- [x] Latest Windows validation was run after pulling the lifecycle test fixes and roadmap update; exact local HEAD and working-tree state were not included in the user's validation output.
+- [x] `docker compose up -d --build` completed successfully after lifecycle implementation; database and API reported healthy, web container started. The output did not show the web container's health status.
 - [x] User reports the application acceptance check passed (earlier validation).
 - [x] The npm workspace `package-lock.json` is tracked in the repository; the old untracked-lockfile note is obsolete.
 - [x] The injectable Fastify app factory and separated runtime bootstrap compile and pass the latest tests.
@@ -148,7 +148,7 @@ The phases are ordered. A phase may overlap with documentation or design work, b
 - [x] Independent per-device API credential encryption.
 - [x] Per-device CA and TLS server-name support.
 - [x] Certificate inspection/discovery during onboarding.
-- [~] Persist device connection lifecycle state independently from the enabled/disabled setting, including last checked, last fully successful check, and classified error. Automated coverage added; Windows validation pending.
+- [x] Persist device connection lifecycle state independently from the enabled/disabled setting, including last checked, last fully successful check, and classified error. Windows validation passed: 46 tests across 7 files, API/web typechecks, API/web production builds, Docker image builds, database/API healthy, web started (2026-11-21).
 - [D] Select a transport-specific connection profile until the firewall-to-manager transport decision in DEC-010 is approved.
 - [~] Backend credential replacement/rotation route implemented for additional devices, with read-only connection re-test before encrypted credentials and TLS settings are persisted; primary-device rotation remains installation-secret managed.
 - [~] Frontend credential/TLS editor implemented for additional devices: replacement API key, optional CA PEM import/paste or explicit clear, TLS server-name update or explicit clear, read-only revalidation before save, and failure feedback. User visually accepted the editor, file picker, dialog scrolling, and sidebar refinements on 2026-11-21. Latest Windows build validation and live secondary-firewall workflow validation remain pending.
@@ -346,7 +346,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: validate persisted device connection lifecycle status on Windows, then implement per-device compatibility discovery. The transport-specific connection profile remains deferred until DEC-010 is resolved.**
+**Next task: inspect and implement per-device compatibility discovery. Record pfSense edition, release, architecture, REST API package version, and a verified capability profile per device. The transport-specific connection profile remains deferred until DEC-010 is resolved.**
 
 The user has successfully completed the corrected Windows development installer. The installer:
 - Recognized the required Windows native Rollup and esbuild packages at their expected versions.
@@ -379,12 +379,12 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 
 ## 8. Session handoff
 
-**Latest user-validated Windows results (2026-11-21, branch pulled to `cc2a2a5`):**
-- `npm test`: 42 tests passed across 7 API test files.
+**Latest user-validated Windows results (2026-11-21, after pulling the lifecycle test fixes):**
+- `npm test`: 46 tests passed across 7 test files.
 - `npm run typecheck`: API and web passed.
-- `npm run build`: API and web production builds passed.
-- Vite emitted two non-fatal React Router `use client` directive warnings.
-- These checks validate the current frontend credential/TLS editor at compile/build level. They do not verify the interactive browser workflow or a live credential rotation against a secondary firewall.
+- `npm run build`: API and web production builds passed. Vite emitted two non-fatal React Router `use client` directive warnings.
+- `docker compose up -d --build`: both images built; database and API reported healthy; web container started. The output did not show web health status.
+- These checks validate the persisted lifecycle implementation at test, typecheck, build, and container startup levels. They do not verify a live secondary firewall or credential rotation against a secondary firewall.
 
 **User acceptance:** The user reviewed and accepted the UI refresh, credential editor layout, and sidebar refinements (2026-11-21).
 
@@ -406,7 +406,7 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 
 **Latest layout refinements (2026-11-21):** `c299c91` wraps the inventory form and credential editor in one scrollable dialog body; `3d93fd3` removes nested credential scrolling and fixes checkbox sizing; the CSS commit themes the certificate file picker and hides the dialog scrollbar track without disabling scrolling; the latest sidebar CSS commit prevents horizontal overflow, hides scrollbar chrome, and preserves the pinned account footer. User must pull and run `npm test`, `npm run typecheck`, and `npm run build`, then inspect the Edit firewall dialog at desktop and narrow/mobile widths. Manual credential rotation remains pending until an additional firewall is registered and reachable. Do not attempt primary firewall rotation through this screen. No firewall configuration writes are involved. The new persisted lifecycle fields and frontend display require local validation.
 
-**Lifecycle status implementation (2026-11-21):** Commits `86d3794`, `fecbba5`, and `5f1abbd` add persisted connection status, timestamps, and error classification with migration `005_device_connection_lifecycle.sql`; `d002147` adds provider tests for online, degraded, offline, and inventory projection. Frontend commits `3ce9796`, `4876143`, `56aee68`, and `851a5e0` display persistent status and refresh inventory after checks and credential revalidation. `de91e79` ensures inventory edits return camelCase lifecycle fields, and `418b614` tests that response; `2df7f63` supplies the mocked primary client used by the new collection lifecycle tests. DEC-022 defines the status semantics. The first Windows test run exposed three test-fixture assertion issues, not a production-code failure: collection writes eight poll-history rows before the lifecycle update, and timeout tests must use the provider's typed timeout error. Commit `c74e08b` corrects the assertions and fixtures. Re-run the Windows suite before treating this milestone as validated.
+**Lifecycle status implementation (2026-11-21):** Commits `86d3794`, `fecbba5`, and `5f1abbd` add persisted connection status, timestamps, and error classification with migration `005_device_connection_lifecycle.sql`; `d002147` adds provider tests for online, degraded, offline, and inventory projection. Frontend commits `3ce9796`, `4876143`, `56aee68`, and `851a5e0` display persistent status and refresh inventory after checks and credential revalidation. `de91e79` ensures inventory edits return camelCase lifecycle fields, and `418b614` tests that response; `2df7f63` supplies the mocked primary client used by the new collection lifecycle tests. DEC-022 defines the status semantics. The first Windows test run exposed three test-fixture assertion issues, not a production-code failure: collection writes eight poll-history rows before the lifecycle update, and timeout tests must use the provider's typed timeout error. Commit `c74e08b` corrects the assertions and fixtures. The corrected Windows rerun passed all 46 tests, API/web typechecks, API/web production builds, and Docker Compose image build/startup.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
