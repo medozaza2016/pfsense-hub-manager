@@ -66,6 +66,7 @@ const pageTitles: Record<Page, string> = {
 const pagePaths: Record<Page, string> = {
   dashboard: "/dashboard",
   firewalls: "/firewalls",
+  "firewall-compatibility": "/firewall-compatibility",
   "add-firewall": "/firewalls/add",
   monitoring: "/monitoring",
   users: "/users",
