@@ -30,7 +30,7 @@ function diagnosticValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "number") return Number.isFinite(value) ? new Intl.NumberFormat().format(value) : "Not reported";
   if (typeof value === "string") return value;
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? String(value);
 }
 function redactDiagnosticData(value: unknown): unknown {
   const sensitiveKey = /(serial|netgate|mac|(^|[_\\.])ip($|[_\\.])|address|hostname|host_name|fqdn|token|secret|key|password|credential|uuid|arp|source|destination)/i;
