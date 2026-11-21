@@ -72,10 +72,10 @@ Status meanings:
 - [~] Untracked `package-lock.json` has valid root/workspace metadata and contains both esbuild native dependency entries. User diagnostics exposed a repair-script path bug that placed the API esbuild native package at root `node_modules/@esbuild` instead of `node_modules/esbuild/node_modules/@esbuild`. Repair script corrected; final local verification pending.
 
 ### Remaining foundation work
-- [ ] Review lockfile contents and confirm it is appropriate for the npm workspace before tracking it.
-- [ ] Add focused automated tests for device registration, TLS configuration, credential encryption, route behavior, and API authorization.
-- [ ] Review the non-fatal React Router build warnings and determine whether a dependency/configuration adjustment is warranted.
-- [~] Latest documentation synchronization. Continue reconciling older documents as the project evolves.
+- [~] Expand route-level tests beyond the initial authentication/authorization cases, especially registration, credential update, device lifecycle, and error paths.
+- [ ] Add focused tests for TLS configuration and certificate handling at the route/provider boundary.
+- [ ] Review the non-fatal React Router build warnings only if a compatible, low-risk fix is identified; they do not currently fail the build.
+- [~] Reconcile older documentation with the current implementation and validation evidence.
 
 ### Not yet completed
 - [ ] Full monitoring pages and useful normalized per-firewall detail views.
@@ -125,12 +125,15 @@ The phases are ordered. A phase may overlap with documentation or design work, b
 - [x] TLS certificate discovery and configurable server identity.
 - [x] React Router adoption.
 - [x] Run local frontend and API type checks and production builds after routing/dependency changes.
-- [x] Run API unit tests: 15 tests passed across 5 test files.
+- [x] Run API tests: 29 tests passed across 7 test files, including provider and route authorization coverage.
 - [x] Run `npm audit`: 0 vulnerabilities.
 - [x] Complete Windows development installer, Docker image builds, and Compose startup.
 - [x] User reports the application acceptance check passed; all three Compose services are healthy.
-- [ ] Review the untracked npm workspace lockfile before committing it.
-- [ ] Add focused automated tests for device registration, TLS configuration, credential encryption, route behavior, and API authorization.
+- [x] npm workspace lockfile committed and retained.
+- [x] Add provider tests for registration/connectivity, credential encryption behavior, TLS verification failure, device listing, and protected primary-device deletion.
+- [x] Extract injectable Fastify app factory and add six route authentication/authorization tests.
+- [ ] Extend route tests to registration, credential update, device lifecycle, and additional error cases.
+- [ ] Add route/provider boundary tests for TLS configuration and certificate handling.
 
 **Exit gate:** Clean local build and documented manual acceptance test, without data loss or CI requirement.
 
@@ -338,7 +341,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: commit the reviewed npm lockfile, then close remaining Phase 1 test/documentation gaps.**
+**Next task: close the remaining Phase 1 route and TLS test gaps, then complete a documented local acceptance pass.**
 
 The user has successfully completed the corrected Windows development installer. The installer:
 - Recognized the required Windows native Rollup and esbuild packages at their expected versions.
@@ -356,44 +359,32 @@ The user separately ran and confirmed:
 - `docker compose ps`: API, database, and web containers all healthy.
 - Web is bound to `127.0.0.1:8080`, not exposed on all interfaces.
 
-Latest reported branch state:
-- Branch: `feature/installation-onboarding`
-- HEAD: `63731d0` (`Record native dependency verification correction`)
-- Working tree: only untracked `package-lock.json`.
+Latest relevant branch commits:
+- `716d33b` (`refactor(api): extract injectable Fastify application`)
+- `041b14b` (`refactor(api): keep runtime startup separate from app factory`)
+- `24b15b0` (`test(api): cover session and route authorization`)
+
+The user pulled the branch and confirmed it was already up to date before running the latest local checks.
 
 The two Vite React Router `use client` warnings are non-fatal. Do not change dependencies solely to silence them without checking compatibility and necessity.
 
 Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The installer removed the obsolete API nested duplicate after verifying the root package name/version, preserved the Vite nested package, and completed audit, typecheck, production builds, Docker image builds, and Compose startup. `npm ls esbuild @esbuild/win32-x64 --all` now reports both expected native packages without an extraneous root package. The subsequent `npm ls --depth=0n` invocation contained a command-line typo (`0n` rather than `0`), producing an npm config warning; the dependency listing itself showed no extraneous package.
 
-**Next user action:** check Git status and commit the reviewed lockfile locally:
-
-```powershell
-git status --short
-git add package-lock.json
-git commit -m "Add npm workspace lockfile"
-git push
-```
-
-Do not delete or regenerate the lockfile. The native dependency tree now validates without extraneous packages. The lockfile header and workspace metadata match the current root/API/web manifests, and it contains the expected optional native package entries. Commit the untracked lockfile locally to establish reproducible dependency resolution. Do not stage any other files. Preserve the current working tree and all local secrets/data.
-
-After lockfile review, continue Phase 1 with focused automated coverage and a concise manual acceptance record. No CI runs are needed.
+**Next action:** continue Phase 1 by adding focused route tests for device registration and credential updates, then TLS configuration/certificate handling. Keep all firewall operations read-only. Do not enable writes, expand firewall API privileges, run CI, or touch the production LXC. No destructive Git or database operations are authorized.
 
 ## 8. Session handoff
 
-**Validated baseline (2026-11-21):**
-- Corrected Windows native dependency verification passed.
-- Development installer completed successfully.
-- `npm audit`: 0 vulnerabilities.
-- API tests: 15 passed, 5 test files.
-- API and web type checks passed.
-- API and web production builds passed.
-- Docker API and web images built successfully.
-- Docker Compose API, database, and web containers all healthy.
-- User reports application acceptance check passed.
-- Non-fatal Vite warnings: React Router module-level `use client` directives were ignored during bundling.
-- Local Git state reported: HEAD `63731d0`, only untracked `package-lock.json`.
+**Validated baseline (latest user-provided Windows output):**
+- `git pull --ff-only origin feature/installation-onboarding`: already up to date.
+- `npm test`: 29 tests passed across 7 test files.
+- `npm run typecheck`: API and web passed.
+- `npm run build`: API and web production builds passed.
+- Vite emitted two non-fatal React Router `use client` directive warnings.
+- These latest commands verify the app-factory refactor and route authorization tests. They do not newly verify Docker Compose health, `npm audit`, or live firewall connectivity.
 
-**Next action:** commit only the reviewed untracked `package-lock.json` locally, then report the commit SHA and Git status. The latest installer run passed, and `npm ls esbuild @esbuild/win32-x64 --all` shows both expected native dependencies with no extraneous package. The `npm ls --depth=0n` command had a harmless typo (`0n`); use `npm ls --depth=0` if needed. Then finish remaining Phase 1 automated test coverage and documentation.
+**Latest relevant commit:** `24b15b0` (`test(api): cover session and route authorization`).
+
+**Next action:** continue Phase 1 with route tests for registration and credential updates, followed by TLS configuration/certificate tests. Keep the application read-only against firewalls and preserve all existing local data and secrets.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
