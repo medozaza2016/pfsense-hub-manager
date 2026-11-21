@@ -143,3 +143,14 @@ Do not merge to `main` until the local verification and visual acceptance pass a
 - Audit Logs now use mobile event cards with event name, UTC timestamp, outcome, actor, target, and summary. The desktop audit table remains unchanged.
 - Alert selection is presented in a dedicated leading selection column on desktop and at the leading edge of each mobile card.
 - The alert list has a persistent Select all control and a grouped bulk-action area. Acknowledge and Resolve are disabled when no eligible selected records exist. Individual desktop row actions remain grouped together at the trailing edge.
+
+
+## Global toast notification system
+
+- A single `ToastProvider` is mounted around the complete React application in `main.tsx`. Any page or shared component can call `useToast()`.
+- Toast types: success (3 seconds), info (4 seconds), warning (5 seconds), and error (7 seconds).
+- Notifications stack in a fixed global region, support manual dismissal, pause their timeout while hovered, and are announced with accessible status/alert roles.
+- The provider caps the visible stack at five notifications and is responsive on mobile.
+- User creation, user role/status changes, alert lifecycle actions (including bulk actions), audit loading errors, Hub settings saves, and inventory refresh/load feedback are wired to the global system.
+- Contextual inline validation and form errors remain in place where they help users correct a specific field or form. Toasts supplement these messages rather than replacing useful field-level guidance.
+- Use `const { notify } = useToast()` in any descendant component. Call `notify(message, "success" | "info" | "warning" | "error")`.
