@@ -24,6 +24,7 @@ export type DataTableProps<T> = {
   pageSizeOptions?: number[];
   actions?: (row: T) => ReactNode;
   caption?: string;
+  className?: string;
 };
 
 function compareValues(a: unknown, b: unknown): number {
@@ -36,7 +37,7 @@ export function DataTable<T>({
   rows, columns, getRowId, searchableText, search = "", emptyTitle = "No records found",
   emptyDescription = "Try changing your search or filters.", loading = false,
   loadingLabel = "Loading records…", error, pageSize = 25, pageSizeOptions = [10, 25, 50, 100],
-  actions, caption
+  actions, caption, className
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ id: string; direction: SortDirection } | null>(null);
   const [page, setPage] = useState(0);
@@ -69,7 +70,7 @@ export function DataTable<T>({
     {loading ? <div className="ui-state" role="status"><span className="ui-spinner" />{loadingLabel}</div>
       : filtered.length === 0 ? <div className="ui-state"><strong>{emptyTitle}</strong><span>{emptyDescription}</span></div>
       : <>
-        <div className="ui-table-scroll"><table className="ui-data-table">
+        <div className={"ui-table-scroll " + (className ? className + "-scroll" : "")}><table className={"ui-data-table " + (className ?? "")}>
           {caption && <caption>{caption}</caption>}
           <thead><tr>{columns.map(column => <th key={column.id} scope="col" className={column.className}>
             {column.sortable && column.value
