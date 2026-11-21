@@ -4,7 +4,7 @@
 **Canonical tracking document:** `docs/PROJECT-ROADMAP.md`  
 **Active branch:** `feature/installation-onboarding`  
 **Last updated:** 2026-11-21  
-**Status:** Phase 1 route, credential, TLS, and certificate test coverage implemented; Windows local tests, type checks, and production builds passed
+**Status:** Firewall inventory and navigation UI refinement implemented on the feature branch; local browser acceptance and build validation pending
 
 This is the authoritative cross-session project tracker. At the end of every meaningful development session, update this document before stopping. A new chat should read this file first, then `AGENTS.md`, `docs/DECISIONS.md`, and the phase-specific documents linked below. Do not rely on chat history as the project record.
 
@@ -74,6 +74,7 @@ Status meanings:
 - [x] The injectable Fastify app factory and separated runtime bootstrap compile and pass the latest tests.
 
 ### Remaining foundation work
+- [~] UI refresh in progress: persistent non-collapsible desktop navigation, simplified firewall links, refined inventory layout, page/card/detail/dialog motion, and reduced-motion support committed; awaiting Windows local build and visual acceptance.
 - [x] Add route-level coverage for device registration, metadata updates, credential rotation, authorization, primary-device protection, and relevant error paths.
 - [x] Add provider and route tests for credential revalidation, TLS CA/server-name propagation, certificate discovery metadata, and invalid non-HTTPS discovery input.
 - [ ] Review the non-fatal React Router build warnings only if a compatible, low-risk fix is identified; they do not currently fail the build.
@@ -344,7 +345,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: finish Phase 1 documentation and manual acceptance evidence, then begin Phase 2 device connection profiles and compatibility discovery.**
+**Next task: pull and visually verify the UI refresh on Windows at desktop and mobile widths, then adjust based on the rendered result.**
 
 The user has successfully completed the corrected Windows development installer. The installer:
 - Recognized the required Windows native Rollup and esbuild packages at their expected versions.
@@ -387,7 +388,7 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 
 **Latest relevant commit:** `24b15b0` (`test(api): cover session and route authorization`).
 
-**Next action:** document the completed route/TLS test coverage and validation evidence, then design Phase 2 connection profiles and per-device compatibility discovery. Keep firewall operations read-only and preserve all existing local data and secrets.
+**Next action:** run `git pull --ff-only origin feature/installation-onboarding`, `npm run typecheck`, and `npm run build`, then inspect the refreshed inventory and sidebar in the local browser at desktop and mobile widths. Latest UI commits: `a41cca8` (navigation and route transition hook), `cb96b00` (inventory/sidebar styling and motion), `1e946e8` (dialog entrance motion). Keep firewall operations read-only and preserve all existing local data and secrets.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
