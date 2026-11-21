@@ -208,7 +208,7 @@ export default function App() {
 
   useEffect(() => {
     if (screen === "app") {
-      if ((!pathPages[location.pathname] && !compatibilityMatch) || location.pathname === "/login" || location.pathname === "/setup") {
+      if ((!pathPages[location.pathname] && !compatibilityMatch && !firewallRulesMatch) || location.pathname === "/login" || location.pathname === "/setup") {
         routerNavigate("/dashboard", { replace: true });
       } else if (currentUser?.role !== "admin" && ["users", "audit", "settings", "firewall-rules"].includes(page)) {
         routerNavigate("/dashboard", { replace: true });
