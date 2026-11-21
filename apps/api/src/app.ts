@@ -397,9 +397,6 @@ app.patch("/api/v1/devices/:deviceId/credentials", async (request, reply) => {
 app.delete("/api/v1/devices/:deviceId", async (request, reply) => {
   if (request.managerUser!.role !== "admin") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Administrator access is required." } });
   const { deviceId } = request.params as { deviceId: string };
-  if (deviceId === config.PFSENSE_DEVICE_ID) {
-    return reply.code(409).send({ error: { code: "PRIMARY_DEVICE_PROTECTED", message: "The primary firewall configured during installation cannot be deleted." } });
-  }
   const deleted = await provider.deleteDevice(deviceId);
   if (!deleted) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
   return { data: { id: deviceId, deleted: true, pollHistoryDeleted: true } };
