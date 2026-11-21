@@ -32,7 +32,7 @@ chown 1000:1000 secrets/pfsense_api_key; chmod 400 secrets/pfsense_api_key
 if [[ ! -s secrets/device_credentials_key ]]; then
   openssl rand -hex 32 > secrets/device_credentials_key
 fi
-chmod 400 secrets/device_credentials_key
+chown 1000:1000 secrets/device_credentials_key; chmod 400 secrets/device_credentials_key
 if [[ ! -f certs/pfsense-ca.pem ]]; then
   read -r -p "Private pfSense CA PEM path, or Enter if not required: " ca
   if [[ -n "$ca" ]]; then [[ -f "$ca" ]] || fail "CA file not found."; install -m 644 "$ca" certs/pfsense-ca.pem; fi
