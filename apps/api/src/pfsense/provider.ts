@@ -214,8 +214,9 @@ export class PfSenseProvider {
         const versionData = results.version && typeof results.version === "object" ? results.version as Record<string, unknown> : {};
         const packageVersion = typeof packageData.current_version === "string" ? packageData.current_version : null;
         const release = ["version", "product_version", "release", "version_full"].map(key => versionData[key]).find(value => typeof value === "string") as string | undefined;
-        const architecture = ["architecture", "arch", "machine_architecture", "platform_architecture"].map(key => versionData[key]).find(value => typeof value === "string") as string | undefined;
-        await this.pool.query(
+        const systemData = results.system && typeof results.system === "object" ? results.system as Record<string, unknown> : {};
+        const architecture = ["architecture", "arch", "machine_architecture", "platform_architecture"].map(key => systemData[key]).find(value => typeof value === "string") as string | undefined;
+        if (packageVersion || release || architecture) await this.pool.query(
           `UPDATE managed_devices
            SET release=COALESCE($1,release),architecture=COALESCE($2,architecture),
                rest_api_package_version=COALESCE($3,rest_api_package_version),
