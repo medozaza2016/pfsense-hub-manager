@@ -31,7 +31,8 @@ function resolvePackage(name, fromDirectory) {
 const rollup = resolvePackage("rollup", path.join(root, "node_modules"));
 const vite = resolvePackage("vite", path.join(root, "node_modules"));
 const viteEsbuild = resolvePackage("esbuild", vite.directory);
-const apiEsbuild = resolvePackage("esbuild", path.join(root, "node_modules"));
+const tsx = resolvePackage("tsx", path.join(root, "node_modules"));
+const apiEsbuild = resolvePackage("esbuild", tsx.directory);
 
 const arch = process.arch;
 const esbuildNativeName = `@esbuild/win32-${arch}`;
@@ -58,9 +59,9 @@ function installedVersion(name, fromDirectory) {
 }
 
 const requirements = [
-  { owner: "Rollup", name: rollupNativeName, version: rollup.data.optionalDependencies?.[rollupNativeName], from: rollup.directory },
-  { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory },
-  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory }
+  { owner: "Rollup", name: rollupNativeName, version: rollup.data.optionalDependencies?.[rollupNativeName], from: rollup.directory, prefix: root },
+  { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory, prefix: path.dirname(vite.directory) },
+  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, prefix: path.dirname(tsx.directory) }
 ];
 
 const repairs = new Map();
@@ -69,25 +70,30 @@ for (const item of requirements) {
   const actual = installedVersion(item.name, item.from);
   if (actual !== item.version) {
     console.log(`${item.owner}: ${item.name} requires ${item.version}, found ${actual ?? "missing"}.`);
-    const previous = repairs.get(item.name);
-    if (previous && previous !== item.version) {
-      throw new Error(`Conflicting native package versions requested for ${item.name}: ${previous} and ${item.version}.`);
-    }
-    repairs.set(item.name, item.version);
+    const key = `${item.prefix}::${item.name}`;
+    repairs.set(key, { prefix: item.prefix, spec: `${item.name}@${item.version}`, owner: item.owner });
   }
 }
 
 if (repairs.size > 0) {
-  const specs = [...repairs].map(([name, version]) => `${name}@${version}`);
-  console.log("Repairing Windows native optional dependencies in one npm operation...");
-  const command = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(command, ["install", "--no-save", "--package-lock=false", ...specs], {
-    cwd: root,
-    stdio: "inherit",
-    shell: process.platform === "win32"
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`npm native dependency repair failed with exit code ${result.status}.`);
+  const byPrefix = new Map();
+  for (const repair of repairs.values()) {
+    const specs = byPrefix.get(repair.prefix) ?? [];
+    specs.push(repair.spec);
+    byPrefix.set(repair.prefix, specs);
+  }
+
+  const command = "npm.cmd";
+  for (const [prefix, specs] of byPrefix) {
+    console.log(`Repairing native optional dependencies for ${prefix}...`);
+    const result = spawnSync(command, ["install", "--no-save", "--package-lock=false", "--prefix", prefix, ...specs], {
+      cwd: root,
+      stdio: "inherit",
+      shell: true
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(`npm native dependency repair failed in ${prefix} with exit code ${result.status}.`);
+  }
 }
 
 const failures = [];
