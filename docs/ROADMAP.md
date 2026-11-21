@@ -118,3 +118,28 @@ The exact firewall-to-hub connection method remains deferred. The transport abst
 The initial application scaffold is committed: React/Vite web app, Fastify API, PostgreSQL Compose service, initial SQL migration, Dockerfiles, local-only web exposure, Docker-secret API-key mount, strict HTTPS client, fixed allowlist for the eight previously verified GET endpoints, per-operation poll records, health/readiness endpoints, Prometheus-format metrics, and CI workflow. The first UI can trigger a read-only collection and show the result. ARP rows and individual firewall state rows are reduced to aggregate counts and are not persisted.
 
 This is not a production release. The manager has no user login or role model yet. Only one firewall is configured through environment variables. The live TLS trust chain, Compose build on the LXC, API response compatibility, and CI run must be verified before calling the foundation operational. No write API, shell execution, reboot, halt, apply, or arbitrary upstream proxy is implemented.
+
+
+## Hub system monitoring and recovery, approved November 21, 2026
+
+**Scope:** Administration-only operational controls for the pfSense Hub Manager Compose stack on its dedicated host. This does not turn the product into a general-purpose Docker manager and does not manage unrelated containers.
+
+### Initial delivery
+- [ ] Show host CPU, memory, and disk usage where reliable host-side telemetry is available.
+- [ ] Show status and health for Web, API, PostgreSQL, and Code Server, including uptime and last health-check result where available.
+- [ ] Provide bounded, sanitized per-service log viewing.
+- [ ] Provide individual service start, stop, and restart operations.
+- [ ] Provide whole-stack start, stop, and restart operations.
+- [ ] Provide Docker Compose configuration validation without applying changes.
+- [ ] Record operator, requested action, target, timestamp, outcome, and sanitized error in an operations history.
+- [ ] Add explicit confirmation for stopping the stack and other disruptive operations.
+- [ ] Document host-side recovery because stopping/downing the stack also stops the management GUI.
+
+### Security and lifecycle constraints
+- Use a narrowly scoped host-side management boundary that permits only predefined actions against this project's Compose file/project name.
+- Never mount the Docker socket into the web or API containers, and never expose arbitrary command execution or arbitrary Compose arguments.
+- Never remove named or anonymous volumes as part of routine stop, restart, or recovery actions. Database data must persist.
+- Keep rebuild, recreate, image update, volume operations, database restore, and management of unrelated containers out of the initial release. Review them separately before implementation.
+- Distinguish a successful command submission from confirmed service health. Refresh runtime state after every operation and report partial failures.
+
+This is an approved product scope, not an implemented feature. Implementation and host-runtime validation remain pending.
