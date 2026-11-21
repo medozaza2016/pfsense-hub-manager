@@ -124,3 +124,14 @@ The changes are committed to the feature branch, but have not been built or test
 7. Compare desktop and mobile screenshots with the approved visual reference.
 
 Do not merge to `main` until the local verification and visual acceptance pass and the user approves the merge.
+
+
+## Responsive record cards and bulk alert actions
+
+- The shared `DataTable` accepts an optional `mobileCard` renderer. At mobile breakpoints, opted-in lists render stacked record cards with the same page-level pagination and search results as the desktop table.
+- Sites, User Management, and Alerts use the card renderer on narrow screens. Other tables retain their existing responsive behavior until they are explicitly migrated.
+- Desktop keeps the sortable table layout. Mobile cards expose the key fields and page actions without requiring horizontal table scrolling.
+- Alerts supports selecting unresolved records, selecting all matching unresolved records, clearing selection, and confirming bulk acknowledge or resolve actions. Each selected alert is updated through the existing per-alert API endpoint, so each lifecycle change continues to be audited. Partial failures are reported rather than silently treated as success.
+- Selection is cleared when the alert search or filters change, preventing actions from unintentionally applying to records outside the current view.
+- The existing API endpoints are used, no bulk endpoint or database migration is introduced.
+- Local verification and browser testing at desktop, tablet, and phone widths remain required before merge.
