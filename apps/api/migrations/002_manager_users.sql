@@ -22,3 +22,4 @@ CREATE TABLE IF NOT EXISTS manager_sessions (
 
 CREATE INDEX IF NOT EXISTS manager_sessions_user_idx ON manager_sessions(user_id);
 CREATE INDEX IF NOT EXISTS manager_sessions_expiry_idx ON manager_sessions(expires_at);
+INSERT INTO schema_migrations(version) VALUES('002_manager_users') ON CONFLICT(version) DO NOTHING;
