@@ -5,6 +5,7 @@ import { loadConfig, loadApiKey } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { migrate } from "./db/migrate.js";
 import { hashPassword, verifyPassword } from "./auth/password.js";
+import { loadCredentialEncryptionKey } from "./auth/credential-crypto.js";
 import { clearSessionCookie, createSessionToken, hashSessionToken, readSessionToken, sessionCookie, SESSION_TTL_SECONDS } from "./auth/session.js";
 import { PfSenseClient } from "./pfsense/client.js";
 import { PfSenseProvider } from "./pfsense/provider.js";
@@ -21,10 +22,11 @@ declare module "fastify" {
 
 const config = loadConfig();
 const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
+const credentialKey = await loadCredentialEncryptionKey(config.PFSENSE_CREDENTIALS_KEY_FILE);
 const pool = createPool(config);
 await migrate(pool);
 const client = new PfSenseClient(config, apiKey);
-const provider = new PfSenseProvider(client, config, pool);
+const provider = new PfSenseProvider(client, config, pool, credentialKey);
 await provider.ensureDevice();
 
 const app = Fastify({
@@ -268,14 +270,49 @@ app.get("/api/v1/devices/:deviceId", async (request, reply) => {
   if (!device) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
   return { data: device };
 });
+const firewallInputSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  location: z.string().trim().max(120).optional(),
+  edition: z.enum(["plus", "ce", "unknown"]),
+  apiBaseUrl: z.string().url().max(500),
+  apiKey: z.string().min(1).max(4096),
+  caCertificatePem: z.string().max(65536).optional()
+}).strict();
+
+app.post("/api/v1/devices/test-connection", async (request, reply) => {
+  if (request.managerUser!.role !== "admin") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Administrator access is required." } });
+  const parsed = firewallInputSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_FIREWALL_INPUT", message: "Check the firewall name, HTTPS API URL, edition, API key, and optional CA certificate." } });
+  try {
+    const connection = await provider.testConnection(parsed.data);
+    return { data: connection };
+  } catch (error) {
+    return reply.code(400).send({ error: { code: "FIREWALL_CONNECTION_FAILED", message: error instanceof Error ? error.message : "Unable to connect to the firewall." } });
+  }
+});
+
+app.post("/api/v1/devices", async (request, reply) => {
+  if (request.managerUser!.role !== "admin") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Administrator access is required." } });
+  const parsed = firewallInputSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_FIREWALL_INPUT", message: "Check the firewall name, HTTPS API URL, edition, API key, and optional CA certificate." } });
+  try {
+    const result = await provider.registerDevice(parsed.data);
+    return reply.code(201).send({ data: result });
+  } catch (error) {
+    return reply.code(400).send({ error: { code: "FIREWALL_REGISTRATION_FAILED", message: error instanceof Error ? error.message : "Unable to register the firewall." } });
+  }
+});
+
 app.get("/api/v1/devices/:deviceId/capabilities", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
-  if (deviceId !== config.PFSENSE_DEVICE_ID) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  const device = (await provider.listDevices()).find(item => item.id === deviceId);
+  if (!device) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
   return { data: await provider.capabilities() };
 });
 app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
-  if (deviceId !== config.PFSENSE_DEVICE_ID) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  const device = (await provider.listDevices()).find(item => item.id === deviceId);
+  if (!device || !device.enabled) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
   const started = Date.now();
   const result = await provider.collect(deviceId, (group, outcome, errorClass, durationMs) => {
     polls.inc({ device_id: deviceId, operation_group: group, result: outcome });
