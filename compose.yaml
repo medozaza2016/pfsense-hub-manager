@@ -27,7 +27,8 @@ services:
       PFSENSE_DEVICE_LOCATION: ${PFSENSE_DEVICE_LOCATION:-}
       PFSENSE_EDITION: ${PFSENSE_EDITION:-unknown}
       PFSENSE_API_BASE_URL: ${PFSENSE_API_BASE_URL:?Set PFSENSE_API_BASE_URL}
-      PFSENSE_API_KEY_FILE: /run/secrets/pfsense_api_key\n      PFSENSE_CREDENTIALS_KEY_FILE: /run/secrets/device_credentials_key
+      PFSENSE_API_KEY_FILE: /run/secrets/pfsense_api_key
+      PFSENSE_CREDENTIALS_KEY_FILE: /run/secrets/device_credentials_key
       PFSENSE_API_TIMEOUT_MS: ${PFSENSE_API_TIMEOUT_MS:-10000}
       PFSENSE_CA_FILE: ${PFSENSE_CA_FILE:-}
     volumes: ["./certs:/run/certs:ro"]
@@ -63,3 +64,5 @@ networks:
 secrets:
   pfsense_api_key:
     file: ./secrets/pfsense_api_key
+  device_credentials_key:
+    file: ./secrets/device_credentials_key
