@@ -1421,3 +1421,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(prefers-reduced-motion:reduce){
  .firewall-rules-table tbody tr{transition:none}
 }
+
+
+/* Per-interface firewall rule groups */
+.firewall-rule-groups{display:grid;gap:22px;padding:0 16px 18px}
+.firewall-rule-interface-group{min-width:0;overflow:hidden;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--surface,#fff)}
+.firewall-rule-group-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;border-bottom:1px solid #e8ebef;background:#fafbfc}
+.firewall-rule-group-heading h3{margin:4px 0 0;color:#293542;font-size:1rem;letter-spacing:-.02em}
+.firewall-rule-interface-group .firewall-rules-table{min-width:1050px}
+.firewall-rule-interface-group .firewall-rules-table th{top:0}
+.firewall-rule-interface-group .firewall-rules-table td:first-child{font-weight:800;color:#e65d2a}
+@media(max-width:720px){.firewall-rule-groups{padding:0 10px 13px;gap:15px}.firewall-rule-group-heading{padding:13px}}
