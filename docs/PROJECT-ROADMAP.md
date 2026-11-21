@@ -64,6 +64,7 @@ Status meanings:
 ### Implemented but awaiting local validation
 - [~] Latest React Router dependency, URL routing, and navigation changes. Local TypeScript check and production build have not yet been reported after these changes.
 - [~] Windows installer development profile now checks Node.js 22+ and npm 10+, installs workspace dependencies when needed, verifies TypeScript, then runs type-check and production build. Committed but not yet executed on the user's Windows machine.
+- [~] Windows development installer now audits npm dependencies, runs `npm audit fix` when vulnerabilities are found, and verifies the final audit. It does not use `--force`; this change is committed but still needs local validation.
 - [~] Latest documentation synchronization. The current branch contains documentation updates, but links and all cross-document claims should be reviewed as the project evolves.
 
 ### Not yet completed
@@ -354,6 +355,8 @@ After frontend validation, validate the API workspace and Compose configuration/
 - `b64ddfada5329565b6bac7fb8737a781ec43add1` adds the Windows `-Development` prerequisite profile.
 - `6afe6705bc55a6bbf29cab4264dd603132f13da9` fixes PowerShell version parsing in the prerequisite checks.
 - `5a842c5b46b8552744f6e94691e5889fd60aa1a5` documents the development installation path.
+- `35f83f876b7bd1ae35cfb4279048ad4b33988b57` adds automatic npm audit, compatible remediation, and a post-fix audit to the Windows development profile.
+- `02014c062a197600504e05f128978dbe2ac263b3` documents npm vulnerability remediation behavior.
 
 **Next action on Windows:** Check the working tree, pull the latest branch, then run the development installer:
 
@@ -364,7 +367,7 @@ git pull --ff-only
 .\scripts\install.ps1 -Development
 ```
 
-The user previously reported a clean working tree, but check again before pulling. Stop if pull reports local changes or conflicts. Do not discard local files, secrets, certificates, or Docker volumes. The script checks Node.js 22+ and npm 10+, installs workspace dependencies if needed, runs type-check/build, then continues the existing Docker installation prompts. Capture the complete output. No CI.
+The user previously reported a clean working tree, but check again before pulling. Stop if pull reports local changes or conflicts. Do not discard local files, secrets, certificates, or Docker volumes. The script checks Node.js 22+ and npm 10+, installs workspace dependencies if needed, runs `npm audit`, applies compatible fixes with `npm audit fix` when needed (never `--force`), verifies the final audit, then runs type-check/build and continues the existing Docker installation prompts. Capture the complete output, including the audit summary. Inspect any generated package-lock or dependency changes before committing. No CI.
 
 **Unvalidated:** The new installer profile has not been executed on Windows. The existing React Router changes also remain unvalidated by local type-check/build.
 
