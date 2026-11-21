@@ -381,7 +381,12 @@ app.patch("/api/v1/devices/:deviceId/credentials", async (request, reply) => {
     return reply.code(409).send({ error: { code: "PRIMARY_CREDENTIALS_MANAGED_BY_INSTALLATION", message: "Update the primary firewall credentials through the protected installation secret workflow." } });
   }
   try {
-    const updated = await provider.updateDeviceCredentials(deviceId, parsed.data);
+    const credentialInput = {
+      apiKey: parsed.data.apiKey,
+      ...(parsed.data.caCertificatePem !== undefined ? { caCertificatePem: parsed.data.caCertificatePem } : {}),
+      ...(parsed.data.tlsServername !== undefined ? { tlsServername: parsed.data.tlsServername } : {})
+    };
+    const updated = await provider.updateDeviceCredentials(deviceId, credentialInput);
     if (!updated) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
     return { data: updated };
   } catch (error) {
