@@ -211,6 +211,24 @@ export default function App() {
     } catch (e) { reportError(e instanceof Error ? e.message : "Unable to update firewall."); }
     finally { setBusy(false); }
   }
+  function openDeviceEditor(device: Device) {
+    setCredentialApiKey("");
+    setCredentialCa("");
+    setCredentialTlsServername("");
+    setClearCredentialCa(false);
+    setClearCredentialTls(false);
+    setEditDevice({ ...device });
+  }
+  function closeDeviceEditor() {
+    if (busy) return;
+    setEditDevice(null);
+    setCredentialApiKey("");
+    setCredentialCa("");
+    setCredentialTlsServername("");
+    setClearCredentialCa(false);
+    setClearCredentialTls(false);
+  }
+
   async function updateDeviceCredentials(event: FormEvent) {
     event.preventDefault();
     if (!editDevice || !credentialApiKey.trim()) return;
@@ -479,7 +497,7 @@ export default function App() {
                   <p>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</p>
                   <div className="inventory-meta"><span><i className="meta-dot dot-configured"/>Configuration {device.enabled ? "enabled" : "disabled"}</span><span className={checkClass}><i className="meta-dot"/> {checkLabel}</span>{check && <span>Last checked {new Date(check.checkedAt).toLocaleString()}</span>}</div>
                 </div></div>
-                <div className="inventory-device-actions">{isAdmin && <button onClick={() => setEditDevice({ ...device })}>Edit</button>}{isAdmin && device.canDelete !== false && <button className="danger-button" onClick={() => setDeleteDevice(device)}>Remove</button>}<button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
+                <div className="inventory-device-actions">{isAdmin && <button onClick={() => openDeviceEditor(device)}>Edit</button>}{isAdmin && device.canDelete !== false && <button className="danger-button" onClick={() => setDeleteDevice(device)}>Remove</button>}<button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
                 {selectedDeviceId === device.id && <div className="inventory-detail">
                   <div><span>Appliance</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div>
                   <div><span>Live connectivity</span><strong>{checkLabel}</strong></div><div><span>Failed operations</span><strong>{check ? check.failedOperations : "Not checked"}</strong></div>
@@ -563,15 +581,15 @@ export default function App() {
           </div>
         </div>}
                 {page === "users" && !isAdmin && <PlaceholderPage eyebrow="ACCESS CONTROL" title="Restricted section" description="Your account has read-only access. User administration is available to administrators only." items={[]} />}
-        {editDevice && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setEditDevice(null); }}>
+        {editDevice && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeDeviceEditor(); }}>
           <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-firewall-title">
-            <div className="modal-heading"><div><span className="eyebrow">FLEET MANAGEMENT</span><h2 id="edit-firewall-title">Edit firewall</h2><p className="muted">Update the inventory record. API credentials and connection settings are not changed here.</p></div><button type="button" onClick={() => setEditDevice(null)} disabled={busy} aria-label="Close">×</button></div>
+            <div className="modal-heading"><div><span className="eyebrow">FLEET MANAGEMENT</span><h2 id="edit-firewall-title">Edit firewall</h2><p className="muted">Update the inventory record. API credentials and connection settings are not changed here.</p></div><button type="button" onClick={closeDeviceEditor} disabled={busy} aria-label="Close">×</button></div>
             <form className="modal-form" onSubmit={saveDeviceEdit}>
               <label>Display name<input value={editDevice.name} onChange={e => setEditDevice({ ...editDevice, name: e.target.value })} minLength={2} maxLength={120} required /></label>
               <label>Location / site<input value={editDevice.location ?? ""} onChange={e => setEditDevice({ ...editDevice, location: e.target.value })} maxLength={120} /></label>
               <label>pfSense edition<select value={editDevice.edition} onChange={e => setEditDevice({ ...editDevice, edition: e.target.value })}><option value="plus">pfSense Plus</option><option value="ce">pfSense CE</option><option value="unknown">Unknown</option></select></label>
               <label className="modal-checkbox"><input type="checkbox" checked={editDevice.enabled} onChange={e => setEditDevice({ ...editDevice, enabled: e.target.checked })} /> Enable this appliance for read-only checks</label>
-              <div className="modal-actions"><button type="button" onClick={() => setEditDevice(null)} disabled={busy}>Cancel</button><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : "Save inventory changes"}</button></div>
+              <div className="modal-actions"><button type="button" onClick={closeDeviceEditor} disabled={busy}>Cancel</button><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : "Save inventory changes"}</button></div>
             </form>
             <section className="credential-editor">
               <div className="credential-editor-heading">
@@ -592,7 +610,6 @@ export default function App() {
                 </form>
               </>}
             </section>
-            </form>
           </section>
         </div>}
         {deleteDevice && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setDeleteDevice(null); }}>
