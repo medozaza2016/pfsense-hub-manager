@@ -592,3 +592,40 @@ pre{background:#172536;color:#dceafa;border-color:#26394e}
  .inventory-meta{display:grid;gap:7px}
  .inventory-results .inventory-section-heading{align-items:flex-start}
 }
+
+
+/* Firewall record editor and read-only diagnostic dialogs */
+.modal-backdrop{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;background:#17233370;backdrop-filter:blur(3px)}
+.modal-card{width:min(100%,620px);max-height:min(88vh,900px);display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #e5e7eb;border-radius:17px;box-shadow:0 24px 80px #18263835}
+.modal-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:22px 24px 17px;border-bottom:1px solid #eceef0}
+.modal-heading h2{font-size:1.25rem;letter-spacing:-.035em;color:#20252b;margin:0 0 6px}
+.modal-heading p{font-size:.78rem;margin:0;max-width:500px}
+.modal-heading>button{width:35px;height:35px;padding:0;flex:0 0 auto;font-size:1.35rem;line-height:1}
+.modal-form{display:grid;gap:15px;padding:22px 24px;overflow-y:auto}
+.modal-form>label:not(.modal-checkbox){display:grid;gap:7px;font-size:.78rem;font-weight:650;color:#4b5663}
+.modal-form input,.modal-form select{width:100%;min-height:42px;padding:0 11px}
+.modal-checkbox{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #e9ebee;border-radius:10px;background:#fafbfc;font-size:.78rem;color:#465363}
+.modal-checkbox input{width:17px;height:17px;min-height:0;accent-color:#f36b35}
+.modal-actions{display:flex;justify-content:flex-end;gap:9px;padding:15px 24px 20px;border-top:1px solid #eceef0;background:#fff}
+.check-modal{width:min(100%,900px)}
+.check-modal-body{padding:20px 24px;overflow-y:auto;overscroll-behavior:contain;min-height:120px}
+.check-modal-body pre{max-height:52vh;overflow:auto;scrollbar-gutter:stable;white-space:pre;overflow-wrap:normal}
+.check-modal-body>p{font-size:.73rem;margin:10px 0 0}
+.check-loading{min-height:180px;display:grid;place-content:center;justify-items:center;gap:9px;text-align:center}
+.check-loading strong{font-size:.9rem;color:#29313a}
+.check-loading p{margin:0;font-size:.76rem}
+.check-spinner{width:27px;height:27px;border:3px solid #f6d6c8;border-top-color:#f36b35;border-radius:50%;animation:check-spin .8s linear infinite}
+@keyframes check-spin{to{transform:rotate(360deg)}}
+.check-result-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:11px 13px;border:1px solid #e8eee9;border-radius:10px;background:#f8fcf9}
+.check-result-summary strong{font-size:.82rem;color:#25764f}
+.check-result-summary span{font-size:.7rem;color:#6c7783}
+@media(max-width:620px){
+ .modal-backdrop{padding:10px;align-items:end}
+ .modal-card{max-height:92vh;border-radius:16px 16px 12px 12px}
+ .modal-heading{padding:18px 18px 14px}
+ .modal-form,.check-modal-body{padding:17px 18px}
+ .modal-actions{padding:13px 18px 17px}
+ .check-modal-body pre{max-height:48vh;font-size:.7rem}
+ .modal-actions button{flex:1}
+ .check-result-summary{align-items:flex-start;flex-direction:column}
+}
