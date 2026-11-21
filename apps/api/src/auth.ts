@@ -33,6 +33,7 @@ export function hashSessionToken(token: string): string {
 export async function createSession(pool: pg.Pool, adminUserId: string): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
+  await pool.query("DELETE FROM admin_sessions WHERE expires_at <= now()");
   await pool.query(
     "INSERT INTO admin_sessions(token_hash, admin_user_id, expires_at) VALUES($1, $2, $3)",
     [hashSessionToken(token), adminUserId, expiresAt]
