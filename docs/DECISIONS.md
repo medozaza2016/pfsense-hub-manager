@@ -64,7 +64,7 @@ This document records confirmed architectural decisions. Proposals and open ques
 
 1. PostgreSQL schema, migrations, retention, and backup/restore policy.
 3. Manager administrator authentication and roles.
-4. Server-side secret storage and key rotation.
+4. Detailed key rotation, recovery, and platform-specific runtime-key protection procedures.
 5. First dashboard metrics and polling frequency.
 6. Supported Plus/CE and API package compatibility matrix.
 7. Exact rollout order and supported scope of write capabilities.
