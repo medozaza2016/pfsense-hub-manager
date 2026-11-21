@@ -635,6 +635,10 @@ pre{background:#172536;color:#dceafa;border-color:#26394e}
 .delete-warning{margin:19px 24px 4px;padding:15px 16px;border:1px solid #f1d3cd;border-radius:11px;background:#fff8f6}
 .delete-warning strong{font-size:.82rem;color:#a83e30}
 .delete-warning p{font-size:.76rem;line-height:1.55;color:#626d78;margin:6px 0 0}
+.delete-confirm-label{display:grid;gap:8px;margin:16px 24px 20px;font-size:.8rem;color:#394553}
+.delete-confirm-label strong{color:#b63c2b;letter-spacing:.04em}
+.delete-confirm-label input{width:100%;min-height:42px;padding:10px 12px;border:1px solid #d7dce2;border-radius:9px;font:inherit;outline:none}
+.delete-confirm-label input:focus{border-color:#d34b35;box-shadow:0 0 0 3px #d34b3518}
 
 
 /* Global application toast notifications */
