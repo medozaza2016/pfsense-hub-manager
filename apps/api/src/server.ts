@@ -1,5 +1,7 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { randomUUID } from "node:crypto";
+import { connect as tlsConnect } from "node:tls";
+import { isIP } from "node:net";
 import { z } from "zod";
 import { loadConfig, loadApiKey } from "./config.js";
 import { createPool } from "./db/pool.js";
@@ -270,14 +272,69 @@ app.get("/api/v1/devices/:deviceId", async (request, reply) => {
   if (!device) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
   return { data: device };
 });
+async function discoverFirewallCertificate(apiBaseUrl: string) {
+  const url = new URL(apiBaseUrl);
+  if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("Firewall URL must be an HTTPS origin without credentials, path, query, or fragment.");
+  }
+  const port = Number(url.port || 443);
+  return await new Promise((resolve, reject) => {
+    const socket = tlsConnect({
+      host: url.hostname,
+      port,
+      ...(isIP(url.hostname) ? {} : { servername: url.hostname }),
+      rejectUnauthorized: false,
+      timeout: 5000
+    });
+    const fail = (error: Error) => { socket.destroy(); reject(new Error(error.message.includes("timeout") ? "TLS certificate discovery timed out." : "Unable to retrieve the firewall TLS certificate.")); };
+    socket.once("error", fail);
+    socket.once("timeout", () => fail(new Error("timeout")));
+    socket.once("secureConnect", () => {
+      try {
+        const certificate = socket.getPeerCertificate();
+        if (!certificate.raw) throw new Error("The firewall did not present a TLS certificate.");
+        const subjectAltName = certificate.subjectaltname ?? "";
+        const dnsNames = [...subjectAltName.matchAll(/DNS:([^,]+)/g)].map(match => match[1]?.trim()).filter((value): value is string => Boolean(value));
+        const ipAddresses = [...subjectAltName.matchAll(/IP Address:([^,]+)/g)].map(match => match[1]?.trim()).filter((value): value is string => Boolean(value));
+        resolve({
+          subject: certificate.subject,
+          issuer: certificate.issuer,
+          subjectAltName,
+          dnsNames,
+          ipAddresses,
+          suggestedServername: dnsNames.length === 1 ? dnsNames[0] : null,
+          fingerprint256: certificate.fingerprint256 ?? null,
+          validTo: certificate.valid_to ?? null
+        });
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error("Unable to inspect the firewall certificate."));
+      } finally {
+        socket.end();
+      }
+    });
+  });
+}
+
 const firewallInputSchema = z.object({
   name: z.string().trim().min(2).max(120),
   location: z.string().trim().max(120).optional(),
   edition: z.enum(["plus", "ce", "unknown"]),
   apiBaseUrl: z.string().url().max(500),
   apiKey: z.string().min(1).max(4096),
-  caCertificatePem: z.string().max(65536).optional()
+  caCertificatePem: z.string().max(65536).optional(),
+  tlsServername: z.string().trim().min(1).max(253).optional()
 }).strict();
+
+app.post("/api/v1/devices/discover-certificate", async (request, reply) => {
+  if (request.managerUser!.role !== "admin") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Administrator access is required." } });
+  const parsed = z.object({ apiBaseUrl: z.string().url().max(500) }).strict().safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_FIREWALL_URL", message: "Enter a valid HTTPS firewall URL." } });
+  try {
+    return { data: await discoverFirewallCertificate(parsed.data.apiBaseUrl) };
+  } catch (error) {
+    return reply.code(400).send({ error: { code: "CERTIFICATE_DISCOVERY_FAILED", message: error instanceof Error ? error.message : "Unable to discover the firewall certificate." } });
+  }
+});
 
 app.post("/api/v1/devices/test-connection", async (request, reply) => {
   if (request.managerUser!.role !== "admin") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Administrator access is required." } });
