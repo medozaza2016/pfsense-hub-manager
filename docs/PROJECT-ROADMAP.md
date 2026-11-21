@@ -150,7 +150,7 @@ The phases are ordered. A phase may overlap with documentation or design work, b
 - [x] Certificate inspection/discovery during onboarding.
 - [ ] Add explicit device connection profile and lifecycle states.
 - [~] Backend credential replacement/rotation route implemented for additional devices, with read-only connection re-test before encrypted credentials and TLS settings are persisted; primary-device rotation remains installation-secret managed.
-- [~] Frontend credential/TLS editor implemented for additional devices: replacement API key, optional CA PEM import/paste or explicit clear, TLS server-name update or explicit clear, read-only revalidation before save, and failure feedback. Local typecheck/build and manual workflow validation pending.
+- [~] Frontend credential/TLS editor implemented for additional devices: replacement API key, optional CA PEM import/paste or explicit clear, TLS server-name update or explicit clear, read-only revalidation before save, and failure feedback. Windows API tests (42/42), API/web typecheck, and API/web production builds passed on 2026-11-21; manual browser and live secondary-firewall workflow validation remain pending.
 - [ ] Define and document the operational credential rotation/revocation procedure.
 - [ ] Record pfSense edition, release, architecture, REST API package version, and verified capability profile per device.
 - [ ] Add a compatibility matrix and capability discovery process.
@@ -378,11 +378,12 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 
 ## 8. Session handoff
 
-**Previously validated Windows baseline (2026-11-21):**
+**Latest user-validated Windows results (2026-11-21, branch pulled to `cc2a2a5`):**
 - `npm test`: 42 tests passed across 7 API test files.
 - `npm run typecheck`: API and web passed.
 - `npm run build`: API and web production builds passed.
-- These results predate the UI and credential-editor commits below. They must be rerun against the current branch.
+- Vite emitted two non-fatal React Router `use client` directive warnings.
+- These checks validate the current frontend credential/TLS editor at compile/build level. They do not verify the interactive browser workflow or a live credential rotation against a secondary firewall.
 
 **User acceptance:** The user reviewed and accepted the UI refresh.
 
