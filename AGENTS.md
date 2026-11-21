@@ -70,6 +70,16 @@ These rules apply to every agent, contributor, service, and future feature in th
 - Record the permission change, target firewall profile, package version, test result, and any rollback steps. Test both allowed access and denied access before marking the operation supported. Keep per-device capability differences explicit.
 - Do not change the existing eight-endpoint scope or expand firewall privileges automatically when the OpenAPI export changes. Every additional endpoint requires explicit feature approval and verification.
 
+## Frontend routing standard
+
+- Use **React Router** for all frontend page and subpage navigation. Do not implement page navigation solely with component state, conditional rendering, or manually managed History API calls.
+- Every navigable page must have a stable, meaningful URL path. Use lowercase, kebab-case path segments (for example, `/firewalls`, `/firewalls/add`, `/audit-logs`, and `/users`). Prefer nested paths when a page belongs to a parent resource.
+- Define route paths in one central route configuration. Navigation links, redirects, breadcrumbs, and page titles must use that configuration rather than duplicating literal paths throughout components.
+- Support direct navigation, browser back/forward, bookmarking, and page refresh on every valid route. Configure the web server's SPA fallback so non-API page paths serve the frontend entry point.
+- Use route parameters for resource identity (for example, `/firewalls/:firewallId`) and query parameters for shareable filters, search terms, pagination, and tabs when appropriate.
+- Apply authentication and role-aware route handling in the frontend for user experience, but always enforce authorization independently in the backend. A hidden navigation item is not an access control.
+- Do not add a new page as a state-only view. Add its route, route-level access behavior, navigation entry where appropriate, and relevant route tests together.
+
 ## Engineering practices
 
 - Prefer small, focused changes with clear names and types.
