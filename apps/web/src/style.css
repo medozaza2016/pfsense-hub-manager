@@ -949,3 +949,37 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(prefers-reduced-motion:reduce){
   .credential-editor{scroll-behavior:auto}
 }
+
+
+/* Edit firewall dialog: one scroll container for the complete editor */
+.modal-content-scroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+.modal-content-scroll .modal-form{
+  overflow:visible;
+  flex:0 0 auto;
+}
+.modal-content-scroll .credential-editor{
+  max-height:none;
+  overflow:visible;
+  padding-top:22px;
+}
+.credential-form .modal-checkbox{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.credential-form .modal-checkbox input[type="checkbox"]{
+  width:17px;
+  height:17px;
+  min-height:0;
+  flex:0 0 17px;
+  margin:0;
+}
+@media(max-width:620px){
+  .modal-content-scroll .credential-editor{padding:18px}
+}
