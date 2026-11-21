@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 
@@ -59,40 +60,52 @@ function installedVersion(name, fromDirectory) {
 }
 
 const requirements = [
-  { owner: "Rollup", name: rollupNativeName, version: rollup.data.optionalDependencies?.[rollupNativeName], from: rollup.directory, prefix: path.dirname(path.dirname(rollup.directory)) },
-  { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory, prefix: vite.directory },
-  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, prefix: path.dirname(path.dirname(apiEsbuild.directory)) }
+  { owner: "Rollup", name: rollupNativeName, version: rollup.data.optionalDependencies?.[rollupNativeName], from: rollup.directory, targetNodeModules: path.dirname(rollup.directory) },
+  { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory, targetNodeModules: path.dirname(viteEsbuild.directory) },
+  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, targetNodeModules: path.dirname(apiEsbuild.directory) }
 ];
 
-const repairs = new Map();
+const repairs = [];
 for (const item of requirements) {
   if (!item.version) throw new Error(`${item.owner} does not declare the expected native package ${item.name}.`);
   const actual = installedVersion(item.name, item.from);
   if (actual !== item.version) {
     console.log(`${item.owner}: ${item.name} requires ${item.version}, found ${actual ?? "missing"}.`);
-    const key = `${item.prefix}::${item.name}`;
-    repairs.set(key, { prefix: item.prefix, spec: `${item.name}@${item.version}`, owner: item.owner });
+    repairs.push(item);
   }
 }
 
-if (repairs.size > 0) {
-  const byPrefix = new Map();
-  for (const repair of repairs.values()) {
-    const specs = byPrefix.get(repair.prefix) ?? [];
-    specs.push(repair.spec);
-    byPrefix.set(repair.prefix, specs);
-  }
-
-  const command = "npm.cmd";
-  for (const [prefix, specs] of byPrefix) {
-    console.log(`Repairing native optional dependencies for ${prefix}...`);
-    const result = spawnSync(command, ["install", "--no-save", "--package-lock=false", "--prefix", prefix, ...specs], {
-      cwd: root,
+for (const item of repairs) {
+  const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "pfsense-native-deps-"));
+  try {
+    const spec = `${item.name}@${item.version}`;
+    console.log(`Installing ${spec} in an isolated temporary directory...`);
+    const result = spawnSync("npm.cmd", [
+      "install",
+      "--prefix", tempDirectory,
+      "--no-save",
+      "--package-lock=false",
+      "--workspaces=false",
+      "--ignore-scripts",
+      spec
+    ], {
+      cwd: tempDirectory,
       stdio: "inherit",
       shell: true
     });
     if (result.error) throw result.error;
-    if (result.status !== 0) throw new Error(`npm native dependency repair failed in ${prefix} with exit code ${result.status}.`);
+    if (result.status !== 0) throw new Error(`npm failed to install ${spec} in the temporary directory (exit code ${result.status}).`);
+
+    const source = path.join(tempDirectory, "node_modules", ...item.name.split("/"));
+    const destination = path.join(item.targetNodeModules, ...item.name.split("/"));
+    if (!fs.existsSync(path.join(source, "package.json"))) {
+      throw new Error(`npm completed but did not produce the expected package at ${source}.`);
+    }
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.cpSync(source, destination, { recursive: true, force: true });
+    console.log(`Installed ${spec} at ${destination}.`);
+  } finally {
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   }
 }
 
