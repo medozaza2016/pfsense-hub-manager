@@ -163,3 +163,42 @@ This is an approved product scope, not an implemented feature. Implementation an
 - [ ] Validate on Windows 11 with Docker Desktop and Linux production deployment separately.
 
 **Gate:** No Docker operation endpoint or UI action may be enabled until role enforcement and the host-agent security boundary are tested. Host resource metrics must come from reliable host-side telemetry, not be inferred from container process metrics.
+
+## Database persistence and recovery architecture, approved November 21, 2026
+
+**Status:** Approved design direction. This is a planned future implementation phase, not implemented functionality. The current Windows Docker Desktop database remains a separate, newly initialized local database. This decision does not migrate or recover any earlier database.
+
+### Design decisions
+- Treat application containers and the application installation directory as replaceable. Rebuilding or moving the application must not destroy application data.
+- Keep the live PostgreSQL data on reliable persistent storage independent of the application container lifecycle. Do not place PostgreSQL's live data directory on an ordinary NAS network share as a bind mount.
+- Support a standard installation using a Docker-managed persistent volume, with an advanced option for a dedicated local database directory where the host platform supports it safely.
+- Keep the NAS and/or cloud as independent backup destinations, not as the default live PostgreSQL data directory. Evaluate a PostgreSQL service running directly on capable NAS hardware only as a separately validated deployment option.
+- Keep the database connection configurable so a future deployment can use an independently hosted PostgreSQL service without changing application behavior.
+- Keep application files, live database storage, and backup storage as distinct locations. The installer should provide safe defaults and avoid requiring ordinary users to understand Docker storage internals.
+
+### Onboarding and lifecycle requirements
+- [ ] Onboarding selects or confirms the application installation directory and configures persistent database storage automatically using a platform-appropriate default.
+- [ ] Offer an advanced database-directory override where supported, with validation of path, permissions, available capacity, and storage suitability.
+- [ ] Generate and protect database credentials; do not expose them to the browser or commit them to source control.
+- [ ] Detect an existing database directory or initialized database before initialization. Never silently initialize, overwrite, or replace existing data; stop and require an explicit recovery or migration decision.
+- [ ] Make routine stop, restart, rebuild, and upgrade operations preserve database storage. Never include volume deletion in routine lifecycle commands.
+- [ ] Clearly warn that destructive volume-removal commands (including `docker compose down -v`) can delete persistent data.
+- [ ] Back up the database before schema-changing upgrades and provide a documented restore workflow.
+
+### Backup and recovery requirements
+- [ ] Provide scheduled automated PostgreSQL backups to storage independent of the application container and live database volume.
+- [ ] Support NAS backup storage and an optional off-site cloud destination, with encryption, retention settings, and backup-failure reporting.
+- [ ] Define and document backup frequency, retention, credential/key recovery, and restore-point expectations before release.
+- [ ] Verify backup integrity and test restoration into a separate database before declaring the recovery workflow complete.
+- [ ] Evaluate WAL archiving / point-in-time recovery against the required recovery-point and recovery-time objectives; do not claim point-in-time recovery until implemented and tested.
+- [ ] Document migration to a replacement server: install the application, connect to an existing external database or restore a verified backup, then validate the existing administrator and application records.
+
+### Implementation sequence and release gate
+1. Finalize the PostgreSQL lifecycle, migration, backup, retention, and recovery design.
+2. Implement persistent storage defaults and safe existing-data detection in the onboarding/install scripts and Compose configuration.
+3. Implement backup-before-upgrade, scheduled backup, retention, encryption, and failure reporting.
+4. Implement restore and replacement-server procedures, including credential/key recovery.
+5. Test clean installation, ordinary container recreation, application upgrade, host replacement, interrupted backup, and restoration from NAS/off-site backup.
+6. Update installation, administration, and disaster-recovery documentation.
+
+**Release gate:** Do not call database persistence/recovery complete until automated tests and a documented restore drill demonstrate that application containers can be rebuilt or replaced without losing the database, and that a backup can restore the application state on a replacement host. This work is intentionally deferred to a later development phase; do not interrupt the current frontend validation and real-data integration sequence to implement it now.
