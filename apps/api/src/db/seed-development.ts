@@ -5,6 +5,7 @@ import { hashPassword } from "../auth.js";
 import { migrate } from "./migrate.js";
 
 export const DEVELOPMENT_SEED_KEY = "development-sample-data-v1";
+export const DEVELOPMENT_SITE_SEED_KEY = "development-demo-sites-v1";
 export const DEVELOPMENT_SITE_SEEDS = [
   { id: "d0000000-0000-4000-8000-000000000001", name: "New York Office", location: "New York, NY", edition: "plus" },
   { id: "d0000000-0000-4000-8000-000000000002", name: "New Jersey Office", location: "Passaic, NJ", edition: "ce" },
@@ -87,24 +88,36 @@ export async function runDevelopmentSeed(pool: pg.Pool): Promise<{ usersInserted
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock($1)", [741928364]);
     const previous = await client.query("SELECT seed_key FROM development_seed_runs WHERE seed_key=$1", [DEVELOPMENT_SEED_KEY]);
-    if (previous.rowCount) {
+    const previousSites = await client.query("SELECT seed_key FROM development_seed_runs WHERE seed_key=$1", [DEVELOPMENT_SITE_SEED_KEY]);
+    if (previous.rowCount && previousSites.rowCount) {
       await client.query("COMMIT");
       return { usersInserted: 0, sitesInserted: 0, alertsInserted: 0, auditEventsInserted: 0, skipped: true };
     }
 
+    let sitesInserted = 0;
+    if (!previousSites.rowCount) {
+      for (const site of DEVELOPMENT_SITE_SEEDS) {
+        const inserted = await client.query(
+          `INSERT INTO managed_devices(id,name,location,edition,api_base_url,enabled,is_demo)
+           VALUES($1,$2,$3,$4,$5,false,true)
+           ON CONFLICT(id) DO NOTHING RETURNING id`,
+          [site.id, site.name, site.location, site.edition, `https://${site.id}.demo.invalid`]
+        );
+        sitesInserted += inserted.rowCount ?? 0;
+      }
+      await client.query(
+        `INSERT INTO development_seed_runs(seed_key,sites_inserted) VALUES($1,$2)`,
+        [DEVELOPMENT_SITE_SEED_KEY, sitesInserted]
+      );
+    }
+
+    if (previous.rowCount) {
+      await client.query("COMMIT");
+      return { usersInserted: 0, sitesInserted, alertsInserted: 0, auditEventsInserted: 0, skipped: true };
+    }
+
     const admins = await client.query("SELECT id FROM admin_users WHERE role='admin' AND is_active=true ORDER BY created_at LIMIT 1");
     if (!admins.rowCount) throw new Error("Refusing to seed: create and verify an active administrator account first.");
-
-    let sitesInserted = 0;
-    for (const site of DEVELOPMENT_SITE_SEEDS) {
-      const inserted = await client.query(
-        `INSERT INTO managed_devices(id,name,location,edition,api_base_url,enabled,is_demo)
-         VALUES($1,$2,$3,$4,$5,false,true)
-         ON CONFLICT(id) DO NOTHING RETURNING id`,
-        [site.id, site.name, site.location, site.edition, `https://${site.id}.demo.invalid`]
-      );
-      sitesInserted += inserted.rowCount ?? 0;
-    }
 
     let usersInserted = 0;
     for (const [index, username] of USERNAMES.entries()) {
