@@ -38,15 +38,8 @@ function validateBaseUrl(value: string): string {
 }
 
 export class PfSenseProvider {
-  constructor(private readonly client: PfSenseClient, private readonly config: AppConfig, private readonly pool: Pool, private readonly credentialKey: Buffer) {}
+  constructor(private readonly config: AppConfig, private readonly pool: Pool, private readonly credentialKey: Buffer) {}
 
-  async ensureDevice(): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO managed_devices(id,name,location,edition,api_base_url)
-       VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING`,
-      [this.config.PFSENSE_DEVICE_ID, this.config.PFSENSE_DEVICE_NAME, this.config.PFSENSE_DEVICE_LOCATION || null, this.config.PFSENSE_EDITION, this.config.PFSENSE_API_BASE_URL]
-    );
-  }
 
   async listDevices() {
     const result = await this.pool.query(
@@ -59,12 +52,11 @@ export class PfSenseProvider {
       enabled: row.enabled, connectionStatus: row.connection_status ?? "unknown",
       lastCheckedAt: row.last_checked_at ?? null, lastSuccessAt: row.last_success_at ?? null,
       lastErrorClass: row.last_error_class ?? null,
-      canDelete: row.id !== this.config.PFSENSE_DEVICE_ID
+      canDelete: true
     }));
   }
 
   async deleteDevice(deviceId: string): Promise<boolean> {
-    if (deviceId === this.config.PFSENSE_DEVICE_ID) return false;
     const result = await this.pool.query("DELETE FROM managed_devices WHERE id=$1 RETURNING id", [deviceId]);
     return (result.rowCount ?? 0) > 0;
   }
@@ -112,9 +104,6 @@ export class PfSenseProvider {
   }
 
   async updateDeviceCredentials(deviceId: string, input: { apiKey: string; caCertificatePem?: string | null; tlsServername?: string | null }) {
-    if (deviceId === this.config.PFSENSE_DEVICE_ID) {
-      throw new Error("Primary firewall credentials are managed by the installation secrets and cannot be rotated here.");
-    }
     const current = await this.pool.query(
       "SELECT api_base_url,ca_certificate_pem,tls_servername FROM managed_devices WHERE id=$1",
       [deviceId]
@@ -143,7 +132,6 @@ export class PfSenseProvider {
   }
 
   private async clientForDevice(deviceId: string): Promise<{ client: PfSenseClient; owned: boolean } | null> {
-    if (deviceId === this.config.PFSENSE_DEVICE_ID) return { client: this.client, owned: false };
     const result = await this.pool.query(
       "SELECT api_base_url,api_key_ciphertext,api_key_iv,api_key_tag,ca_certificate_pem,tls_servername FROM managed_devices WHERE id=$1 AND enabled=true",
       [deviceId]
