@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 
 type Role = "admin" | "user";
 type User = { id: string; name: string; email: string; role: Role; active?: boolean };
@@ -123,6 +123,29 @@ export default function App() {
   function firewallPayload() {
     return { name: firewallName, location: firewallLocation, edition: firewallEdition, apiBaseUrl: firewallUrl, apiKey: firewallApiKey, ...(firewallCa.trim() ? { caCertificatePem: firewallCa } : {}) };
   }
+  async function importCaCertificate(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    if (file.size > 128 * 1024) {
+      setError("Certificate file is too large. Choose a PEM certificate file under 128 KB.");
+      event.target.value = "";
+      return;
+    }
+    try {
+      const pem = await file.text();
+      if (!pem.includes("-----BEGIN CERTIFICATE-----") || !pem.includes("-----END CERTIFICATE-----")) {
+        throw new Error("This file does not contain a PEM certificate. Choose a .pem, .crt, or .cer certificate file.");
+      }
+      setFirewallCa(pem.trim());
+      setFirewallTested(false);
+      setFirewallTestResult(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to read the certificate file.");
+      event.target.value = "";
+    }
+  }
+
   async function testFirewallConnection() {
     setBusy(true); setError(null); setFirewallTested(false); setFirewallTestResult(null);
     try {
@@ -312,7 +335,13 @@ export default function App() {
               </div>
               <div className="form-section-title"><h3>API authentication</h3><p className="muted">Use a dedicated API key with only the eight required GET permissions.</p></div>
               <label>Read-only API key<input type="password" value={firewallApiKey} onChange={e => {setFirewallApiKey(e.target.value);setFirewallTested(false);}} autoComplete="off" required /></label>
-              <label>Private CA certificate (PEM), optional<textarea value={firewallCa} onChange={e => {setFirewallCa(e.target.value);setFirewallTested(false);}} rows={5} placeholder="-----BEGIN CERTIFICATE-----" /></label>
+              <div className="ca-certificate-field">
+                <label htmlFor="firewall-ca-file">Import certificate file (PEM, CRT, or CER), optional</label>
+                <input id="firewall-ca-file" type="file" accept=".pem,.crt,.cer,.txt,application/x-pem-file,application/x-x509-ca-cert" onChange={event => void importCaCertificate(event)} />
+                <p className="field-hint">Choose a certificate file from your computer, or paste the PEM text below. The file is read locally in your browser and is not uploaded until you test or register the firewall.</p>
+                <label htmlFor="firewall-ca-pem">Or paste certificate text (PEM)</label>
+                <textarea id="firewall-ca-pem" value={firewallCa} onChange={e => {setFirewallCa(e.target.value);setFirewallTested(false);setFirewallTestResult(null);}} rows={5} placeholder="-----BEGIN CERTIFICATE-----" />
+              </div>
               <details className="certificate-help">
                 <summary>How do I obtain the CA certificate?</summary>
                 <div>
