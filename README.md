@@ -11,7 +11,7 @@ The initial use case is to manage firewalls at multiple locations from one place
 - One location runs pfSense CE, connection and compatibility validation deferred until the user is ready.
 - The architecture must support more than two devices.
 
-The goal is a unified operational view without making the product dependent on Netgate Nexus.
+The goal is a unified operational view and, over time, a full configuration-management workflow for supported firewall capabilities, without making the product dependent on Netgate Nexus.
 
 ## Verified progress
 
@@ -29,7 +29,7 @@ All eight initial read-only endpoints returned HTTP 200:
 
 The tested firewall reported pfSense Plus 26.07.2-RELEASE. The API key is not stored in this repository.
 
-**Important:** The test used a self-signed certificate and temporarily bypassed certificate verification with curl -k. This is diagnostic only. Verified TLS must be completed before production use.
+**TLS status:** The original 2026-11-19 command-line diagnostic used a temporary certificate-verification bypass. That historical diagnostic is not the current application behavior. The manager enforces TLS verification, supports per-device CA certificates and TLS server-name identity, and can inspect a presented certificate during onboarding. The user subsequently reported a successful application connection test and read-only collection from the Windows development environment. Certificate discovery alone does not establish trust.
 
 See [Integration Status](docs/INTEGRATION-STATUS.md) for the exact test record and limitations.
 
