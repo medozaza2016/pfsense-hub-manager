@@ -1,13 +1,11 @@
 # Security Design and Current Controls
 
 ## Current security posture
-
 The first firewall integration is intentionally read-only. The manager authenticates using a dedicated pfSense local account and API key. The account is not an administrator and has only the eight GET endpoint privileges documented in INTEGRATION-STATUS.md.
 
 This is a development-stage configuration, not a completed production security review.
 
 ## Credential handling
-
 - Never commit API keys, passwords, tokens, private keys, firewall backups, or credential-bearing configuration.
 - Never expose firewall credentials to browser-delivered JavaScript or client-side environment variables.
 - Keep credentials server-side and inject them through a protected secret mechanism.
@@ -17,9 +15,7 @@ This is a development-stage configuration, not a completed production security r
 - Never place real API key material in automated tests or fixtures.
 
 ## Least privilege
-
 The pfsense_hub account is a regular local user, not an administrator. Its effective API access is limited to these GET endpoints:
-
 - /api/v2/status/system
 - /api/v2/status/gateways
 - /api/v2/status/interfaces
@@ -32,68 +28,26 @@ The pfsense_hub account is a regular local user, not an administrator. Its effec
 Do not grant POST, PUT, PATCH, or DELETE privileges for the initial read-only milestone. Do not add broad WebConfigurator privileges merely to make the restricted account's GUI display pages.
 
 ## TLS
-
-The current direct-IP endpoint presented a self-signed certificate. curl rejected it under normal certificate validation. The diagnostic test used -k, which disables certificate verification.
-
-This is not acceptable for production. Before production polling:
-1. Install or issue a certificate whose identity matches the endpoint hostname.
-2. Ensure the manager trusts the issuing CA.
-3. Verify hostname and certificate chain validation from the manager.
-4. Remove all insecure TLS flags from application code and operational scripts.
-
-Do not treat encryption without peer verification as sufficient server authentication.
+The current direct-IP endpoint presented a self-signed certificate. This is not acceptable for production. Install or issue a certificate whose identity matches the endpoint hostname, trust the issuing CA, verify hostname and certificate chain validation, and remove insecure TLS flags. Do not treat encryption without peer verification as sufficient server authentication.
 
 ## Network exposure
-
-Prefer a private management path or VPN between the manager and each firewall. Do not expose the firewall API directly to the public internet by default.
-
-The current manager-to-Plus test used the direct address 172.10.50.1 on port 10443. The public hostname timed out from the manager LXC during the captured test, while it responded from the user's XPS-13. The final network architecture remains open.
-
-The 172.10.x.x address plan is retained for now at the user's explicit direction. Do not change it as a prerequisite.
+Prefer a private management path or VPN between the manager and each firewall. Do not expose the firewall API directly to the public internet by default. The 172.10.x.x address plan is retained for now at the user's explicit direction.
 
 ## Application security requirements
-
-Before application release, implement:
-- Server-side credential storage and retrieval.
-- Authenticated administrative access to the manager.
-- Authorization checks on every manager API operation.
-- Input validation at all external boundaries.
-- Timeouts, bounded retries, and rate controls for firewall polling.
-- Redaction of secrets and sensitive firewall payloads.
-- Audit events for security-relevant access.
-- Per-device isolation so one compromised or unavailable device does not expose or disable all others.
-- Tests for authentication failure, authorization denial, timeout, invalid responses, and unsupported capabilities.
-
-If write operations are ever proposed, require a separate product decision, explicit user authorization, granular privileges, audit records, confirmation safeguards, tests, and recovery/rollback planning before implementation.
-
-## Data minimization
-
-Do not persist full firewall state tables or ARP tables by default without an explicit retention and privacy requirement. These may contain internal addresses, device identifiers, and traffic metadata. Define collection purpose, retention, access controls, and redaction before storing such data.
-
-## Incident response
-
-If a key or password is exposed:
-1. Revoke or rotate it on the firewall.
-2. Update the protected secret store.
-3. Review logs and repository history for exposure.
-4. Determine whether other credentials or systems were affected.
-5. Record the incident and remediation without copying the secret into the incident record.
-
-
-## OpenAPI and API-operation safety
-
-The upstream OpenAPI JSON includes read and write operations. Its presence does not authorize implementation or invocation. The initial release is read-only. Do not create a generic arbitrary-path proxy to the firewall API. Any future write capability must meet the explicit preview, authorization, backup/recovery, audit, confirmation, and post-apply verification requirements above.
-
+Before application release, implement authenticated administrative access, authorization checks on every manager API operation, input validation, bounded timeouts/retries/response sizes, redaction, audit events, and per-device isolation. Keep the initial pfSense integration read-only. Any future write capability requires a separate approved design and explicit authorization.
 
 ## Encrypted credential storage and key lifecycle
+DEC-024 selects per-site credential encryption in PostgreSQL, with AES-256-GCM. The installer generates one high-entropy application key, provides a recovery copy, and places a separate runtime copy in a protected host-side location. The backend loads it automatically. The key must never be stored in PostgreSQL, source control, browser storage, logs, or API responses.
 
-The approved direction (DEC-024) is to store per-site firewall API credentials encrypted in PostgreSQL, with the application encryption key kept separately from the database. The installation workflow must generate a high-entropy key automatically, provide a recovery copy for the administrator to save in a password manager, and place the runtime key in a protected host-side location accessible to the backend. The backend must load the key automatically at startup. The key must never be stored in the database, source control, browser storage, logs, or API responses.
+Implementation now in this branch:
+- The Windows provisioning script creates a 32-byte key represented as 64 hexadecimal characters.
+- Docker Compose mounts the runtime file read-only at /run/secrets/app_encryption_key.
+- API startup fails closed if the key file is missing or is not exactly 32 bytes encoded as 64 hexadecimal characters. It never regenerates the key.
+- Credential encryption uses Node.js crypto AES-256-GCM, a fresh 12-byte nonce per encryption, a 16-byte authentication tag, and a versioned envelope. Decryption rejects malformed or unauthenticated data.
+- Migration 002 adds a per-device credential table containing ciphertext, nonce, authentication tag, algorithm, and key version. Plaintext credentials are not stored.
+- Database and encryption-key backups must be protected and restored separately. Losing the key makes encrypted credentials unrecoverable.
+- Docker Compose file secrets are mounted as files, not encrypted at rest. Windows host ACLs and container access controls are separate security boundaries and both require validation.
+- Key rotation, Linux production provisioning, credential-management API, and end-to-end container permission tests remain outstanding.
 
-Implementation requirements:
-- Use authenticated encryption, with AES-256-GCM as the selected candidate pending implementation review.
-- Generate a unique cryptographic nonce for every encryption operation and store the authentication tag and a format/key version with the ciphertext.
-- Fail closed if the runtime key is missing, malformed, or cannot authenticate/decrypt a credential. Never silently overwrite or regenerate a missing key.
-- Support key rotation by re-encrypting stored credentials without exposing plaintext to the browser or logs.
-- Back up the encrypted database and encryption key separately. A database backup without its corresponding key cannot restore credentials; a key without the database does not restore the credentials.
-- Define and test restrictive host permissions and automated provisioning for Windows development and Linux production before release.
-- Do not claim that a password-manager recovery copy alone protects the runtime key or that Docker Compose secrets provide encryption at rest.
+## Incident response
+If a key or password is exposed, revoke or rotate it, update the protected secret store, review logs and repository history, assess other affected systems, and record remediation without copying the secret into the incident record.

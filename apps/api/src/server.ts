@@ -1,5 +1,5 @@
 import Fastify from "fastify";
-import {loadConfig,loadApiKey} from "./config.js";
+import {loadConfig,loadApiKey,loadEncryptionKey} from "./config.js";
 import {createPool} from "./db/pool.js";
 import {migrate} from "./db/migrate.js";
 import {PfSenseClient} from "./pfsense/client.js";
@@ -8,6 +8,7 @@ import {registry,requests,requestDuration,polls,pollErrors,pollDuration,deviceUp
 
 const config=loadConfig();
 const apiKey=await loadApiKey(config.PFSENSE_API_KEY_FILE);
+const encryptionKey=await loadEncryptionKey(config.APP_ENCRYPTION_KEY_FILE);
 const pool=createPool(config);
 await migrate(pool);
 const client=new PfSenseClient(config,apiKey);
