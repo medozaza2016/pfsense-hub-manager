@@ -83,3 +83,10 @@ If a key or password is exposed:
 ## OpenAPI and API-operation safety
 
 The upstream OpenAPI JSON includes read and write operations. Its presence does not authorize implementation or invocation. The initial release is read-only. Do not create a generic arbitrary-path proxy to the firewall API. Any future write capability must meet the explicit preview, authorization, backup/recovery, audit, confirmation, and post-apply verification requirements above.
+
+
+## Manager authentication implementation status
+
+The first manager authentication milestone now includes one-time first-run administrator bootstrap, Admin and User roles, scrypt password hashing, opaque database-backed sessions, sign-out, server-side role checks, a per-process login attempt throttle, same-origin checks on state-changing requests, and cookie/header redaction in API logs.
+
+This does not complete production identity hardening. MFA, password recovery, persistent shared rate limiting, tamper-evident audit events, and a tested administrator recovery process remain outstanding. The manager UI must remain private and localhost-only until the remaining release security review is complete.

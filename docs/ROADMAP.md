@@ -28,7 +28,7 @@
 - [x] Select Fastify as backend HTTP framework (DEC-015).
 - [x] Select PostgreSQL as the application database, running in the Docker Compose stack.
 - [ ] Define PostgreSQL schema, migrations, retention, and backup/restore policy.
-- [ ] Approve administrator authentication and authorization model.
+- [x] Implement first-run administrator bootstrap, sign-in sessions, and Admin/User authorization for manager API routes. Production hardening remains tracked separately.
 - [ ] Approve secret storage mechanism.
 - [x] Establish initial device inventory and poll-run persistence model; detailed normalized observation mapping remains pending.
 - [x] Scaffold React/Vite frontend and Fastify/TypeScript backend workspaces with build, type-check, and test commands.
