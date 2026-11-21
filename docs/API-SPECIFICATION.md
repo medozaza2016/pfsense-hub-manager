@@ -108,3 +108,8 @@ Preserve the original JSON unchanged at `docs/reference/pfsense-openapi.json`. T
 The specification is an upstream contract reference, not proof that every operation exists on every pfSense Plus or CE release. Verify each supported operation against each firewall and its installed package version. The specification includes both read and write operations. The initial application release remains read-only, and no write operation is approved merely because it appears in the JSON.
 
 Use the specification to generate `docs/API-MATRIX.generated.md` with `node scripts/generate-api-matrix.mjs`. Keep device compatibility evidence in `docs/API-COMPATIBILITY.md`.
+
+
+## Package version discovery
+
+GET /api/v2/system/restapi/version is approved for package-version discovery. The manager reads data.current_version. The corresponding PATCH operation is explicitly excluded. The permission has been added to the dedicated account by the operator, but a live response has not yet been captured, so package-version discovery remains pending device validation.
