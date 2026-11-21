@@ -7,6 +7,7 @@ import { PfSenseClient } from "./pfsense/client.js";
 import { PfSenseProvider } from "./pfsense/provider.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
+import { appendAudit, upsertAlert } from "./audit.js";
 
 const config = loadConfig();
 const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
@@ -25,7 +26,7 @@ const app = Fastify({
 
 const COOKIE_NAME = "pfsense_hub_session";
 const usernameSchema = z.string().trim().min(3).max(64).regex(/^[a-zA-Z0-9._-]+$/);
-const passwordSchema = z.string().min(14).max(128);
+const passwordSchema = z.string().min(14).max(128);\nconst userCreateSchema = z.object({ username: usernameSchema, password: passwordSchema, role: z.enum(["admin", "user"]) }).strict();\nconst userUpdateSchema = z.object({ role: z.enum(["admin", "user"]).optional(), isActive: z.boolean().optional(), password: passwordSchema.optional() }).strict().refine(v => Object.keys(v).length > 0);
 const setupSchema = z.object({ username: usernameSchema, password: passwordSchema }).strict();
 const loginSchema = z.object({ username: usernameSchema, password: z.string().min(1).max(128) }).strict();
 const hubSettingsSchema = z.object({
@@ -174,7 +175,133 @@ app.get("/api/v1/auth/me", async (request, reply) => {
   return { data: admin };
 });
 
-app.get("/api/v1/hub-settings", async () => {
+
+app.get("/api/v1/users", async (request) => {
+  const query = z.object({ search: z.string().trim().max(100).optional() }).safeParse(request.query);
+  const search = query.success ? query.data.search ?? "" : "";
+  const result = await pool.query(
+    `SELECT id,username,role,is_active AS "isActive",created_at AS "createdAt",updated_at AS "updatedAt"
+       FROM admin_users
+      WHERE ($1 = '' OR username ILIKE '%' || $1 || '%')
+      ORDER BY lower(username)`, [search]
+  );
+  return { data: result.rows };
+});
+app.post("/api/v1/users", async (request, reply) => {
+  const parsed = userCreateSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_USER", message: "Provide a valid username, a password of at least 14 characters, and a supported role." } });
+  const actor = (request as typeof request & { admin: AdminUser }).admin;
+  const credentials = await hashPassword(parsed.data.password);
+  try {
+    const result = await pool.query(
+      `INSERT INTO admin_users(username,password_hash,password_salt,password_iterations,role)
+       VALUES($1,$2,$3,$4,$5)
+       RETURNING id,username,role,is_active AS "isActive",created_at AS "createdAt",updated_at AS "updatedAt"`,
+      [parsed.data.username,credentials.hash,credentials.salt,credentials.iterations,parsed.data.role]
+    );
+    const created = result.rows[0];
+    await appendAudit(pool, { actorId: actor.id, actorUsername: actor.username, action: "user.create", outcome: "success", targetType: "user", targetId: created.id, summary: "Created manager user", metadata: { username: created.username, role: created.role }, requestId: request.id });
+    return reply.code(201).send({ data: created });
+  } catch (error) {
+    if ((error as { code?: string }).code === "23505") return reply.code(409).send({ error: { code: "USERNAME_EXISTS", message: "That username is already in use." } });
+    throw error;
+  }
+});
+app.patch("/api/v1/users/:userId", async (request, reply) => {
+  const parsed = userUpdateSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_USER_UPDATE", message: "Provide at least one valid account change." } });
+  const { userId } = request.params as { userId: string };
+  if (!z.string().uuid().safeParse(userId).success) return reply.code(400).send({ error: { code: "INVALID_USER_ID", message: "Invalid user identifier." } });
+  const actor = (request as typeof request & { admin: AdminUser }).admin;
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    await db.query("SELECT pg_advisory_xact_lock($1)", [741928363]);
+    const current = await db.query<{ id:string; username:string; role:"admin"|"user"; is_active:boolean }>(
+      "SELECT id,username,role,is_active FROM admin_users WHERE id=$1 FOR UPDATE", [userId]
+    );
+    const target = current.rows[0];
+    if (!target) { await db.query("ROLLBACK"); return reply.code(404).send({ error: { code: "USER_NOT_FOUND", message: "User was not found." } }); }
+    const nextRole = parsed.data.role ?? target.role;
+    const nextActive = parsed.data.isActive ?? target.is_active;
+    if (target.role === "admin" && target.is_active && (nextRole !== "admin" || !nextActive)) {
+      const count = await db.query<{ count:string }>("SELECT count(*)::text AS count FROM admin_users WHERE role='admin' AND is_active=true");
+      if (Number(count.rows[0]?.count ?? 0) <= 1) { await db.query("ROLLBACK"); return reply.code(409).send({ error: { code: "LAST_ACTIVE_ADMIN", message: "The last active administrator cannot be disabled or demoted." } }); }
+    }
+    let result;
+    if (parsed.data.password) {
+      const credentials = await hashPassword(parsed.data.password);
+      result = await db.query(
+        `UPDATE admin_users SET role=$2,is_active=$3,password_hash=$4,password_salt=$5,password_iterations=$6,updated_at=now()
+         WHERE id=$1 RETURNING id,username,role,is_active AS "isActive",created_at AS "createdAt",updated_at AS "updatedAt"`,
+        [userId,nextRole,nextActive,credentials.hash,credentials.salt,credentials.iterations]
+      );
+    } else {
+      result = await db.query(
+        `UPDATE admin_users SET role=$2,is_active=$3,updated_at=now()
+         WHERE id=$1 RETURNING id,username,role,is_active AS "isActive",created_at AS "createdAt",updated_at AS "updatedAt"`,
+        [userId,nextRole,nextActive]
+      );
+    }
+    if (target.role !== nextRole || target.is_active !== nextActive || parsed.data.password) await db.query("DELETE FROM admin_sessions WHERE admin_user_id=$1", [userId]);
+    await db.query("COMMIT");
+    await appendAudit(pool, { actorId: actor.id, actorUsername: actor.username, action: "user.update", outcome: "success", targetType: "user", targetId: userId, summary: "Updated manager user", metadata: { roleChanged: target.role !== nextRole, activeChanged: target.is_active !== nextActive, passwordReset: Boolean(parsed.data.password) }, requestId: request.id });
+    return { data: result.rows[0] };
+  } catch (error) {
+    try { await db.query("ROLLBACK"); } catch { /* transaction already closed */ }
+    throw error;
+  } finally { db.release(); }
+});
+app.get("/api/v1/audit", async (request) => {
+  const parsed = z.object({ search:z.string().trim().max(100).optional(), limit:z.coerce.number().int().min(1).max(200).default(100) }).safeParse(request.query);
+  const search = parsed.success ? parsed.data.search ?? "" : "";
+  const limit = parsed.success ? parsed.data.limit : 100;
+  const result = await pool.query(
+    `SELECT id,occurred_at AS "occurredAt",actor_username AS "actorUsername",actor_type AS "actorType",
+      action,outcome,target_type AS "targetType",target_id AS "targetId",summary,request_id AS "requestId",metadata
+     FROM audit_events
+     WHERE ($1='' OR actor_username ILIKE '%' || $1 || '%' OR action ILIKE '%' || $1 || '%' OR summary ILIKE '%' || $1 || '%')
+     ORDER BY occurred_at DESC,id DESC LIMIT $2`, [search,limit]
+  );
+  return { data: result.rows };
+});
+app.get("/api/v1/alerts", async (request) => {
+  const parsed = z.object({ status:z.enum(["active","acknowledged","resolved","all"]).default("all"), severity:z.enum(["critical","warning","info"]).optional() }).safeParse(request.query);
+  const status = parsed.success ? parsed.data.status : "all";
+  const severity = parsed.success ? parsed.data.severity ?? null : null;
+  const result = await pool.query(
+    `SELECT a.id,a.severity,a.title,a.message,a.source,a.resource_type AS "resourceType",a.resource_id AS "resourceId",
+      a.status,a.first_seen_at AS "firstSeenAt",a.last_seen_at AS "lastSeenAt",a.occurrence_count AS "occurrenceCount",
+      a.acknowledged_at AS "acknowledgedAt",u.username AS "acknowledgedBy",a.resolved_at AS "resolvedAt",r.username AS "resolvedBy"
+     FROM alerts a LEFT JOIN admin_users u ON u.id=a.acknowledged_by LEFT JOIN admin_users r ON r.id=a.resolved_by
+     WHERE ($1='all' OR a.status=$1) AND ($2::text IS NULL OR a.severity=$2)
+     ORDER BY CASE a.severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,a.last_seen_at DESC LIMIT 250`, [status,severity]
+  );
+  return { data: result.rows };
+});
+app.post("/api/v1/alerts/:alertId/acknowledge", async (request, reply) => {
+  const { alertId } = request.params as { alertId:string };
+  const actor = (request as typeof request & { admin: AdminUser }).admin;
+  const result = await pool.query(
+    `UPDATE alerts SET status='acknowledged',acknowledged_at=now(),acknowledged_by=$2
+      WHERE id=$1 AND status='active' RETURNING id`, [alertId,actor.id]
+  );
+  if (!result.rowCount) return reply.code(409).send({ error: { code:"ALERT_NOT_ACTIVE",message:"Alert is not active or no longer exists." } });
+  await appendAudit(pool,{actorId:actor.id,actorUsername:actor.username,action:"alert.acknowledge",outcome:"success",targetType:"alert",targetId:alertId,summary:"Acknowledged alert",requestId:request.id});
+  return { data:{ acknowledged:true } };
+});
+app.post("/api/v1/alerts/:alertId/resolve", async (request, reply) => {
+  const { alertId } = request.params as { alertId:string };
+  const actor = (request as typeof request & { admin: AdminUser }).admin;
+  const result = await pool.query(
+    `UPDATE alerts SET status='resolved',resolved_at=now(),resolved_by=$2
+      WHERE id=$1 AND status IN ('active','acknowledged') RETURNING id`, [alertId,actor.id]
+  );
+  if (!result.rowCount) return reply.code(409).send({ error: { code:"ALERT_NOT_OPEN",message:"Alert is already resolved or no longer exists." } });
+  await appendAudit(pool,{actorId:actor.id,actorUsername:actor.username,action:"alert.resolve",outcome:"success",targetType:"alert",targetId:alertId,summary:"Resolved alert",requestId:request.id});
+  return { data:{ resolved:true } };
+});
+\napp.get("/api/v1/hub-settings", async () => {
   const result = await pool.query(
     "SELECT reachability_method AS \"reachabilityMethod\", address_type AS \"addressType\", address, https_port AS \"httpsPort\", updated_at AS \"updatedAt\" FROM hub_settings WHERE id=1"
   );
