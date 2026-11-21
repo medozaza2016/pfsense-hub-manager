@@ -54,6 +54,17 @@ export class PfSenseProvider {
     return result.rows.map(row => ({ id: row.id, name: row.name, location: row.location, edition: row.edition, release: null, enabled: row.enabled }));
   }
 
+  async updateDevice(deviceId: string, input: { name: string; location: string | null; edition: "plus" | "ce" | "unknown"; enabled: boolean }) {
+    const result = await this.pool.query(
+      `UPDATE managed_devices
+       SET name=$1,location=$2,edition=$3,enabled=$4,updated_at=now()
+       WHERE id=$5
+       RETURNING id,name,location,edition,enabled`,
+      [input.name.trim(), input.location?.trim() || null, input.edition, input.enabled, deviceId]
+    );
+    return result.rows[0] ?? null;
+  }
+
   async testConnection(input: Pick<FirewallInput, "apiBaseUrl" | "apiKey" | "caCertificatePem" | "tlsServername">) {
     const baseUrl = validateBaseUrl(input.apiBaseUrl);
     if (!input.apiKey.trim() || input.apiKey.length > 4096 || /[\\r\\n]/.test(input.apiKey)) throw new Error("Enter a valid pfSense API key.");
