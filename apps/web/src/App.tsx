@@ -509,7 +509,8 @@ export default function App() {
   });
   const connectedCount = devices.filter(device => device.connectionStatus === "online").length;
   const firewallRulesDevice = devices.find(device => device.id === firewallRulesDeviceId);
-  const availableRuleInterfaces = [...new Set(firewallRules.map(rule => firewallRuleValue(rule.interface, "")).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const availableRuleInterfaces = [...new Set(firewallRules.flatMap(rule => Array.isArray(rule.interface) ? rule.interface.map(value => String(value)) : [firewallRuleValue(rule.interface, "")]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const groupedFirewallRules = availableRuleInterfaces.map(interfaceName => ({ interfaceName, rules: visibleFirewallRules.filter(rule => (Array.isArray(rule.interface) ? rule.interface.map(value => String(value)) : [firewallRuleValue(rule.interface, "")]).includes(interfaceName)) })).filter(group => group.rules.length > 0);
   const visibleFirewallRules = firewallRules.filter(rule => {
     const query = firewallRulesSearch.trim().toLowerCase();
     const action = firewallRuleValue(rule.type, "").toLowerCase();
@@ -669,19 +670,19 @@ export default function App() {
             </section>
             <section className="content-card firewall-rules-table-card">
               <div className="inventory-section-heading"><div><span className="eyebrow">READ-ONLY CONFIGURATION</span><h2>Firewall rules</h2><p className="muted">Original pfSense order is preserved. Disabled entries remain visible.</p></div><span className="inventory-total">Showing {visibleFirewallRules.length} of {firewallRules.length}</span></div>
-              {visibleFirewallRules.length === 0 ? <div className="inventory-empty"><strong>No matching rules</strong><p>Change the search or filters to see other rules.</p></div> : <div className="firewall-rules-table-wrap"><table className="firewall-rules-table"><thead><tr><th>Order / ID</th><th>Status</th><th>Action</th><th>Interface</th><th>Protocol</th><th>Source</th><th>Destination</th><th>Port</th><th>Description</th></tr></thead><tbody>{visibleFirewallRules.map(rule => {
+              {visibleFirewallRules.length === 0 ? <div className="inventory-empty"><strong>No matching rules</strong><p>Change the search or filters to see other rules.</p></div> : <div className="firewall-rule-groups">{groupedFirewallRules.map(group => <section className="firewall-rule-interface-group" key={group.interfaceName}><div className="firewall-rule-group-heading"><div><span className="eyebrow">INTERFACE</span><h3>{group.interfaceName}</h3></div><span className="inventory-total">{group.rules.length} {group.rules.length === 1 ? "rule" : "rules"}</span></div><div className="firewall-rules-table-wrap"><table className="firewall-rules-table"><thead><tr><th>Priority</th><th>Rule ID</th><th>Status</th><th>Action</th><th>Protocol</th><th>Source</th><th>Destination</th><th>Port</th><th>Description</th></tr></thead><tbody>{group.rules.map((rule, index) => {
                 const disabled = rule.disabled === true || rule.disabled === "true" || rule.disabled === 1;
                 const action = firewallRuleValue(rule.type, "Unknown").toLowerCase();
-                return <tr key={rule.id} className={disabled ? "firewall-rule-disabled" : ""}>
-                  <td className="firewall-rule-id">{rule.id}</td>
+                return <tr key={`${group.interfaceName}-${rule.id}`} className={disabled ? "firewall-rule-disabled" : ""}>
+                  <td className="firewall-rule-id">{index + 1}</td><td className="firewall-rule-id">{rule.id}</td>
                   <td><span className={disabled ? "firewall-rule-status is-disabled" : "firewall-rule-status is-enabled"}>{disabled ? "Disabled" : "Enabled"}</span></td>
                   <td><span className={"firewall-rule-action action-" + action}>{action.toUpperCase()}</span></td>
-                  <td>{firewallRuleValue(rule.interface)}</td><td>{firewallRuleValue(rule.protocol, firewallRuleValue(rule.ipprotocol))}</td>
+                  <td>{firewallRuleValue(rule.protocol, firewallRuleValue(rule.ipprotocol))}</td>
                   <td>{firewallRuleValue(rule.source)}{rule.source_port ? <small className="firewall-rule-subvalue">Port {firewallRuleValue(rule.source_port)}</small> : null}</td>
                   <td>{firewallRuleValue(rule.destination)}</td><td>{firewallRuleValue(rule.destination_port)}</td>
                   <td className="firewall-rule-description">{firewallRuleValue(rule.descr, "No description")}</td>
                 </tr>;
-              })}</tbody></table></div>}
+              })}</tbody></table></div></section>)}</div>}
             </section>
             <p className="compatibility-note">This page displays configuration data only. It does not edit, reorder, enable, disable, apply, or delete firewall rules. Rule order is the order returned by the pfSense API.</p>
           </>}
