@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type RefObject } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "./components/ToastProvider";
 
@@ -103,13 +103,6 @@ export default function App() {
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [checkModalOpen, setCheckModalOpen] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
-  const checkResultsRef = useRef<HTMLPreElement | null>(null);
-  useEffect(() => {
-    if (overview && checkModalOpen) {
-      checkResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-      if (checkResultsRef.current) checkResultsRef.current.scrollTop = checkResultsRef.current.scrollHeight;
-    }
-  }, [overview, checkModalOpen]);
   const [users, setUsers] = useState<User[]>([]);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -704,7 +697,7 @@ export default function App() {
             <div className="check-modal-body">
               {busy && !overview && <div className="check-loading"><span className="check-spinner"/> <strong>Running read-only checks…</strong><p className="muted">Waiting for the firewall API responses.</p></div>}
               {checkError && <div className="notice">{checkError}</div>}
-              {overview && <DiagnosticResults overview={overview} failedOperations={deviceChecks[selectedDeviceId ?? ""]?.failedOperations ?? 0} resultsRef={checkResultsRef} />}
+              {overview && <DiagnosticResults overview={overview} failedOperations={deviceChecks[selectedDeviceId ?? ""]?.failedOperations ?? 0} />}
             </div>
             <div className="modal-actions"><button onClick={() => setCheckModalOpen(false)} disabled={busy}>Close</button>{selectedDeviceId && <button className="primary-button" onClick={() => void runCheck(selectedDeviceId)} disabled={busy}>Run again</button>}</div>
           </section>
@@ -716,7 +709,7 @@ export default function App() {
 }
 
 
-function DiagnosticResults({overview,failedOperations,resultsRef}:{overview:DiagnosticRecord;failedOperations:number;resultsRef:RefObject<HTMLPreElement | null>}) {
+function DiagnosticResults({overview,failedOperations}:{overview:DiagnosticRecord;failedOperations:number}) {
   const system = diagnosticRecord(overview.system);
   const version = diagnosticRecord(overview.version);
   const stateSize = diagnosticRecord(overview.firewallStateSize);
@@ -763,7 +756,7 @@ function DiagnosticResults({overview,failedOperations,resultsRef}:{overview:Diag
     </div>
     <details className="technical-details">
       <summary><span><strong>Technical details</strong><small>Redacted JSON response from the read-only endpoints</small></span><span className="technical-details-toggle">Expand</span></summary>
-      <pre ref={resultsRef}>{diagnosticJson(overview)}</pre>
+      <pre>{diagnosticJson(overview)}</pre>
     </details>
     <p className="muted diagnostic-disclaimer">These figures describe data returned by the available endpoints. A successful collection confirms API responses, not the operational health of every gateway, interface, or service.</p>
   </div>;
