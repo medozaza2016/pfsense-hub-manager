@@ -7,7 +7,7 @@ import { classifyError } from "./errors.js";
 
 const groups: Record<PfSenseOperation, string> = {
   system: "system", gateways: "gateways", interfaces: "interfaces", services: "services",
-  version: "version", arpTable: "diagnostics", firewallStates: "firewallStates", firewallStateSize: "firewallStates", firewallRules: "firewallRules", restApiVersion: "compatibility"
+  version: "version", arpTable: "diagnostics", firewallStates: "firewallStates", firewallStateSize: "firewallStates", firewallRules: "firewallRules", interfaceAssignments: "interfaces", restApiVersion: "compatibility"
 };
 function recordCount(value: unknown): number | null { return Array.isArray(value) ? value.length : null; }
 
@@ -253,6 +253,26 @@ export class PfSenseProvider {
       return { results, failedOperations: failures, connectionStatus };
     } finally {
       if (selected.owned) await client.close();
+    }
+  }
+
+  async getInterfaceAssignments(deviceId: string) {
+    const selected = await this.clientForDevice(deviceId);
+    if (!selected) return null;
+    try {
+      const response = await selected.client.get("interfaceAssignments");
+      if (!Array.isArray(response.data)) throw new Error("Firewall returned an invalid interface assignments collection.");
+      return response.data.flatMap(item => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+        const source = item as Record<string, unknown>;
+        const id = typeof source.if === "string" ? source.if : typeof source.name === "string" ? source.name : null;
+        const description = typeof source.descr === "string" ? source.descr.trim()
+          : typeof source.assigned_name === "string" ? source.assigned_name.trim() : "";
+        if (!id || !/^(wan|lan|opt[0-9]+)$/i.test(id)) return [];
+        return [{ id: id.toLowerCase(), description: description || id.toUpperCase() }];
+      });
+    } finally {
+      if (selected.owned) await selected.client.close();
     }
   }
 
