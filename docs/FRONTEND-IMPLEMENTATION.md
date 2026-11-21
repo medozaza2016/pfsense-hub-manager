@@ -135,3 +135,11 @@ Do not merge to `main` until the local verification and visual acceptance pass a
 - Selection is cleared when the alert search or filters change, preventing actions from unintentionally applying to records outside the current view.
 - The existing API endpoints are used, no bulk endpoint or database migration is introduced.
 - Local verification and browser testing at desktop, tablet, and phone widths remain required before merge.
+
+
+## Mobile review refinements
+
+- User cards use a fixed-size status switch in a dedicated access-control column. The switch must not inherit flexible action-button sizing on narrow screens.
+- Audit Logs now use mobile event cards with event name, UTC timestamp, outcome, actor, target, and summary. The desktop audit table remains unchanged.
+- Alert selection is presented in a dedicated leading selection column on desktop and at the leading edge of each mobile card.
+- The alert list has a persistent Select all control and a grouped bulk-action area. Acknowledge and Resolve are disabled when no eligible selected records exist. Individual desktop row actions remain grouped together at the trailing edge.
