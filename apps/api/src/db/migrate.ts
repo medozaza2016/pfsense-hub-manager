@@ -25,7 +25,7 @@ export async function migrate(pool: pg.Pool): Promise<void> {
 
     for (const file of files) {
       const version = file.slice(0, -4);
-      const sql = await readFile(new URL(file, `file://${MIGRATIONS_DIRECTORY.replace(/\\/g, "/")}/`), "utf8");
+      const sql = await readFile(join(MIGRATIONS_DIRECTORY, file), "utf8");
       const checksum = createHash("sha256").update(sql).digest("hex");
       const existing = await client.query<{ checksum: string | null }>(
         "SELECT checksum FROM schema_migrations WHERE version = $1",
