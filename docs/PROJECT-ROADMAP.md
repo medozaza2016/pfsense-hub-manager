@@ -328,32 +328,31 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: validate the corrected Windows native-dependency repair.**
+**Next task: validate the isolated Windows native-dependency repair.**
 
-The user confirmed `npm audit` reports 0 vulnerabilities. The user pulled the native repair script and ran `install.ps1 -Development`, which exposed a defect in the first repair implementation: Vite's esbuild needs native package version `0.25.12`, while the API's esbuild needs `0.28.2`. The first script incorrectly treated those as one shared package and stopped with a version conflict.
+The user ran `install.ps1 -Development` after the previous fix. The script correctly detected separate esbuild versions, but npm failed when installing with `--prefix` inside the repository's `node_modules` tree because it discovered the root npm workspace and a `link:` dependency (`EUNSUPPORTEDPROTOCOL`).
 
-The repair script has now been corrected to install each native package at the appropriate dependency level:
-- Rollup's native package at the package level resolved for Rollup.
-- Vite's esbuild native package inside Vite's dependency tree.
-- API esbuild's native package at the package level resolved for the API's esbuild dependency.
+The repair script has now been changed to:
+1. Create an isolated temporary directory under the OS temp directory.
+2. Install each exact native package version there using npm with workspaces disabled.
+3. Copy the installed package into the `node_modules` directory belonging to the corresponding Rollup/esbuild package.
+4. Remove the temporary directory.
+5. Verify each owner resolves the expected native package version.
 
-This preserves both required versions side-by-side and uses `--no-save --package-lock=false`. It does not alter package manifests or the user's lockfile.
+This keeps Vite esbuild `0.25.12` and API esbuild `0.28.2` separate and avoids npm workspace resolution in the repository. It uses `--no-save --package-lock=false`; it does not modify package manifests or the user's lockfile.
 
-Recent fix commits:
-- `40ecec5407ae7f64b3ed1c63fa616434c1eba0f8` separates repairs by dependency prefix.
-- `cfdac303e7fa58f8d07444508d2612d7e5040d5e` corrects npm installation prefixes.
-- `347de83077e02a633583736258e31e35c6916ef0` resolves Rollup's native package at its own dependency level.
-- `04ae79192c95d498a3007bbcccaf8f84158315bf` documents why esbuild versions are installed separately.
+Recent commits:
+- `6d353704fab60f694f2e9886954b6a5e4ab2ba7a` implements isolated temporary npm installs and copies native packages into their owning dependency directories.
+- `767153a2147f2811b4b0ffee5b7494dfd3fb617e` documents the isolated installation approach.
 
 On the user's Windows machine, run:
 
 ```powershell
-cd C:\Users\ahmed\Desktop\Projects\pfsense-hub-manager
 git pull --ff-only
 .\scripts\install.ps1 -Development
 ```
 
-If the installer passes the native dependency check, run:
+If the installer passes, run:
 
 ```powershell
 npm audit
@@ -362,9 +361,19 @@ npm run typecheck
 npm run build
 ```
 
-Expected audit: 0 vulnerabilities. Expected API test run: 15 source tests, not duplicated compiled tests. If the repair still fails, capture the complete output and stop before attempting manual package installs. Keep the untracked `package-lock.json`. Do not delete it, reset the working tree, or remove node_modules. No CI.
+Expected audit: 0 vulnerabilities. Expected API test run: 15 source tests, not duplicated compiled tests. If the repair fails, capture the complete output and stop before manual package installation. Keep the untracked `package-lock.json`. Do not delete it, reset the working tree, or remove node_modules. No CI.
 
 After validation, review and commit the generated lockfile, then continue Phase 1 manual acceptance testing: Compose config/build, authentication, route refresh/deep links, role restrictions, firewall inventory operations, read-only checks, and restart persistence.
+
+## 8. Session handoff
+
+**Current state:** The user's Windows installer reached the native dependency repair but failed because npm tried to resolve the repository workspace while installing into a nested node_modules prefix. The script has now been changed to use isolated temporary npm projects, then copy the packages into the correct owning node_modules directories. This latest implementation has not yet been run by the user.
+
+**Next action:** Pull the latest feature branch and rerun ` .\scripts\install.ps1 -Development`. Do not proceed to firewall feature work until local install/test/build is stable.
+
+**Preserve:** Keep the untracked `package-lock.json`; do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5.
+
+**Update this section at every session end:** Record latest commit, actual validation results, blockers, and next exact action.
 
 ## 8. Session handoff
 
