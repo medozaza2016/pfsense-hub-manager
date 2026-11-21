@@ -320,7 +320,7 @@ function Alerts({onNavigate}:{onNavigate:(p:Page)=>void}){
  const selectedActive=selectedAlerts.filter(a=>a.status==="active");
  function toggleSelected(id:string){setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id]);}
  function selectAllMatching(){setSelected(current=>Array.from(new Set([...current,...selectableAlerts.map(a=>a.id)])));}
- async function act(id:string,action:"acknowledge"|"resolve"){setError("");try{await apiRequest("/api/v1/alerts/"+id+"/"+action,{method:"POST"});await load();}catch(e){setError(e instanceof Error?e.message:"Unable to update alert.");}}
+ async function act(id:string,action:"acknowledge"|"resolve"){setError("");try{await apiRequest("/api/v1/alerts/"+id+"/"+action,{method:"POST"});setSelected(current=>current.filter(item=>item!==id));await load();}catch(e){setError(e instanceof Error?e.message:"Unable to update alert.");}}
  async function confirmBulkAction(){
   if(!pendingBulkAction)return;
   const targets=pendingBulkAction==="acknowledge"?selectedActive:selectedPending;
