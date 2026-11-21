@@ -110,6 +110,7 @@ export default function App() {
   const [firewallRulesLoading, setFirewallRulesLoading] = useState(false);
   const [firewallRulesError, setFirewallRulesError] = useState<string | null>(null);
   const [firewallRulesRefreshKey, setFirewallRulesRefreshKey] = useState(0);
+  const [firewallInterfaceAssignments, setFirewallInterfaceAssignments] = useState<{ id: string; description: string }[]>([]);
   const [firewallRulesSearch, setFirewallRulesSearch] = useState("");
   const [firewallRulesAction, setFirewallRulesAction] = useState("all");
   const [firewallRulesInterface, setFirewallRulesInterface] = useState("all");
@@ -183,6 +184,18 @@ export default function App() {
       .finally(() => { if (active) setCompatibilityLoading(false); });
     return () => { active = false; };
   }, [screen, compatibilityDeviceId]);
+
+  useEffect(() => {
+    if (screen !== "app" || !firewallRulesDeviceId || currentUser?.role !== "admin") {
+      setFirewallInterfaceAssignments([]);
+      return;
+    }
+    let active = true;
+    api<{ id: string; description: string }[]>("/api/v1/devices/" + encodeURIComponent(firewallRulesDeviceId) + "/interfaces")
+      .then(result => { if (active) setFirewallInterfaceAssignments(result.data); })
+      .catch(() => { if (active) setFirewallInterfaceAssignments([]); });
+    return () => { active = false; };
+  }, [screen, firewallRulesDeviceId, currentUser?.role]);
 
   useEffect(() => {
     if (screen !== "app" || !firewallRulesDeviceId || currentUser?.role !== "admin") {
@@ -518,6 +531,12 @@ export default function App() {
     const searchable = [rule.id, rule.descr, rule.source, rule.source_port, rule.destination, rule.destination_port, rule.protocol, rule.ipprotocol, rule.interface].map(value => firewallRuleValue(value, "")).join(" ").toLowerCase();
     return (!query || searchable.includes(query)) && (firewallRulesAction === "all" || action === firewallRulesAction) && (firewallRulesInterface === "all" || interfaceName.split(", ").includes(firewallRulesInterface)) && (firewallRulesState === "all" || (firewallRulesState === "disabled" ? disabled : !disabled));
   });
+  const firewallInterfaceLabel = (interfaceId: string) => {
+    const assignment = firewallInterfaceAssignments.find(item => item.id.toLowerCase() === interfaceId.toLowerCase());
+    return assignment && assignment.description.toLowerCase() !== interfaceId.toLowerCase()
+      ? `${assignment.description} (${interfaceId.toUpperCase()})`
+      : interfaceId.toUpperCase();
+  };
   const groupedFirewallRules = availableRuleInterfaces.map(interfaceName => ({
     interfaceName,
     rules: firewallRules
@@ -671,12 +690,12 @@ export default function App() {
             <section className="content-card firewall-rules-toolbar">
               <label className="inventory-search"><span>⌕</span><input aria-label="Search firewall rules" placeholder="Search description, source, destination, port…" value={firewallRulesSearch} onChange={event => setFirewallRulesSearch(event.target.value)} /></label>
               <select aria-label="Filter by action" value={firewallRulesAction} onChange={event => setFirewallRulesAction(event.target.value)}><option value="all">All actions</option><option value="pass">Pass</option><option value="block">Block</option><option value="reject">Reject</option></select>
-              <select aria-label="Filter by interface" value={firewallRulesInterface} onChange={event => setFirewallRulesInterface(event.target.value)}><option value="all">All interfaces</option>{availableRuleInterfaces.map(name => <option key={name} value={name}>{name}</option>)}</select>
+              <select aria-label="Filter by interface" value={firewallRulesInterface} onChange={event => setFirewallRulesInterface(event.target.value)}><option value="all">All interfaces</option>{availableRuleInterfaces.map(name => <option key={name} value={name}>{firewallInterfaceLabel(name)}</option>)}</select>
               <select aria-label="Filter by rule status" value={firewallRulesState} onChange={event => setFirewallRulesState(event.target.value as "all" | "enabled" | "disabled")}><option value="all">All statuses</option><option value="enabled">Enabled only</option><option value="disabled">Disabled only</option></select>
             </section>
             <section className="content-card firewall-rules-table-card">
               <div className="inventory-section-heading"><div><span className="eyebrow">READ-ONLY CONFIGURATION</span><h2>Firewall rules</h2><p className="muted">Original pfSense order is preserved. Disabled entries remain visible.</p></div><span className="inventory-total">Showing {visibleFirewallRules.length} of {firewallRules.length}</span></div>
-              {visibleFirewallRules.length === 0 ? <div className="inventory-empty"><strong>No matching rules</strong><p>Change the search or filters to see other rules.</p></div> : <div className="firewall-rule-groups">{groupedFirewallRules.map(group => <section className="firewall-rule-interface-group" key={group.interfaceName}><div className="firewall-rule-group-heading"><div><span className="eyebrow">INTERFACE</span><h3>{group.interfaceName}</h3></div><span className="inventory-total">{group.rules.length} {group.rules.length === 1 ? "rule" : "rules"}</span></div><div className="firewall-rules-table-wrap"><table className="firewall-rules-table"><thead><tr><th>Priority</th><th>Rule ID</th><th>Status</th><th>Action</th><th>Protocol</th><th>Source</th><th>Destination</th><th>Port</th><th>Description</th></tr></thead><tbody>{group.rules.map(({ rule, priority }) => {
+              {visibleFirewallRules.length === 0 ? <div className="inventory-empty"><strong>No matching rules</strong><p>Change the search or filters to see other rules.</p></div> : <div className="firewall-rule-groups">{groupedFirewallRules.map(group => <section className="firewall-rule-interface-group" key={group.interfaceName}><div className="firewall-rule-group-heading"><div><span className="eyebrow">INTERFACE</span><h3>{firewallInterfaceLabel(group.interfaceName)}</h3></div><span className="inventory-total">{group.rules.length} {group.rules.length === 1 ? "rule" : "rules"}</span></div><div className="firewall-rules-table-wrap"><table className="firewall-rules-table"><thead><tr><th>Priority</th><th>Rule ID</th><th>Status</th><th>Action</th><th>Protocol</th><th>Source</th><th>Destination</th><th>Port</th><th>Description</th></tr></thead><tbody>{group.rules.map(({ rule, priority }) => {
                 const disabled = rule.disabled === true || rule.disabled === "true" || rule.disabled === 1;
                 const action = firewallRuleValue(rule.type, "Unknown").toLowerCase();
                 return <tr key={`${group.interfaceName}-${rule.id}`} className={disabled ? "firewall-rule-disabled" : ""}>
