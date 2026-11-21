@@ -68,6 +68,43 @@ if ($Development) {
     npx --no-install tsc --version
     if ($LASTEXITCODE -ne 0) { throw "TypeScript compiler is still unavailable after npm install." }
   }
+  Write-Host "Checking npm dependency vulnerabilities..." -ForegroundColor Cyan
+  npm audit
+  $initialAuditExit = $LASTEXITCODE
+  if ($initialAuditExit -eq 1) {
+    Write-Host "Vulnerabilities found. Applying compatible, non-breaking dependency fixes..." -ForegroundColor Yellow
+    npm audit fix
+    $fixExit = $LASTEXITCODE
+    if ($fixExit -ne 0) {
+      Write-Warning "npm audit fix did not resolve every issue or reported an error. Running a final audit to identify remaining findings."
+    }
+  } elseif ($initialAuditExit -gt 1) {
+    Write-Warning "The initial npm audit could not complete (exit code $initialAuditExit). The installer will retry the audit after the fix step."
+  } else {
+    Write-Host "Initial npm audit found no vulnerabilities." -ForegroundColor Green
+  }
+
+  Write-Host "Verifying dependency security after automatic fixes..." -ForegroundColor Cyan
+  $auditJson = (& npm audit --json 2>$null | Out-String).Trim()
+  $finalAuditExit = $LASTEXITCODE
+  if ([string]::IsNullOrWhiteSpace($auditJson)) {
+    Write-Warning "npm did not return an audit report (exit code $finalAuditExit). Dependency security could not be verified."
+  } else {
+    try {
+      $auditReport = $auditJson | ConvertFrom-Json
+      $counts = $auditReport.metadata.vulnerabilities
+      $total = [int]$counts.total
+      if ($total -eq 0) {
+        Write-Host "Dependency audit passed. No known vulnerabilities remain." -ForegroundColor Green
+      } else {
+        Write-Warning ("Dependency audit still reports {0} vulnerabilities: {1} critical, {2} high, {3} moderate, {4} low." -f $total, [int]$counts.critical, [int]$counts.high, [int]$counts.moderate, [int]$counts.low)
+        Write-Warning "Review the npm audit report. The installer did not use --force or apply breaking major-version upgrades."
+      }
+    } catch {
+      Write-Warning "Unable to parse the final npm audit report. Dependency security could not be verified."
+    }
+  }
+
   Write-Host "Running local type checks..." -ForegroundColor Cyan
   npm run typecheck
   if ($LASTEXITCODE -ne 0) { throw "Type checks failed. Fix the reported errors before continuing." }
