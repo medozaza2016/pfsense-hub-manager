@@ -1175,3 +1175,44 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(prefers-reduced-motion:reduce){
   .inventory-device-actions .device-action{transition:none}
 }
+
+
+/* Compact appliance metadata badges */
+.inventory-device-copy>p{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.inventory-edition-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:22px;
+  padding:3px 8px;
+  border:1px solid #e8ebef;
+  border-radius:7px;
+  background:#f7f8fa;
+  color:#687381;
+  font-size:.62rem;
+  font-weight:750;
+  letter-spacing:.025em;
+}
+.inventory-meta .inventory-config-meta{
+  color:#75808c;
+}
+.inventory-meta .inventory-last-checked{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  color:#8a929d;
+  font-variant-numeric:tabular-nums;
+}
+.inventory-last-checked svg{
+  width:13px;
+  height:13px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.5;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
