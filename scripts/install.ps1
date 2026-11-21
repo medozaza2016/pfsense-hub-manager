@@ -1,3 +1,5 @@
+param([switch]$Development)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 function Set-Env([string]$Name,[string]$Value) {
@@ -35,6 +37,44 @@ function Protect-File([string]$Path) {
 $ErrorActionPreference="Stop"
 Set-Location (Resolve-Path (Join-Path $PSScriptRoot ".."))
 Write-Host "pfSense Hub Manager installer" -ForegroundColor Green
+
+if ($Development) {
+  Write-Host "Checking local development prerequisites..." -ForegroundColor Cyan
+  $node = Get-Command node -ErrorAction SilentlyContinue
+  $npm = Get-Command npm -ErrorAction SilentlyContinue
+  if (-not $node) { throw "Node.js 22 or newer is required for development. Install the current Node.js LTS release, then reopen PowerShell." }
+  if (-not $npm) { throw "npm 10 or newer is required for development. Reinstall Node.js with npm included, then reopen PowerShell." }
+  $nodeVersionText = (& node --version).Trim()
+  $npmVersionText = (& npm --version).Trim()
+  if ($nodeVersionText -notmatch '^v?(\\d+)\\.') { throw "Unable to determine Node.js version: $nodeVersionText" }
+  $nodeMajor = [int]$Matches[1]
+  if ($nodeMajor -lt 22) { throw "Node.js 22 or newer is required. Detected $nodeVersionText." }
+  if ($npmVersionText -notmatch '^(\\d+)\\.') { throw "Unable to determine npm version: $npmVersionText" }
+  $npmMajor = [int]$Matches[1]
+  if ($npmMajor -lt 10) { throw "npm 10 or newer is required. Detected $npmVersionText." }
+  Write-Host "Node.js $nodeVersionText and npm $npmVersionText detected." -ForegroundColor Green
+  if (-not (Test-Path "node_modules")) {
+    Write-Host "Installing workspace dependencies..." -ForegroundColor Cyan
+    npm install
+    if ($LASTEXITCODE -ne 0) { throw "npm install failed. Resolve the npm error before continuing." }
+  } else {
+    Write-Host "node_modules exists. Checking TypeScript availability..." -ForegroundColor Cyan
+  }
+  npx --no-install tsc --version
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "Installing or repairing workspace dependencies..." -ForegroundColor Yellow
+    npm install
+    if ($LASTEXITCODE -ne 0) { throw "npm install failed. Resolve the npm error before continuing." }
+    npx --no-install tsc --version
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript compiler is still unavailable after npm install." }
+  }
+  Write-Host "Running local type checks..." -ForegroundColor Cyan
+  npm run typecheck
+  if ($LASTEXITCODE -ne 0) { throw "Type checks failed. Fix the reported errors before continuing." }
+  Write-Host "Building local application..." -ForegroundColor Cyan
+  npm run build
+  if ($LASTEXITCODE -ne 0) { throw "Local build failed. Fix the reported errors before continuing." }
+}
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw "Docker CLI missing. Install/start Docker Desktop." }
 docker info *> $null
 if ($LASTEXITCODE -ne 0) { throw "Docker Desktop engine is not running." }
