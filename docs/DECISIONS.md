@@ -100,3 +100,8 @@ This document records confirmed architectural decisions. Proposals and open ques
 **Status:** Accepted  
 **Decision:** Use React Router for all frontend page navigation. Every navigable page must have a stable URL using lowercase kebab-case path segments. Routes must support direct links, browser history navigation, bookmarks, and refresh/deep links. Keep route definitions centralized and enforce access authorization in the backend independently of frontend route guards.
 
+
+
+### DEC-022, Persisted device connection lifecycle
+**Status:** Accepted  
+**Decision:** Track connection health independently from the operator-controlled enabled/disabled setting. Persist a bounded connection status (unknown, online, degraded, offline, authentication_failed, authorization_failed, tls_error, unsupported, or error), the latest check timestamp, the latest fully successful check timestamp, and the last classified error. A successful registration or credential revalidation records an online result; each read-only collection updates the persisted lifecycle status. Do not store raw upstream error messages or credentials in these fields. This status model does not select a firewall-to-manager transport. Transport-specific connection profiles remain deferred under DEC-010 until the user approves a transport decision.
