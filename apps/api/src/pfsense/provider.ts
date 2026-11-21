@@ -11,6 +11,19 @@ const groups: Record<PfSenseOperation, string> = {
 };
 function recordCount(value: unknown): number | null { return Array.isArray(value) ? value.length : null; }
 
+const capabilityDefinitions = [
+  { key: "status.system.read", endpoint: "/api/v2/status/system", operation: "system" },
+  { key: "status.gateways.read", endpoint: "/api/v2/status/gateways", operation: "gateways" },
+  { key: "status.interfaces.read", endpoint: "/api/v2/status/interfaces", operation: "interfaces" },
+  { key: "status.services.read", endpoint: "/api/v2/status/services", operation: "services" },
+  { key: "system.version.read", endpoint: "/api/v2/system/version", operation: "version" },
+  { key: "diagnostics.arpTable.read", endpoint: "/api/v2/diagnostics/arp_table", operation: "arpTable" },
+  { key: "firewall.states.read", endpoint: "/api/v2/firewall/states", operation: "firewallStates" },
+  { key: "firewall.states.size.read", endpoint: "/api/v2/firewall/states/size", operation: "firewallStateSize" },
+  { key: "system.restApiVersion.read", endpoint: "/api/v2/system/restapi/version", operation: "restApiVersion" }
+] as const;
+type CapabilityEvidence = { operationKey: string; endpoint: string; verificationStatus: "unknown" | "verified" | "unsupported"; errorClass: string | null };
+
 function safeSystemMetrics(value: unknown): Record<string, string | number | boolean | null> {
   const output: Record<string, string | number | boolean | null> = {};
   const blocked = /(serial|netgate|mac|(^|_)ip($|_)|address|hostname|host_name|fqdn|token|secret|key|password|credential|uuid|arp|source|destination)/i;
@@ -149,6 +162,7 @@ export class PfSenseProvider {
     const operations: PfSenseOperation[] = ["system", "gateways", "interfaces", "services", "version", "arpTable", "firewallStates", "firewallStateSize"];
     let failures = 0;
     const errorClasses: string[] = [];
+    const capabilityEvidence: CapabilityEvidence[] = [];
     try {
       for (const operation of operations) {
         const started = Date.now();
@@ -157,6 +171,8 @@ export class PfSenseProvider {
         let errorClass: string | null = null;
         try {
           const response = await client.get(operation);
+          const capability = capabilityDefinitions.find(item => item.operation === operation);
+          if (capability) capabilityEvidence.push({ operationKey: capability.key, endpoint: capability.endpoint, verificationStatus: "verified", errorClass: null });
           if (operation === "system") results.system = safeSystemMetrics(response.data);
           else if (operation === "gateways") results.gateways = { recordCount: recordCount(response.data) };
           else if (operation === "interfaces") results.interfaces = { recordCount: recordCount(response.data) };
@@ -167,6 +183,8 @@ export class PfSenseProvider {
           else if (operation === "firewallStateSize") results.firewallStateSize = response.data;
         } catch (error) {
           outcome = "failure"; failures++; errorClass = classifyError(error); errorClasses.push(errorClass);
+          const capability = capabilityDefinitions.find(item => item.operation === operation);
+          if (capability) capabilityEvidence.push({ operationKey: capability.key, endpoint: capability.endpoint, verificationStatus: errorClass === "unsupported" ? "unsupported" : "unknown", errorClass });
         }
         const duration = Date.now() - started;
         onResult(groups[operation], outcome, errorClass ?? undefined, duration);
@@ -197,6 +215,8 @@ export class PfSenseProvider {
       // Optional package-version discovery is isolated from core connection health.
       try {
         const packageResponse = await client.get("restApiVersion");
+        const packageCapability = capabilityDefinitions.find(item => item.operation === "restApiVersion");
+        if (packageCapability) capabilityEvidence.push({ operationKey: packageCapability.key, endpoint: packageCapability.endpoint, verificationStatus: "verified", errorClass: null });
         const packageData = packageResponse.data && typeof packageResponse.data === "object" ? packageResponse.data as Record<string, unknown> : {};
         const versionData = results.version && typeof results.version === "object" ? results.version as Record<string, unknown> : {};
         const packageVersion = typeof packageData.current_version === "string" ? packageData.current_version : null;
@@ -211,8 +231,24 @@ export class PfSenseProvider {
            WHERE id=$4`,
           [release ?? null, architecture ?? null, packageVersion, deviceId]
         );
-      } catch {
+      } catch (error) {
+        const packageCapability = capabilityDefinitions.find(item => item.operation === "restApiVersion");
+        const errorClass = classifyError(error);
+        if (packageCapability) capabilityEvidence.push({ operationKey: packageCapability.key, endpoint: packageCapability.endpoint, verificationStatus: errorClass === "unsupported" ? "unsupported" : "unknown", errorClass });
         // Preserve prior metadata. Optional discovery must not degrade operational health.
+      }
+      if (capabilityEvidence.length) {
+        await this.pool.query(
+          `INSERT INTO device_capabilities(device_id,operation_key,endpoint,http_method,verification_status,last_checked_at,last_error_class)
+           SELECT $1, evidence.operation_key, evidence.endpoint, 'GET', evidence.verification_status, now(), evidence.error_class
+           FROM unnest($2::text[],$3::text[],$4::text[],$5::text[]) AS evidence(operation_key,endpoint,verification_status,error_class)
+           ON CONFLICT(device_id,operation_key) DO UPDATE SET
+             endpoint=EXCLUDED.endpoint,http_method=EXCLUDED.http_method,
+             verification_status=EXCLUDED.verification_status,last_checked_at=EXCLUDED.last_checked_at,
+             last_error_class=EXCLUDED.last_error_class`,
+          [deviceId, capabilityEvidence.map(item => item.operationKey), capabilityEvidence.map(item => item.endpoint),
+            capabilityEvidence.map(item => item.verificationStatus), capabilityEvidence.map(item => item.errorClass)]
+        );
       }
       return { results, failedOperations: failures, connectionStatus };
     } finally {
@@ -220,13 +256,24 @@ export class PfSenseProvider {
     }
   }
 
-  async capabilities() {
-    return [
-      ["status.system.read", "/api/v2/status/system"], ["status.gateways.read", "/api/v2/status/gateways"],
-      ["status.interfaces.read", "/api/v2/status/interfaces"], ["status.services.read", "/api/v2/status/services"],
-      ["system.version.read", "/api/v2/system/version"], ["diagnostics.arpTable.read", "/api/v2/diagnostics/arp_table"],
-      ["firewall.states.read", "/api/v2/firewall/states"], ["firewall.states.size.read", "/api/v2/firewall/states/size"],
-      ["system.restApiVersion.read", "/api/v2/system/restapi/version"]
-    ].map(([key, endpoint]) => ({ key, endpoint, supported: true, verification: "tested" }));
+  async capabilities(deviceId: string) {
+    const result = await this.pool.query(
+      "SELECT operation_key,endpoint,http_method,verification_status,last_checked_at,last_error_class FROM device_capabilities WHERE device_id=$1",
+      [deviceId]
+    );
+    const evidence = new Map(result.rows.map(row => [row.operation_key, row]));
+    return capabilityDefinitions.map(item => {
+      const row = evidence.get(item.key);
+      const verification = row?.verification_status ?? "unknown";
+      return {
+        key: item.key,
+        endpoint: item.endpoint,
+        method: "GET",
+        supported: verification === "verified" ? true : verification === "unsupported" ? false : null,
+        verification,
+        lastCheckedAt: row?.last_checked_at ?? null,
+        lastErrorClass: row?.last_error_class ?? null
+      };
+    });
   }
 }
