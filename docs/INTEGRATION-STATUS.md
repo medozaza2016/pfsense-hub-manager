@@ -2,7 +2,7 @@
 
 **Historical firewall-side verification:** 2026-11-19 (America/New_York; command output timestamps were 2026-11-20 UTC)  
 **Latest application validation reported:** 2026-11-21, Windows 11 local development environment, 42 tests passed across 7 files, API/web type checks and production builds passed  
-**Status:** First pfSense Plus connection test and read-only collection reported successful; read-only scope  
+**Status:** First pfSense Plus connection and nine approved read-only GET operations reported successful; read-only scope  
 **Environment:** Windows 11 development workstation connecting through Tailscale subnet routing to the Branch LAN. This is separate from validation on the production Proxmox LXC.
 
 ## Verified firewall
@@ -32,7 +32,7 @@ The original direct-IP TLS certificate was self-signed and failed normal curl ce
 
 - Dedicated local pfSense account: pfsense_hub
 - Account role: regular user, not a member of the admins group
-- Effective API permissions: eight previously verified GET permissions plus the newly approved GET permission for REST API package-version discovery
+- Effective API permissions: nine approved GET permissions, eight core operational reads plus REST API package-version discovery
 - API key: created for pfsense_hub
 - Authentication header: X-API-Key
 - Secret material: not recorded here and must never be committed
@@ -41,9 +41,9 @@ The original direct-IP TLS certificate was self-signed and failed normal curl ce
 
 The successful API-key test returned HTTP 200 with code 200, status ok, response_id SUCCESS.
 
-## Eight verified read-only endpoints
+## Eight core operational read-only endpoints
 
-All eight endpoints returned HTTP 200 from the manager LXC using the X-API-Key header:
+These eight core endpoints returned HTTP 200 from the manager LXC using the X-API-Key header:
 
 | Endpoint | Verified response |
 |---|---|
@@ -84,7 +84,7 @@ Certificate-discovery route tests use a mocked TLS socket. These tests validate 
 3. Test the corresponding endpoints on pfSense CE when that firewall is connected.
 4. Investigate why the manager LXC cannot reach the public hostname on port 443, only if that hostname is needed for the final design.
 5. Confirm endpoint pagination, response schemas, response-size limits, and rate/collection behavior before designing persistent polling.
-6. Do not infer that all eight endpoints have been validated on CE from the Plus test.
+6. Do not infer that any of the nine operations have been validated on CE from the Plus test.
 7. Do not enable write endpoints until the change-safety requirements in Phase 5 of `PROJECT-ROADMAP.md` have passed.
 
 ## Network addressing note
@@ -94,11 +94,11 @@ The existing 172.10.x.x addressing is intentionally being left unchanged for thi
 
 ## Initial manager application implementation
 
-The repository now contains an initial Fastify backend provider wired to exactly the eight GET paths above. The manager API's read-only overview route invokes these operations sequentially, records per-operation outcome and duration in PostgreSQL, and emits bounded Prometheus metrics. ARP and firewall-state response rows are reduced to counts when the upstream data is an array; the raw rows are not returned or stored. System, gateway, interface, and service payloads are not exposed as raw records by the provider; only collection indicators/counts are returned. The state-size and version responses are included for initial inspection.
+The repository now contains an initial Fastify backend provider wired to the eight core operational GET paths above, with the separate ninth package-version GET probe. The manager API's read-only overview route invokes these operations sequentially, records per-operation outcome and duration in PostgreSQL, and emits bounded Prometheus metrics. ARP and firewall-state response rows are reduced to counts when the upstream data is an array; the raw rows are not returned or stored. System, gateway, interface, and service payloads are not exposed as raw records by the provider; only collection indicators/counts are returned. The state-size and version responses are included for initial inspection.
 
 This implementation has since been exercised in the Windows local Docker Compose environment. The user reported a successful firewall connection test with the API version endpoint responding, followed by successful read-only collection. This is a user-reported manual result, not an independently captured test transcript in this document. Local validation of the newest React Router changes remains pending. Deployment and validation on the target Proxmox LXC remain separate pending work.
 
 
-## Additional approved compatibility probe
+## Ninth approved read-only operation: REST API package version
 
-The operator added the GET permission for /api/v2/system/restapi/version. The manager probes this separately from the eight core operational checks and reads data.current_version. No live response has yet been captured, so the installed package version remains unknown. The adjacent PATCH method is not called or authorized.
+The operator added the GET permission for `/api/v2/system/restapi/version`. The manager probes this separately from the eight core operational checks and reads `data.current_version`. On 2026-11-21, the per-firewall compatibility page displayed `v2.11.0` and reported **9 of 9** endpoint checks as Verified for the Netgate 2100 running pfSense Plus 26.07.2-RELEASE. This is the current application-reported evidence for that device; it does not establish CE compatibility or full schema validation. The adjacent PATCH method is not called or authorized.
