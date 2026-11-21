@@ -88,8 +88,8 @@ The seed is additive and idempotent. It uses fixed UUIDs and `ON CONFLICT DO NOT
 After local code is updated, build the API before running the seed because the package script executes the compiled file:
 
 ```powershell
-npm run build --workspace @pfsense-hub/api
-npm run db:seed:dev
+docker compose up -d --build api
+docker compose exec -e NODE_ENV=development api npm run db:seed:dev
 ```
 
 Run only in the local development environment. The script requires `NODE_ENV=development` and `DATABASE_URL`, runs pending migrations, and refuses to seed without an active administrator. Do not run this against production.
