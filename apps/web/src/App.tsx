@@ -5,7 +5,7 @@ import { useToast } from "./components/ToastProvider";
 type Role = "admin" | "user";
 type User = { id: string; name: string; email: string; role: Role; active?: boolean };
 type Device = {
-  id: string; name: string; location: string | null; edition: string; enabled: boolean; canDelete?: boolean;
+  id: string; name: string; location: string | null; edition: string; enabled: boolean;
   connectionStatus?: "unknown" | "online" | "degraded" | "offline" | "authentication_failed" | "authorization_failed" | "tls_error" | "unsupported" | "error";
   lastCheckedAt?: string | null; lastSuccessAt?: string | null; lastErrorClass?: string | null;
 };
@@ -257,10 +257,6 @@ export default function App() {
   async function updateDeviceCredentials(event: FormEvent) {
     event.preventDefault();
     if (!editDevice || !credentialApiKey.trim()) return;
-    if (editDevice.canDelete === false) {
-      notify("Primary firewall credentials are managed through the protected installation settings.", "warning");
-      return;
-    }
     setBusy(true);
     try {
       const payload = {
