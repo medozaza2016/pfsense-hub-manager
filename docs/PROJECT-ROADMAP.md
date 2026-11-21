@@ -63,6 +63,7 @@ Status meanings:
 
 ### Implemented but awaiting local validation
 - [~] Latest React Router dependency, URL routing, and navigation changes. Local TypeScript check and production build have not yet been reported after these changes.
+- [~] Windows installer development profile now checks Node.js 22+ and npm 10+, installs workspace dependencies when needed, verifies TypeScript, then runs type-check and production build. Committed but not yet executed on the user's Windows machine.
 - [~] Latest documentation synchronization. The current branch contains documentation updates, but links and all cross-document claims should be reviewed as the project evolves.
 
 ### Not yet completed
@@ -325,7 +326,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: validate and stabilize the latest React Router frontend changes before adding another feature.**
+**Next task: validate the new Windows development onboarding from the beginning before adding another feature.**
 
 On the user's Windows development machine, from PowerShell:
 
@@ -349,14 +350,23 @@ After frontend validation, validate the API workspace and Compose configuration/
 
 ## 8. Session handoff
 
-**Last known code state:** The current branch includes React Router navigation and URL paths. Root scripts are confirmed in `package.json`: `npm run typecheck`, `npm run build`, and `npm test`. The user has not yet reported a local TypeScript check or production build after the routing changes. The web app uses BrowserRouter and the Nginx configuration includes an SPA fallback (`try_files $uri $uri/ /index.html`).
+**Latest installer commits:**
+- `b64ddfada5329565b6bac7fb8737a781ec43add1` adds the Windows `-Development` prerequisite profile.
+- `5a842c5b46b8552744f6e94691e5889fd60aa1a5` documents the development installation path.
 
-**Last known live test:** User confirmed that the firewall connection test returned “Connection successful. pfSense API version endpoint responded.” User also confirmed the read-only collection worked in the local Windows Docker Compose environment.
+**Next action on Windows:** Check the working tree, pull the latest branch, then run the development installer:
 
-**Latest documentation commit:** `42d2aca5aec28db5d90e475b2985a83c2e13c03f` (integration status reconciliation). The canonical roadmap was created in `594b86e597d2d9f037e0f2bb4ce78931492cd4cc`; README, AGENTS.md, and the legacy checklist were then synchronized.
+```powershell
+cd C:\Users\ahmed\Desktop\Projects\pfsense-hub-manager
+git status --short
+git pull --ff-only
+.\scripts\install.ps1 -Development
+```
 
-**Next chat should begin by:** Reading this file, confirming the active branch and Git working tree, then asking the user to run `npm run typecheck` and `npm run build` from the repository root and share the output. Do not start another feature until the latest navigation build is verified.
+The user previously reported a clean working tree, but check again before pulling. Stop if pull reports local changes or conflicts. Do not discard local files, secrets, certificates, or Docker volumes. The script checks Node.js 22+ and npm 10+, installs workspace dependencies if needed, runs type-check/build, then continues the existing Docker installation prompts. Capture the complete output. No CI.
 
-**Do not do:** Do not run CI unless necessary and approved. Do not touch production LXC. Do not delete/reset PostgreSQL volumes. Do not regenerate secrets. Do not overwrite local compose/certificate changes. Do not assume the second CE firewall is connected. Do not enable firewall write operations before Phase 5's safety gate.
+**Unvalidated:** The new installer profile has not been executed on Windows. The existing React Router changes also remain unvalidated by local type-check/build.
 
-**Update this section at every session end:** Record the latest commit SHA, validation commands and results, changes made, blockers, and the next exact action. Keep this handoff short enough to be immediately usable, while preserving all critical constraints.
+**Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5.
+
+**Update this section at every session end:** Record latest commit, actual validation results, blockers, and next exact action.
