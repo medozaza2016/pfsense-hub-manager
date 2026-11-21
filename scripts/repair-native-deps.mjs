@@ -60,8 +60,8 @@ function installedVersion(name, fromDirectory) {
 
 const requirements = [
   { owner: "Rollup", name: rollupNativeName, version: rollup.data.optionalDependencies?.[rollupNativeName], from: rollup.directory, prefix: root },
-  { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory, prefix: path.dirname(vite.directory) },
-  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, prefix: path.dirname(tsx.directory) }
+  { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory, prefix: vite.directory },
+  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, prefix: path.dirname(path.dirname(apiEsbuild.directory)) }
 ];
 
 const repairs = new Map();
