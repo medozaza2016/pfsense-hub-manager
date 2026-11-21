@@ -1301,3 +1301,53 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(max-width:620px){
   .fleet-device-updated{grid-template-columns:36px minmax(0,1fr)}
 }
+
+
+/* Human-readable read-only firewall diagnostics */
+.diagnostic-results{display:grid;gap:17px}
+.diagnostic-results .check-result-summary{margin:0;align-items:center}
+.diagnostic-results .check-result-summary>div{display:grid;gap:4px}
+.diagnostic-results .check-result-summary>div span{font-size:.7rem;color:#6f7b87}
+.diagnostic-summary-warning{border-color:#f0dfc1;background:#fffbf2}
+.diagnostic-summary-warning strong{color:#99601d}
+.diagnostic-summary-warning>span{color:#99601d;font-weight:700}
+.diagnostic-section{display:grid;gap:12px}
+.diagnostic-section-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.diagnostic-section-heading h3,.diagnostic-info-card h3{margin:4px 0 0;color:#29313a;font-size:.96rem;letter-spacing:-.025em}
+.diagnostic-section-note{font-size:.68rem;color:#84909b}
+.diagnostic-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.diagnostic-stat{display:grid;align-content:start;gap:5px;min-width:0;padding:13px 14px;border:1px solid #e8ebef;border-radius:11px;background:#fff}
+.diagnostic-stat>span{font-size:.68rem;font-weight:650;color:#737e89}
+.diagnostic-stat strong{font-size:1.2rem;line-height:1.25;letter-spacing:-.035em;color:#28313a;overflow-wrap:anywhere}
+.diagnostic-stat small{font-size:.64rem;line-height:1.4;color:#929aa4}
+.diagnostic-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.diagnostic-info-card{min-width:0;padding:15px;border:1px solid #e8ebef;border-radius:11px;background:#fff}
+.diagnostic-info-card dl{display:grid;gap:8px;margin:13px 0 0}
+.diagnostic-info-card dl>div{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:7px;border-bottom:1px solid #f0f2f4}
+.diagnostic-info-card dl>div:last-child{padding-bottom:0;border-bottom:0}
+.diagnostic-info-card dt{font-size:.68rem;color:#78838e;overflow-wrap:anywhere}
+.diagnostic-info-card dd{margin:0;text-align:right;font-size:.7rem;font-weight:650;color:#38434e;overflow-wrap:anywhere}
+.diagnostic-info-card .diagnostic-version{display:block;margin-top:11px;color:#263747;font-size:1rem;overflow-wrap:anywhere}
+.diagnostic-empty{margin:12px 0 0;font-size:.72rem;color:#87919b;line-height:1.5}
+.technical-details{border:1px solid #e4e8ed;border-radius:11px;background:#f9fafb;overflow:hidden}
+.technical-details summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;cursor:pointer;list-style:none}
+.technical-details summary::-webkit-details-marker{display:none}
+.technical-details summary>span:first-child{display:grid;gap:4px;min-width:0}
+.technical-details summary strong{font-size:.78rem;color:#35404b}
+.technical-details summary small{font-size:.67rem;color:#818c97}
+.technical-details-toggle{flex:0 0 auto;color:#e65d2a;font-size:.7rem;font-weight:700}
+.technical-details[open] .technical-details-toggle{font-size:0}
+.technical-details[open] .technical-details-toggle:after{content:"Collapse";font-size:.7rem}
+.technical-details pre{max-height:45vh;margin:0;padding:15px;border-top:1px solid #e4e8ed;border-radius:0;background:#172638;color:#e5edf6;font-size:.69rem;line-height:1.5;overflow:auto;white-space:pre;overflow-wrap:normal}
+.diagnostic-disclaimer{margin:0;font-size:.68rem;line-height:1.5}
+@media(max-width:720px){
+ .diagnostic-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .diagnostic-detail-grid{grid-template-columns:1fr}
+ .diagnostic-section-heading{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:420px){
+ .diagnostic-stat-grid{gap:7px}
+ .diagnostic-stat{padding:11px}
+ .diagnostic-stat strong{font-size:1.05rem}
+ .diagnostic-results .check-result-summary{align-items:flex-start}
+}
