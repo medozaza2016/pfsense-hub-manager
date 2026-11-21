@@ -8,14 +8,14 @@ function recordCount(value:unknown):number|null{return Array.isArray(value)?valu
 export class PfSenseProvider{
  constructor(private readonly client:PfSenseClient,private readonly config:AppConfig,private readonly pool:Pool){}
  async ensureDevice():Promise<void>{
-  await this.pool.query(`INSERT INTO managed_devices(id,name,location,edition,api_base_url)
-   VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,location=EXCLUDED.location,
-   edition=EXCLUDED.edition,api_base_url=EXCLUDED.api_base_url,updated_at=now()`,
+  await this.pool.query(`INSERT INTO managed_devices(id,name,location,edition,api_base_url,is_demo)
+   VALUES($1,$2,$3,$4,$5,false) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,location=EXCLUDED.location,
+   edition=EXCLUDED.edition,api_base_url=EXCLUDED.api_base_url,is_demo=false,updated_at=now()`,
    [this.config.PFSENSE_DEVICE_ID,this.config.PFSENSE_DEVICE_NAME,this.config.PFSENSE_DEVICE_LOCATION||null,this.config.PFSENSE_EDITION,this.config.PFSENSE_API_BASE_URL]);
  }
  async listDevices(){
-  const result=await this.pool.query("SELECT id,name,location,edition,enabled FROM managed_devices ORDER BY name");
-  return result.rows.map(row=>({id:row.id,name:row.name,location:row.location,edition:row.edition,release:null,enabled:row.enabled}));
+  const result=await this.pool.query("SELECT id,name,location,edition,enabled,is_demo FROM managed_devices ORDER BY name");
+  return result.rows.map(row=>({id:row.id,name:row.name,location:row.location,edition:row.edition,release:null,enabled:row.enabled,isDemo:row.is_demo,connectionState:row.is_demo?"unknown":"unknown"}));
  }
  async collect(deviceId:string,onResult:(group:string,result:"success"|"failure",errorClass?:string,durationMs?:number)=>void){
   if(deviceId!==this.config.PFSENSE_DEVICE_ID)return null;
