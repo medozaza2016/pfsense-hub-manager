@@ -123,6 +123,68 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it("tests replacement credentials before encrypting and saving them", async () => {
+    query.mockResolvedValueOnce({
+      rows: [{ api_base_url: input.apiBaseUrl, ca_certificate_pem: null, tls_servername: null }],
+      rowCount: 1
+    });
+    getMock
+      .mockResolvedValueOnce({ data: { version: "2.8.1" } })
+      .mockResolvedValueOnce({ data: { status: "ok" } });
+    const replacement = {
+      apiKey: "replacement-read-only-api-key",
+      caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----",
+      tlsServername: "branch.example.test"
+    };
+
+    const result = await provider.updateDeviceCredentials("branch-device-id", replacement);
+
+    expect(getMock).toHaveBeenNthCalledWith(1, "version");
+    expect(getMock).toHaveBeenNthCalledWith(2, "system");
+    expect(closeMock).toHaveBeenCalledOnce();
+    expect(query).toHaveBeenCalledTimes(2);
+    const [statement, values] = query.mock.calls[1] as unknown as [string, unknown[]];
+    expect(statement).toContain("UPDATE managed_devices");
+    expect(values).not.toContain(replacement.apiKey);
+    expect(decryptSecret({ ciphertext: String(values[0]), iv: String(values[1]), tag: String(values[2]) }, encryptionKey)).toBe(replacement.apiKey);
+    expect(values[3]).toBe(replacement.caCertificatePem);
+    expect(values[4]).toBe(replacement.tlsServername);
+    expect(result).toMatchObject({ deviceId: "branch-device-id", connection: { reachable: true } });
+    expect(JSON.stringify(result)).not.toContain(replacement.apiKey);
+  });
+
+  it("does not replace stored credentials when the new connection or TLS verification fails", async () => {
+    query.mockResolvedValueOnce({
+      rows: [{ api_base_url: input.apiBaseUrl, ca_certificate_pem: null, tls_servername: null }],
+      rowCount: 1
+    });
+    getMock.mockRejectedValueOnce(new Error("Firewall TLS verification failed."));
+
+    await expect(provider.updateDeviceCredentials("branch-device-id", {
+      apiKey: "replacement-read-only-api-key",
+      caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----"
+    })).rejects.toThrow("Firewall TLS verification failed.");
+
+    expect(query).toHaveBeenCalledOnce();
+    expect(closeMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not rotate primary firewall credentials through the device workflow", async () => {
+    await expect(provider.updateDeviceCredentials(primaryDeviceId, {
+      apiKey: "replacement-read-only-api-key"
+    })).rejects.toThrow("Primary firewall credentials are managed by the installation secrets");
+    expect(query).not.toHaveBeenCalled();
+    expect(getMock).not.toHaveBeenCalled();
+  });
+
+  it("returns not found without testing credentials for an unknown device", async () => {
+    await expect(provider.updateDeviceCredentials("missing-device", {
+      apiKey: "replacement-read-only-api-key"
+    })).resolves.toBeNull();
+    expect(query).toHaveBeenCalledOnce();
+    expect(getMock).not.toHaveBeenCalled();
+  });
+
   it("returns only inventory fields and never selects stored credentials", async () => {
     query.mockResolvedValueOnce({
       rows: [{
