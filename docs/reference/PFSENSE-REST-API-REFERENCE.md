@@ -23,7 +23,7 @@ An operation being documented or appearing in the firewall permission inventory 
 3. **Implemented**, supported by a specific manager adapter capability.
 4. **Enabled**, explicitly allowed by manager policy and firewall permissions.
 
-The current manager milestone is read-only. The dedicated `pfsense_hub` firewall API account currently has only the eight endpoint/method privileges listed below. It does not automatically gain access to other operations in the full OpenAPI specification. When a feature adds an endpoint, update both sides deliberately: grant the firewall account only the exact required endpoint/method privilege, and update the manager backend's fixed route/method allowlist, device capability metadata, and caller authorization. The backend must enforce its own endpoint and capability allowlist. The frontend is not a security boundary. Do not implement a generic proxy that accepts arbitrary upstream paths, HTTP methods, or payloads.
+The current manager milestone is read-only. The dedicated `pfsense_hub` firewall API account currently has nine approved GET endpoint/method privileges: the eight core operational reads listed below plus `GET /api/v2/system/restapi/version` for package-version discovery. It does not automatically gain access to other operations in the full OpenAPI specification. When a feature adds an endpoint, update both sides deliberately: grant the firewall account only the exact required endpoint/method privilege, and update the manager backend's fixed route/method allowlist, device capability metadata, and caller authorization. The backend must enforce its own endpoint and capability allowlist. The frontend is not a security boundary. Do not implement a generic proxy that accepts arbitrary upstream paths, HTTP methods, or payloads.
 
 ## Adding a future endpoint
 
@@ -75,7 +75,7 @@ For exact path, method, parameter, request-body, response, and schema details, c
 
 ## Current verified integration
 
-These eight GET operations previously returned HTTP 200 on the recorded Plus firewall. That confirms successful reachability in that test, not complete schema validation or compatibility with other versions.
+These eight core operational GET operations previously returned HTTP 200 on the recorded Plus firewall. The additional package-version probe is listed separately below. That confirms successful reachability in that test, not complete schema validation or compatibility with other versions.
 
 | Method | Endpoint | Current use |
 |---|---|---|
@@ -87,6 +87,7 @@ These eight GET operations previously returned HTTP 200 on the recorded Plus fir
 | GET | `/api/v2/diagnostics/arp_table` | Documented and reachable, not exposed in initial manager API |
 | GET | `/api/v2/firewall/states` | Documented and reachable, individual entries excluded from initial manager API |
 | GET | `/api/v2/firewall/states/size` | Aggregate state-table size |
+| GET | `/api/v2/system/restapi/version` | REST API package version metadata, read from `data.current_version`; adjacent PATCH excluded |
 
 The pfSense CE profile remains unverified. Do not claim Plus/CE compatibility until independently tested.
 
