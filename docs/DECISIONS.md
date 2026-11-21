@@ -94,7 +94,7 @@ This document records confirmed architectural decisions. Proposals and open ques
 
 ### DEC-020, Local-only initial UI exposure
 **Status:** Accepted as an implementation safety boundary
-**Decision:** Until manager-user authentication and authorization are selected and implemented, publish the web UI only on the LXC loopback address (127.0.0.1). Do not expose the application through a public reverse proxy or public interface. Access it remotely through an authenticated administrative tunnel such as SSH. The API and database remain unpublished to the host network.
+**Decision:** Until manager-user authentication and authorization are implemented, publish the web UI only on loopback (127.0.0.1) by default, or explicitly on the host's Tailscale interface when remote tailnet access is required. Do not bind the UI to all interfaces (0.0.0.0), expose it on the LAN or public internet, or place it behind a public reverse proxy. Restrict Tailscale access with ACLs or grants. Tailscale network access does not replace application authentication and authorization. The API and database remain unpublished to the host network.
 
 
 ### DEC-021, Approved frontend workspace design and navigation
