@@ -360,6 +360,23 @@ app.post("/api/v1/devices", async (request, reply) => {
   }
 });
 
+const updateDeviceSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  location: z.string().trim().max(120).nullable(),
+  edition: z.enum(["plus", "ce", "unknown"]),
+  enabled: z.boolean()
+}).strict();
+
+app.patch("/api/v1/devices/:deviceId", async (request, reply) => {
+  if (request.managerUser!.role !== "admin") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Administrator access is required." } });
+  const parsed = updateDeviceSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_DEVICE_INPUT", message: "Check the appliance name, location, edition, and enabled status." } });
+  const { deviceId } = request.params as { deviceId: string };
+  const updated = await provider.updateDevice(deviceId, parsed.data);
+  if (!updated) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  return { data: updated };
+});
+
 app.get("/api/v1/devices/:deviceId/capabilities", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
   const device = (await provider.listDevices()).find(item => item.id === deviceId);
