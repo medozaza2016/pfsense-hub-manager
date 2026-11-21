@@ -97,6 +97,7 @@ app.addHook("onResponse", async (request, reply) => {
   const route = request.routeOptions.url ?? "unmatched";
   const start = (request as typeof request & { metricStart?: bigint }).metricStart ?? process.hrtime.bigint();
   requests.inc({ method: request.method, route, status: String(reply.statusCode) });
+  if (reply.statusCode === 401 || reply.statusCode === 403) { const actor = (request as typeof request & { admin?: AdminUser }).admin; void appendAudit(pool, { actorId: actor?.id ?? null, actorUsername: actor?.username ?? null, actorType: actor ? "user" : "anonymous", action: reply.statusCode === 403 ? "auth.access_denied" : "auth.authentication_required", outcome: "denied", summary: "Protected API request was denied", requestId: request.id, metadata: { method: request.method, route } }).catch(() => undefined); }
   requestDuration.observe({ method: request.method, route }, Number(process.hrtime.bigint() - start) / 1e9);
 });
 
@@ -371,6 +372,23 @@ app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
     else lastSuccess.set({ device_id: deviceId }, Date.now() / 1000);
   });
   const failures = result?.failedOperations ?? 8;
+  if (failures > 0) {
+    await upsertAlert(pool, {
+      deduplicationKey: "device-poll:" + deviceId,
+      severity: failures === 8 ? "critical" : "warning",
+      title: failures === 8 ? "Firewall is unreachable" : "Firewall polling is degraded",
+      message: failures + " of 8 read-only status operations failed. Review the integration and network path.",
+      source: "pfSense integration",
+      resourceType: "device",
+      resourceId: deviceId
+    });
+  } else {
+    const resolved = await pool.query(
+      `UPDATE alerts SET status='resolved',resolved_at=now(),last_seen_at=now()
+        WHERE deduplication_key='device-poll:' || $1 AND status IN ('active','acknowledged') RETURNING id`, [deviceId]
+    );
+    if (resolved.rowCount) await appendAudit(pool, { actorType: "system", action: "alert.auto_resolve", outcome: "success", targetType: "device", targetId: deviceId, summary: "Automatically resolved recovered firewall polling alert", metadata: { resolvedCount: resolved.rowCount }, requestId: request.id });
+  }
   deviceUp.set({ device_id: deviceId }, failures === 0 ? 1 : 0);
   return reply.code(failures === 8 ? 502 : 200).send({ data: result?.results ?? {}, meta: { deviceId, outcome: failures === 0 ? "success" : "partial", failedOperations: failures, durationMs: Date.now() - started } });
 });
