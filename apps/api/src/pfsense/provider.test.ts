@@ -232,6 +232,23 @@ describe("pfSense provider device registration and credential safety", () => {
   });
 
 
+  it("discovers the installed REST API package version without changing core health", async () => {
+    getMock.mockImplementation(async (operation: string) => operation === "restApiVersion"
+      ? { data: { current_version: "2.3.0" } }
+      : operation === "version" ? { data: { version: "26.07.2-RELEASE" } }
+        : operation === "system" ? { data: { architecture: "arm64" } }
+          : { data: { status: "ok" } });
+
+    const result = await provider.collect(primaryDeviceId, vi.fn());
+
+    expect(result).toMatchObject({ failedOperations: 0, connectionStatus: "online" });
+    expect(getMock).toHaveBeenCalledWith("restApiVersion");
+    const metadataWrite = query.mock.calls.find(([statement]) =>
+      String(statement).includes("rest_api_package_version=COALESCE"));
+    expect(metadataWrite).toBeDefined();
+    expect(metadataWrite?.[1]).toEqual(["26.07.2-RELEASE", "arm64", "2.3.0", primaryDeviceId]);
+  });
+
   it("persists online status and timestamps after a fully successful read-only collection", async () => {
     getMock.mockResolvedValue({ data: { status: "ok" } });
     const onResult = vi.fn();
