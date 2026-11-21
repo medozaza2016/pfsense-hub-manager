@@ -143,3 +143,19 @@ This is not a production release. The manager has no user login or role model ye
 - Distinguish a successful command submission from confirmed service health. Refresh runtime state after every operation and report partial failures.
 
 This is an approved product scope, not an implemented feature. Implementation and host-runtime validation remain pending.
+
+
+### System Monitoring and Recovery implementation sequence, November 21, 2026
+
+- [x] Approve the four-service monitoring scope and fixed-project boundary (DEC-026).
+- [x] Approve `admin` and `user` visibility/operation permissions (DEC-027).
+- [ ] Add database-backed `admin` / `user` roles and include the role in authenticated session results.
+- [ ] Enforce server-side admin authorization for every operational API route; add 401/403 tests.
+- [ ] Add safe user provisioning/role management and last-admin protection.
+- [ ] Add read-only monitoring contracts and bounded sanitized logs.
+- [ ] Implement and review the restricted cross-platform host-side management agent.
+- [ ] Add individual and stack operations only after agent boundary, confirmation, audit, and host recovery tests pass.
+- [ ] Add the Administration UI, preserving the approved design; keep controls visible but disabled for regular users.
+- [ ] Validate on Windows 11 with Docker Desktop and Linux production deployment separately.
+
+**Gate:** No Docker operation endpoint or UI action may be enabled until role enforcement and the host-agent security boundary are tested. Host resource metrics must come from reliable host-side telemetry, not be inferred from container process metrics.
