@@ -56,6 +56,17 @@ if (-not (Test-Path $keyFile) -or (Get-Item $keyFile).Length -eq 0) {
   [IO.File]::WriteAllText((Join-Path (Get-Location) $keyFile),$key.Trim(),[Text.UTF8Encoding]::new($false)); $key=$null
 }
 Protect-File $keyFile
+$credentialKeyFile="secrets\\device_credentials_key"
+if (-not (Test-Path $credentialKeyFile) -or (Get-Item $credentialKeyFile).Length -eq 0) {
+  $rng=[Security.Cryptography.RandomNumberGenerator]::Create()
+  $bytes=[byte[]]::new(32)
+  $rng.GetBytes($bytes)
+  $rng.Dispose()
+  $credentialKey=[BitConverter]::ToString($bytes).Replace("-","").ToLowerInvariant()
+  [IO.File]::WriteAllText((Join-Path (Get-Location) $credentialKeyFile),$credentialKey,[Text.UTF8Encoding]::new($false))
+  $credentialKey=$null
+}
+Protect-File $credentialKeyFile
 if (-not (Test-Path certs\pfsense-ca.pem)) {
   $ca=Read-Host "Private pfSense CA PEM path, or Enter if not required"
   if ($ca) { if (-not (Test-Path $ca -PathType Leaf)) { throw "CA file not found." }; Copy-Item $ca certs\pfsense-ca.pem }
