@@ -2,7 +2,7 @@
 
 ## Current security posture
 
-The first firewall integration is intentionally read-only. The manager authenticates using a dedicated pfSense local account and API key. The account is not an administrator and has only the eight GET endpoint privileges documented in INTEGRATION-STATUS.md.
+The first firewall integration is intentionally read-only. The manager authenticates using a dedicated pfSense local account and API key. The account is not an administrator and has only the nine explicitly approved GET endpoint privileges documented in INTEGRATION-STATUS.md.
 
 This is a development-stage configuration, not a completed production security review.
 
@@ -28,8 +28,9 @@ The pfsense_hub account is a regular local user, not an administrator. Its effec
 - /api/v2/diagnostics/arp_table
 - /api/v2/firewall/states
 - /api/v2/firewall/states/size
+- /api/v2/system/restapi/version
 
-Do not grant POST, PUT, PATCH, or DELETE privileges for the initial read-only milestone. Do not add broad WebConfigurator privileges merely to make the restricted account's GUI display pages.
+Do not grant POST, PUT, PATCH, or DELETE privileges for the initial read-only milestone. The REST API version resource also exposes PATCH, but only its GET permission is approved. Do not add broad WebConfigurator privileges merely to make the restricted account's GUI display pages.
 
 ## TLS
 
