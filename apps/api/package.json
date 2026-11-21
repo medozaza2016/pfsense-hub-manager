@@ -9,7 +9,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run src",
-    "db:seed:dev": "tsx src/db/seed-development.ts"
+    "db:seed:dev": "node dist/db/seed-development.js"
   },
   "dependencies": {
     "fastify": "^5.2.1",

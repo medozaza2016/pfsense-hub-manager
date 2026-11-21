@@ -13,8 +13,7 @@ Complete the Hub administration and accountability foundation before moving to t
 - Reuse the existing authentication, login flow, user records, and role model already established in the project.
 - The current signed-in administrator is the starting administrative context.
 - Do not create a second authentication system, duplicate users, or silently redefine roles.
-- First implementation task is to inspect and document the existing role names, permission checks, session handling, and user persistence. Preserve established behavior.
-- Administrative UI and API operations must enforce authorization on the server. Hiding a button in the browser is not authorization.
+- Administrative UI and API operations must enforce authorization on the server.
 - Any role or permission change must itself be audited.
 
 ## Scope A: User Management
@@ -34,63 +33,30 @@ Required capabilities:
 
 ## Scope B: Audit Logs
 
-Audit logging is a cross-cutting requirement, not merely a page. Every consequential application action must generate a durable audit event, including successful and failed attempts where applicable.
-
-Initial event coverage:
-- Authentication success and failure, logout, session expiration, and access denied.
-- User creation, edits, role changes, activation, deactivation, and password/invitation reset initiation.
-- Administrative configuration changes.
-- Site registration, connection profile/credential changes, and site removal.
-- Security-sensitive actions and operational actions that change Hub-managed state.
-- Relevant system jobs and integration failures, with the system recorded as the actor.
+Audit logging is a cross-cutting requirement. Initial event coverage includes authentication, user administration, configuration changes, site lifecycle, security-sensitive operations, and relevant system jobs.
 
 Each record should capture, where available:
-- UTC timestamp.
-- Actor identity and actor type (user or system).
+- UTC timestamp, actor identity and actor type.
 - Action/event type and outcome.
 - Target resource type and identifier.
-- A concise human-readable summary.
-- Request/correlation ID and source context where safe.
-- Sanitized structured metadata sufficient for investigation.
+- Concise summary, request/correlation ID, and sanitized metadata.
 
-Security and integrity requirements:
-- Audit records are append-only through application behavior. No ordinary UI/API edit or delete operation.
-- Never record passwords, API keys, access tokens, session cookies, private keys, or other secrets.
-- Do not store full credential payloads or sensitive request bodies in metadata.
-- Restrict audit-log access by the existing authorization model.
-- Support filtering by date range, actor, event, resource, and outcome.
-- Make records exportable only through an authorized, audited action.
-- Define retention and backup behavior before production release.
+Audit records are append-only through application behavior. Never record passwords, API keys, access tokens, session cookies, private keys, or sensitive request bodies. Restrict access by the existing authorization model. Define retention, export, backup, and restore behavior before production release.
 
 ## Scope C: Alerts and notifications
 
-Alerts are the operational and security attention layer. They should be generated from qualifying audit events and system conditions, then displayed in the Hub Alerts area.
+Alerts are the operational and security attention layer. Initial severity levels are Critical, Warning, and Info. Alerts retain a stable identifier, title, message, source, affected resource, first/last-seen timestamps, occurrence count, and status.
 
-Initial severity levels:
-- **Critical:** immediate security or service-impacting condition requiring urgent action.
-- **Warning:** degraded state, repeated failure, or condition needing investigation.
-- **Info:** meaningful event or state change that does not currently require intervention.
-
-Initial alert behavior:
-- Each alert has a stable event/alert identifier, severity, title, message, source, affected user/site/resource when relevant, first-seen time, and current status.
-- Show active and resolved alerts separately.
-- Support acknowledge and resolve actions with actor and timestamps.
-- Preserve alert history after resolution.
-- Deduplicate repeated occurrences where appropriate, update occurrence count and last-seen time, and avoid flooding the feed.
-- Provide filtering by severity, status, source, and date.
-- Make notification delivery a separate, configurable channel. A notification failure must not erase the alert or audit event.
-- Any acknowledge, resolve, mute, or notification-setting change must itself be audited.
+The lifecycle supports Active, Acknowledged, and Resolved states with actor and timestamps. Repeated occurrences are deduplicated where appropriate. Notification delivery remains separate and is not claimed unless a provider and delivery path are configured and tested.
 
 ## Integration contract
 
 1. An action or system condition occurs.
 2. Authorization is checked where the action is user initiated.
 3. The application writes the audit event with a clear outcome.
-4. If the event matches an alert rule, an alert is created or an existing alert is updated.
-5. The Alerts page displays the alert and its lifecycle.
-6. Any notification is dispatched independently and its delivery result is recorded without exposing secrets.
-
-Audit and alert persistence must be transactional where they are part of the same database operation. Notification delivery is separate from the audit and alert persistence boundary.
+4. Qualifying conditions create or update alerts.
+5. The Alerts page displays the alert lifecycle.
+6. Notification delivery is independent of audit and alert persistence.
 
 ## Delivery sequence
 
@@ -125,6 +91,27 @@ Delivered on the feature branch:
 - User Management, Audit Logs, and Alerts screens use API-backed data and include loading, empty, error, and action states.
 - Added a development-only, transactional, idempotent seed command for nine standard users, 50 alerts, and 100 synthetic audit events.
 - Seeded users receive random unknown passwords, the existing administrator account is not changed, and synthetic audit events are labeled in metadata.
+- Seeded user accounts are all role `user`; seven are active and two are disabled to exercise account-state handling.
+
+## Running the development seed
+
+The seed is guarded by `NODE_ENV=development`. It applies pending migrations, requires an existing active administrator, and uses a transaction plus a seed ledger to prevent duplicate runs.
+
+For a local Windows development environment, build the API first, set `NODE_ENV=development` and a development-only `DATABASE_URL`, then run:
+
+```powershell
+npm run build --workspace @pfsense-hub/api
+$env:NODE_ENV = "development"
+npm run db:seed:dev
+```
+
+For the Docker Compose API container, explicitly override its production environment only for this one command:
+
+```powershell
+docker compose exec -e NODE_ENV=development api npm run db:seed:dev
+```
+
+Do not run this command against a production database. Running it a second time reports that the dataset was already applied and makes no changes. Seeded user accounts have randomly generated, unknown passwords; assign a password through the User Management workflow before attempting to sign in as one.
 
 ## Verification and remaining release gates
 
@@ -132,7 +119,7 @@ Delivered on the feature branch:
 - Verify administrator and regular-user access in the Windows Docker environment.
 - Validate migrations against a copy of the current PostgreSQL database.
 - Verify last-active-admin protection and append-only enforcement against PostgreSQL.
-- Run `npm run db:seed:dev` only against the local development database, then rerun it to confirm it skips without creating duplicates.
+- Run the seed once and rerun it to confirm that the second invocation skips without creating duplicates.
 - Define audit/alert retention, backup, restore, and notification delivery policy before production release.
 
 ## Known limitations
