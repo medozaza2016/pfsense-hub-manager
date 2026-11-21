@@ -276,3 +276,9 @@
 @keyframes global-toast-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:600px){.global-toast-region{top:10px;right:10px;left:10px;width:auto}.global-toast{padding:12px}}
 @media(prefers-reduced-motion:reduce){.global-toast{animation:none}}
+
+/* Protected signed-in administrator row */
+.user-name-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.user-self-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:#eaf2ff;color:#205eb8;font-size:10px;font-weight:750;letter-spacing:.01em;white-space:nowrap}
+.user-protected-label{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:5px 10px;border:1px solid #d8e3f1;border-radius:8px;background:#f5f8fc;color:#60748e;font-size:11px;font-weight:700;white-space:nowrap}
+.ui-role-select:disabled{opacity:.72;cursor:not-allowed;background-color:#f5f8fc;color:#63758e}
