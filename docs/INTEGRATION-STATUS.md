@@ -32,7 +32,7 @@ The original direct-IP TLS certificate was self-signed and failed normal curl ce
 
 - Dedicated local pfSense account: pfsense_hub
 - Account role: regular user, not a member of the admins group
-- Effective API permissions: eight explicitly assigned GET permissions listed below
+- Effective API permissions: eight previously verified GET permissions plus the newly approved GET permission for REST API package-version discovery
 - API key: created for pfsense_hub
 - Authentication header: X-API-Key
 - Secret material: not recorded here and must never be committed
@@ -97,3 +97,8 @@ The existing 172.10.x.x addressing is intentionally being left unchanged for thi
 The repository now contains an initial Fastify backend provider wired to exactly the eight GET paths above. The manager API's read-only overview route invokes these operations sequentially, records per-operation outcome and duration in PostgreSQL, and emits bounded Prometheus metrics. ARP and firewall-state response rows are reduced to counts when the upstream data is an array; the raw rows are not returned or stored. System, gateway, interface, and service payloads are not exposed as raw records by the provider; only collection indicators/counts are returned. The state-size and version responses are included for initial inspection.
 
 This implementation has since been exercised in the Windows local Docker Compose environment. The user reported a successful firewall connection test with the API version endpoint responding, followed by successful read-only collection. This is a user-reported manual result, not an independently captured test transcript in this document. Local validation of the newest React Router changes remains pending. Deployment and validation on the target Proxmox LXC remain separate pending work.
+
+
+## Additional approved compatibility probe
+
+The operator added the GET permission for /api/v2/system/restapi/version. The manager probes this separately from the eight core operational checks and reads data.current_version. No live response has yet been captured, so the installed package version remains unknown. The adjacent PATCH method is not called or authorized.
