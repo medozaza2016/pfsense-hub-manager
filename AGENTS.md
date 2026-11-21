@@ -68,12 +68,12 @@ These rules apply to every agent, contributor, service, and future feature in th
 
 ## Endpoint onboarding and authentication maintenance
 
-- The current `pfsense_hub` firewall account and manager integration are intentionally limited to the eight GET endpoints recorded in `docs/reference/PFSENSE-REST-API-REFERENCE.md`. Do not assume that the account can access other documented API operations.
+- The current `pfsense_hub` firewall account and manager integration use nine approved GET operations: eight core operational endpoints plus `GET /api/v2/system/restapi/version` for REST API package-version discovery. See `docs/reference/PFSENSE-REST-API-REFERENCE.md`. Do not assume that the account can access other documented API operations.
 - When a feature requires an additional endpoint, first verify the exact route, HTTP method, request/response schema, and compatibility against the target firewall's installed REST API package and release. A path in the OpenAPI export or permission inventory is a candidate, not proof of runtime support.
 - Update the firewall-side service account permissions only for the exact endpoint/method required by the approved feature, using least privilege. Keep the account read-only while the product milestone is read-only. Never grant broad API, command-prompt, reboot, halt, apply, or configuration-write privileges as a shortcut.
 - Update the manager-side authentication/authorization configuration and capability allowlist for each newly approved operation. This includes the backend's upstream method/route allowlist, device capability metadata, and caller role authorization. Firewall permissions alone do not enable a manager feature, and manager code must not assume that a firewall permission exists.
 - Record the permission change, target firewall profile, package version, test result, and any rollback steps. Test both allowed access and denied access before marking the operation supported. Keep per-device capability differences explicit.
-- Do not change the existing eight-endpoint scope or expand firewall privileges automatically when the OpenAPI export changes. Every additional endpoint requires explicit feature approval and verification.
+- Do not expand the existing nine-operation scope or firewall privileges automatically when the OpenAPI export changes. Every additional endpoint requires explicit feature approval and verification.
 
 ## Frontend routing standard
 
