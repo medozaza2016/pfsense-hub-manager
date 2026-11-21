@@ -41,7 +41,7 @@ The product does not replace pfSense itself, require Netgate Nexus, assume every
 
 **Initial scenario:** The administrator opens one dashboard and can identify both locations, see whether each firewall is reachable, and review the operational information that its installed REST API version supports.
 
-Additional user roles and multi-user collaboration requirements have not yet been specified.
+The application uses two roles for the initial manager-user model: `admin` and `user`. Both authenticated roles may view System Monitoring and Recovery status in Administration. Operational controls are visible but disabled for `user`; only `admin` may invoke service or stack operations. The backend must enforce this authorization on every operation. Unauthenticated requests are denied.
 
 ## 6. Functional requirements and phased delivery
 
