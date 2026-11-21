@@ -24,15 +24,15 @@ Track each dimension independently. An operation can be specified but unknown on
 | Edition | pfSense Plus |
 | Release | 26.07.2-RELEASE |
 | Architecture | ARM, ARM Cortex-A53 |
-| REST API package version | Not recorded |
+| REST API package version | v2.11.0, as displayed by the manager compatibility profile on 2026-11-21 |
 | Authentication | Dedicated regular user `pfsense_hub`, API key |
 | TLS | Self-signed certificate, diagnostic verification bypass only |
 
-Eight GET operations returned HTTP 200 from the manager LXC: `/api/v2/status/system`, `/api/v2/status/gateways`, `/api/v2/status/interfaces`, `/api/v2/status/services`, `/api/v2/system/version`, `/api/v2/diagnostics/arp_table`, `/api/v2/firewall/states`, and `/api/v2/firewall/states/size`. See `INTEGRATION-STATUS.md`.
+The eight core operational GET operations were previously verified against this Plus firewall: `/api/v2/status/system`, `/api/v2/status/gateways`, `/api/v2/status/interfaces`, `/api/v2/status/services`, `/api/v2/system/version`, `/api/v2/diagnostics/arp_table`, `/api/v2/firewall/states`, and `/api/v2/firewall/states/size`. A ninth read-only GET, `/api/v2/system/restapi/version`, was added specifically to discover the installed package version. The compatibility UI reported 9 of 9 endpoint checks as Verified and displayed package version `v2.11.0` on 2026-11-21. See `INTEGRATION-STATUS.md`.
 
 ## Compatibility metadata collection
 
-The manager includes one additional approved read-only probe: GET /api/v2/system/restapi/version. It reads the installed package version from data.current_version. The adjacent PATCH operation is excluded. Release and architecture are stored only when explicitly named fields are present in existing responses, never inferred from CPU model. Missing values remain unknown. Probe failures do not affect operational connection health or erase existing metadata. The verification timestamp advances only when a package version is returned, and does not mean the full compatibility matrix is certified.
+The manager includes one additional approved read-only probe: `GET /api/v2/system/restapi/version`. It reads the installed package version from `data.current_version`; the current Plus device profile displays `v2.11.0`. The adjacent `PATCH` operation is excluded. Release and architecture are stored only when explicitly named fields are present in existing responses, never inferred from CPU model. Missing values remain unknown. Probe failures do not affect operational connection health or erase existing metadata. The verification timestamp advances only when a package version is returned, and does not mean the full compatibility matrix is certified.
 
 ## Verification workflow
 1. Pin the OpenAPI source and checksum.
