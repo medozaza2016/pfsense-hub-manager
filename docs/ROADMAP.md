@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Discovery completed. Initial application foundation scaffolded; CI and Docker image builds passed. Live runtime validation on the Proxmox LXC remains pending.**
+**Initial application foundation and first-run manager authentication implemented. Windows Docker installation is running successfully. Authentication build and runtime validation remain pending on the development machine.**
 
 ## M0, Discovery and environment validation
 
@@ -102,4 +102,4 @@ The exact firewall-to-hub connection method remains deferred. The transport abst
 
 The initial application scaffold is committed: React/Vite web app, Fastify API, PostgreSQL Compose service, initial SQL migration, Dockerfiles, local-only web exposure, Docker-secret API-key mount, strict HTTPS client, fixed allowlist for the eight previously verified GET endpoints, per-operation poll records, health/readiness endpoints, Prometheus-format metrics, and CI workflow. The first UI can trigger a read-only collection and show the result. ARP rows and individual firewall state rows are reduced to aggregate counts and are not persisted.
 
-This is not a production release. The manager has no user login or role model yet. Only one firewall is configured through environment variables. The live TLS trust chain, Compose build on the LXC, API response compatibility, and CI run must be verified before calling the foundation operational. No write API, shell execution, reboot, halt, apply, or arbitrary upstream proxy is implemented.
+This is not a production release. Initial manager login, one-time administrator bootstrap, and Admin/User roles are now implemented, but the authentication build and runtime behavior still require validation. Only one firewall is currently configured through environment variables. The live TLS trust chain, multi-device onboarding, API response compatibility, and production security review remain outstanding. No write API, shell execution, reboot, halt, apply, or arbitrary upstream proxy is implemented.
