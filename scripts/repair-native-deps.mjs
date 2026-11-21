@@ -50,10 +50,10 @@ if (!rollupNativeName) {
 }
 
 function installedVersion(name, fromDirectory) {
+  const packageJson = path.join(path.dirname(fromDirectory), ...name.split("/"), "package.json");
   try {
-    const req = createRequire(path.join(fromDirectory, "package.json"));
-    const entry = req.resolve(name);
-    return findPackageRoot(entry, name).data.version;
+    const data = JSON.parse(fs.readFileSync(packageJson, "utf8"));
+    return data.name === name ? data.version : null;
   } catch {
     return null;
   }
