@@ -177,8 +177,8 @@ Write operations are outside the initial implementation scope. When they are con
 The following remain unresolved and must not be inferred from this document:
 
 - Database engine, schema, retention, and backup/restore policy.
-- Manager administrator authentication, session model, and roles.
-- Secret storage, injection, rotation, and revocation mechanism.
+- Whether to add an external identity provider or MFA beyond the implemented local-account authentication.
+- Credential rotation, revocation, backup, and administrator recovery procedures.
 - Ingress/reverse proxy, public or private application URL, and TLS termination.
 - Firewall-to-hub transport and whether a site-local connector is required.
 - Polling intervals, concurrency limits, and initial dashboard metrics.
