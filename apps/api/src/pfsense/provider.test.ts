@@ -316,6 +316,30 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(lifecycleWrite?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
   });
 
+  it("maps pfSense interface assignment IDs to their human-readable descriptions", async () => {
+    getMock.mockResolvedValueOnce({ data: [
+      { id: "wan", if: "mvneta0", descr: "WAN" },
+      { id: "lan", if: "mvneta1", descr: "LAN" },
+      { id: "opt1", if: "mvneta1.10", descr: "Main" },
+      { id: "opt2", if: "mvneta1.20", descr: "TestLab" },
+      { id: "opt3", if: "mvneta1.30", descr: "IoT" },
+      { id: "opt4", if: "mvneta1.50", descr: "Mgt" }
+    ] });
+
+    const result = await provider.getInterfaceAssignments(primaryDeviceId);
+
+    expect(getMock).toHaveBeenCalledWith("interfaceAssignments");
+    expect(result).toEqual([
+      { id: "wan", description: "WAN" },
+      { id: "lan", description: "LAN" },
+      { id: "opt1", description: "Main" },
+      { id: "opt2", description: "TestLab" },
+      { id: "opt3", description: "IoT" },
+      { id: "opt4", description: "Mgt" }
+    ]);
+    expect(closeMock).toHaveBeenCalledOnce();
+  });
+
   it("reads firewall rules in bounded pages and returns only allowlisted fields", async () => {
     getMock.mockResolvedValueOnce({ data: [{
       id: 7, type: "pass", interface: ["lan"], source: "10.0.0.0/24",
