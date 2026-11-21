@@ -56,7 +56,7 @@ if (-not (Test-Path $keyFile) -or (Get-Item $keyFile).Length -eq 0) {
   [IO.File]::WriteAllText((Join-Path (Get-Location) $keyFile),$key.Trim(),[Text.UTF8Encoding]::new($false)); $key=$null
 }
 Protect-File $keyFile
-$credentialKeyFile="secrets\\device_credentials_key"
+$credentialKeyFile="secrets\device_credentials_key"
 if (-not (Test-Path $credentialKeyFile) -or (Get-Item $credentialKeyFile).Length -eq 0) {
   $rng=[Security.Cryptography.RandomNumberGenerator]::Create()
   $bytes=[byte[]]::new(32)
