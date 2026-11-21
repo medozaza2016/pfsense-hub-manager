@@ -267,6 +267,35 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(query.mock.calls[0]?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
   });
 
+  it("returns lifecycle metadata in the manager API naming convention after inventory edits", async () => {
+    query.mockResolvedValueOnce({
+      rows: [{
+        id: "branch-device-id",
+        name: "Branch firewall",
+        location: "Branch office",
+        edition: "ce",
+        enabled: true,
+        connectionStatus: "online",
+        lastCheckedAt: "2026-11-21T12:00:00.000Z",
+        lastSuccessAt: "2026-11-21T12:00:00.000Z",
+        lastErrorClass: null
+      }],
+      rowCount: 1
+    });
+
+    const updated = await provider.updateDevice("branch-device-id", {
+      name: "Branch firewall", location: "Branch office", edition: "ce", enabled: true
+    });
+
+    expect(updated).toMatchObject({
+      connectionStatus: "online",
+      lastCheckedAt: "2026-11-21T12:00:00.000Z",
+      lastSuccessAt: "2026-11-21T12:00:00.000Z",
+      lastErrorClass: null
+    });
+    expect(query.mock.calls[0]?.[0]).toContain('connection_status AS "connectionStatus"');
+  });
+
   it("protects the primary firewall from deletion without querying the database", async () => {
     await expect(provider.deleteDevice(primaryDeviceId)).resolves.toBe(false);
     expect(query).not.toHaveBeenCalled();
