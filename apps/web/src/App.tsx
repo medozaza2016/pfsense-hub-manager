@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
 type Role = "admin" | "user";
 type User = { id: string; name: string; email: string; role: Role; active?: boolean };
@@ -34,6 +34,16 @@ export default function App() {
   const [firewallFilter, setFirewallFilter] = useState<"all" | "enabled" | "disabled">("all");
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceChecks, setDeviceChecks] = useState<Record<string, { outcome: "success" | "partial" | "failed"; checkedAt: string; failedOperations: number }>>({});
+  const [editDevice, setEditDevice] = useState<Device | null>(null);
+  const [checkModalOpen, setCheckModalOpen] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+  const checkResultsRef = useRef<HTMLPreElement | null>(null);
+  useEffect(() => {
+    if (overview && checkModalOpen) {
+      checkResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      if (checkResultsRef.current) checkResultsRef.current.scrollTop = checkResultsRef.current.scrollHeight;
+    }
+  }, [overview, checkModalOpen]);
   const [users, setUsers] = useState<User[]>([]);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -114,18 +124,32 @@ export default function App() {
     finally { setBusy(false); }
   }
   async function runCheck(id: string) {
-    setBusy(true); setOverview(null); setError(null); setSelectedDeviceId(id);
+    setBusy(true); setOverview(null); setError(null); setCheckError(null); setSelectedDeviceId(id); setCheckModalOpen(true);
     try {
       const result = await api<Record<string, unknown>>("/api/v1/devices/" + encodeURIComponent(id) + "/overview");
       const outcome = result.meta?.outcome === "success" ? "success" : "partial";
       const failedOperations = result.meta?.failedOperations ?? 0;
       setOverview(result.data);
       setDeviceChecks(current => ({ ...current, [id]: { outcome, checkedAt: new Date().toISOString(), failedOperations } }));
-      if (outcome !== "success") setError("Read-only check completed with " + failedOperations + " failed operations.");
+      if (outcome !== "success") setCheckError("Read-only check completed with " + failedOperations + " failed operations.");
     } catch (e) {
       setDeviceChecks(current => ({ ...current, [id]: { outcome: "failed", checkedAt: new Date().toISOString(), failedOperations: 8 } }));
-      setError(e instanceof Error ? e.message : "Read-only check failed.");
+      setCheckError(e instanceof Error ? e.message : "Read-only check failed.");
     } finally { setBusy(false); }
+  }
+  async function saveDeviceEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editDevice) return;
+    setBusy(true); setError(null);
+    try {
+      const result = await api<Device>("/api/v1/devices/" + encodeURIComponent(editDevice.id), {
+        method: "PATCH",
+        body: JSON.stringify({ name: editDevice.name, location: editDevice.location || null, edition: editDevice.edition, enabled: editDevice.enabled })
+      });
+      setDevices(current => current.map(device => device.id === result.data.id ? result.data : device));
+      setEditDevice(null);
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to update firewall."); }
+    finally { setBusy(false); }
   }
   function firewallPayload() {
     return { name: firewallName, location: firewallLocation, edition: firewallEdition, apiBaseUrl: firewallUrl, apiKey: firewallApiKey, ...(firewallCa.trim() ? { caCertificatePem: firewallCa } : {}), ...(firewallTlsServername.trim() ? { tlsServername: firewallTlsServername.trim() } : {}) };
@@ -256,7 +280,6 @@ export default function App() {
         <button className="nav-link group-toggle" aria-expanded={firewallsOpen} onClick={() => setFirewallsOpen(v => !v)}><span className="nav-icon">◈</span><span>Firewalls</span><span className="nav-chevron">{firewallsOpen ? "⌄" : "›"}</span></button>
         {firewallsOpen && <div className="sub-nav">
           <button className={page === "firewalls" ? "sub-link active" : "sub-link"} onClick={() => navigate("firewalls")}>Inventory <span className="nav-count">{devices.length}</span></button>
-          {isAdmin && <button className={page === "add-firewall" ? "sub-link active" : "sub-link"} onClick={() => navigate("add-firewall")}>Add firewall</button>}
         </div>}
       </div>
       <div className="nav-divider"><span>OBSERVABILITY</span></div>
@@ -345,7 +368,7 @@ export default function App() {
                   <p>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</p>
                   <div className="inventory-meta"><span><i className="meta-dot dot-configured"/>Configuration {device.enabled ? "enabled" : "disabled"}</span><span className={checkClass}><i className="meta-dot"/> {checkLabel}</span>{check && <span>Last checked {new Date(check.checkedAt).toLocaleString()}</span>}</div>
                 </div></div>
-                <div className="inventory-device-actions"><button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
+                <div className="inventory-device-actions">{isAdmin && <button onClick={() => setEditDevice({ ...device })}>Edit</button>}<button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
                 {selectedDeviceId === device.id && <div className="inventory-detail">
                   <div><span>Appliance</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div>
                   <div><span>Live connectivity</span><strong>{checkLabel}</strong></div><div><span>Failed operations</span><strong>{check ? check.failedOperations : "Not checked"}</strong></div>
@@ -354,7 +377,7 @@ export default function App() {
               </article>;
             })}
           </section>
-          {overview && <section className="content-card inventory-results"><div className="inventory-section-heading"><div><span className="eyebrow">DEVICE DIAGNOSTICS</span><h2>Read-only results: {devices.find(device => device.id === selectedDeviceId)?.name ?? "Selected appliance"}</h2><p className="muted">Returned data is associated with the appliance selected above.</p></div><span className={deviceChecks[selectedDeviceId ?? ""]?.outcome === "success" ? "result-status result-good" : "result-status result-warning"}>{deviceChecks[selectedDeviceId ?? ""]?.outcome === "success" ? "Successful" : "Partial / failed"}</span></div><pre>{JSON.stringify(overview,null,2)}</pre><p className="muted">The response contains data returned by read-only firewall endpoints. Sensitive credential values are not displayed.</p></section>}
+
         </div>}
         {page === "add-firewall" && isAdmin && <div className="page-stack firewall-onboarding">
           <div className="inventory-heading"><div><p className="dashboard-kicker">FIREWALLS / ONBOARDING</p><h2>Register a pfSense appliance</h2><p className="muted">Add a firewall using a dedicated read-only API key. Credentials are encrypted before storage.</p></div><button onClick={() => navigate("firewalls")}>Cancel</button></div>
@@ -429,6 +452,29 @@ export default function App() {
           </div>
         </div>}
                 {page === "users" && !isAdmin && <PlaceholderPage eyebrow="ACCESS CONTROL" title="Restricted section" description="Your account has read-only access. User administration is available to administrators only." items={[]} />}
+        {editDevice && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setEditDevice(null); }}>
+          <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-firewall-title">
+            <div className="modal-heading"><div><span className="eyebrow">FLEET MANAGEMENT</span><h2 id="edit-firewall-title">Edit firewall</h2><p className="muted">Update the inventory record. API credentials and connection settings are not changed here.</p></div><button type="button" onClick={() => setEditDevice(null)} disabled={busy} aria-label="Close">×</button></div>
+            <form className="modal-form" onSubmit={saveDeviceEdit}>
+              <label>Display name<input value={editDevice.name} onChange={e => setEditDevice({ ...editDevice, name: e.target.value })} minLength={2} maxLength={120} required /></label>
+              <label>Location / site<input value={editDevice.location ?? ""} onChange={e => setEditDevice({ ...editDevice, location: e.target.value })} maxLength={120} /></label>
+              <label>pfSense edition<select value={editDevice.edition} onChange={e => setEditDevice({ ...editDevice, edition: e.target.value })}><option value="plus">pfSense Plus</option><option value="ce">pfSense CE</option><option value="unknown">Unknown</option></select></label>
+              <label className="modal-checkbox"><input type="checkbox" checked={editDevice.enabled} onChange={e => setEditDevice({ ...editDevice, enabled: e.target.checked })} /> Enable this appliance for read-only checks</label>
+              <div className="modal-actions"><button type="button" onClick={() => setEditDevice(null)} disabled={busy}>Cancel</button><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button></div>
+            </form>
+          </section>
+        </div>}
+        {checkModalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setCheckModalOpen(false); }}>
+          <section className="modal-card check-modal" role="dialog" aria-modal="true" aria-labelledby="check-modal-title">
+            <div className="modal-heading"><div><span className="eyebrow">DEVICE DIAGNOSTICS</span><h2 id="check-modal-title">Read-only check: {devices.find(device => device.id === selectedDeviceId)?.name ?? "Firewall"}</h2><p className="muted">Queries supported read-only pfSense endpoints. No firewall settings are changed.</p></div><button type="button" onClick={() => setCheckModalOpen(false)} disabled={busy} aria-label="Close">×</button></div>
+            <div className="check-modal-body">
+              {busy && !overview && <div className="check-loading"><span className="check-spinner"/> <strong>Running read-only checks…</strong><p className="muted">Waiting for the firewall API responses.</p></div>}
+              {checkError && <div className="notice">{checkError}</div>}
+              {overview && <><div className="check-result-summary"><strong>{deviceChecks[selectedDeviceId ?? ""]?.outcome === "success" ? "Check completed successfully" : "Check completed with issues"}</strong><span>{deviceChecks[selectedDeviceId ?? ""]?.failedOperations ?? 0} failed operations</span></div><pre ref={checkResultsRef}>{JSON.stringify(overview,null,2)}</pre><p className="muted">The response contains data returned by read-only firewall endpoints. Sensitive credential values are not displayed.</p></>}
+            </div>
+            <div className="modal-actions"><button onClick={() => setCheckModalOpen(false)} disabled={busy}>Close</button>{selectedDeviceId && <button className="primary-button" onClick={() => void runCheck(selectedDeviceId)} disabled={busy}>Run again</button>}</div>
+          </section>
+        </div>}
         <footer className="app-footer">pfSense Hub Manager <span>·</span> {isAdmin ? "Administrator access" : "Read-only access"} <span>·</span> Firewall configuration changes are not enabled in this release</footer>
       </main>
     </div>
