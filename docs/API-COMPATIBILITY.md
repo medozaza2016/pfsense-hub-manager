@@ -30,6 +30,10 @@ Track each dimension independently. An operation can be specified but unknown on
 
 Eight GET operations returned HTTP 200 from the manager LXC: `/api/v2/status/system`, `/api/v2/status/gateways`, `/api/v2/status/interfaces`, `/api/v2/status/services`, `/api/v2/system/version`, `/api/v2/diagnostics/arp_table`, `/api/v2/firewall/states`, and `/api/v2/firewall/states/size`. See `INTEGRATION-STATUS.md`.
 
+## Compatibility metadata collection
+
+The manager includes one additional approved read-only probe: GET /api/v2/system/restapi/version. It reads the installed package version from data.current_version. The adjacent PATCH operation is excluded. Release and architecture are stored only when explicitly named fields are present in existing responses, never inferred from CPU model. Missing values remain unknown. Probe failures do not affect operational connection health or erase existing metadata. The verification timestamp advances only when a package version is returned, and does not mean the full compatibility matrix is certified.
+
 ## Verification workflow
 1. Pin the OpenAPI source and checksum.
 2. Record target firewall edition, release, architecture, and package version.
