@@ -413,6 +413,20 @@ app.get("/api/v1/devices/:deviceId/firewall/rules", async (request, reply) => {
   }
 });
 
+app.get("/api/v1/devices/:deviceId/interfaces", async (request, reply) => {
+  if (request.managerUser!.role !== "admin") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Administrator access is required." } });
+  const { deviceId } = request.params as { deviceId: string };
+  const device = (await provider.listDevices()).find(item => item.id === deviceId);
+  if (!device || !device.enabled) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found or is disabled." } });
+  try {
+    const result = await provider.getInterfaceAssignments(deviceId);
+    if (!result) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found or is disabled." } });
+    return { data: result };
+  } catch (error) {
+    return reply.code(502).send({ error: { code: "INTERFACE_ASSIGNMENTS_UNAVAILABLE", message: error instanceof Error ? error.message : "Unable to read interface assignments." } });
+  }
+});
+
 app.get("/api/v1/devices/:deviceId/capabilities", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
   const device = (await provider.listDevices()).find(item => item.id === deviceId);
