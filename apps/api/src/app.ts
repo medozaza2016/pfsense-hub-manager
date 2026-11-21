@@ -366,6 +366,29 @@ app.patch("/api/v1/devices/:deviceId", async (request, reply) => {
   return { data: updated };
 });
 
+const updateDeviceCredentialsSchema = z.object({
+  apiKey: z.string().min(1).max(4096),
+  caCertificatePem: z.string().max(65536).nullable().optional(),
+  tlsServername: z.string().trim().min(1).max(253).nullable().optional()
+}).strict();
+
+app.patch("/api/v1/devices/:deviceId/credentials", async (request, reply) => {
+  if (request.managerUser!.role !== "admin") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Administrator access is required." } });
+  const parsed = updateDeviceCredentialsSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_CREDENTIAL_INPUT", message: "Enter a valid API key and optional CA certificate and TLS server name." } });
+  const { deviceId } = request.params as { deviceId: string };
+  if (deviceId === config.PFSENSE_DEVICE_ID) {
+    return reply.code(409).send({ error: { code: "PRIMARY_CREDENTIALS_MANAGED_BY_INSTALLATION", message: "Update the primary firewall credentials through the protected installation secret workflow." } });
+  }
+  try {
+    const updated = await provider.updateDeviceCredentials(deviceId, parsed.data);
+    if (!updated) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+    return { data: updated };
+  } catch (error) {
+    return reply.code(400).send({ error: { code: "CREDENTIAL_UPDATE_FAILED", message: error instanceof Error ? error.message : "Unable to update firewall credentials." } });
+  }
+});
+
 app.delete("/api/v1/devices/:deviceId", async (request, reply) => {
   if (request.managerUser!.role !== "admin") return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Administrator access is required." } });
   const { deviceId } = request.params as { deviceId: string };
