@@ -267,7 +267,7 @@ describe("pfSense provider device registration and credential safety", () => {
     const result = await provider.collect(primaryDeviceId, vi.fn());
 
     expect(result).toMatchObject({ failedOperations: 1, connectionStatus: "degraded" });
-    expect(query).toHaveBeenCalledTimes(9); // Eight poll records plus one lifecycle update.
+    expect(query).toHaveBeenCalledTimes(10); // Device credential lookup, eight poll records, and one lifecycle update.
     expect(query.mock.calls.at(-1)?.[1]).toEqual(["degraded", false, "timeout", primaryDeviceId]);
   });
 
@@ -277,7 +277,7 @@ describe("pfSense provider device registration and credential safety", () => {
     const result = await provider.collect(primaryDeviceId, vi.fn());
 
     expect(result).toMatchObject({ failedOperations: 8, connectionStatus: "offline" });
-    expect(query).toHaveBeenCalledTimes(9); // Eight poll records plus one lifecycle update.
+    expect(query).toHaveBeenCalledTimes(10); // Device credential lookup, eight poll records, and one lifecycle update.
     expect(query.mock.calls.at(-1)?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
   });
 
