@@ -62,14 +62,16 @@ Status meanings:
 - [x] User reported a successful local firewall connection test and read-only collection.
 
 ### Validated local development baseline
-- [x] Windows development installer completed successfully, including native Rollup/esbuild verification, dependency audit, type checks, production builds, Docker image builds, and Compose startup.
-- [x] `npm audit`: 0 vulnerabilities.
-- [x] API unit tests: 15 tests passed across 5 test files.
-- [x] `npm run typecheck`: API and web passed.
-- [x] `npm run build`: API and web production builds passed. Vite emitted two non-fatal React Router `use client` directive warnings.
-- [x] Docker Compose services `api`, `db`, and `web` reported healthy; web bound only to `127.0.0.1:8080`.
-- [x] User reports application acceptance check passed.
-- [~] Untracked `package-lock.json` has valid root/workspace metadata and contains both esbuild native dependency entries. User diagnostics exposed a repair-script path bug that placed the API esbuild native package at root `node_modules/@esbuild` instead of `node_modules/esbuild/node_modules/@esbuild`. Repair script corrected; final local verification pending.
+- [x] Windows development installer completed successfully, including native Rollup/esbuild verification, dependency audit, type checks, production builds, Docker image builds, and Compose startup (earlier validated session).
+- [x] `npm audit`: 0 vulnerabilities (earlier user-reported validation; not rerun in the latest command sequence).
+- [x] API tests: 29 tests passed across 7 test files in the latest Windows run.
+- [x] `npm run typecheck`: API and web passed in the latest Windows run.
+- [x] `npm run build`: API and web production builds passed in the latest Windows run. Vite emitted two non-fatal React Router `use client` directive warnings.
+- [x] Latest user-reported Git sync: `git pull --ff-only origin feature/installation-onboarding` returned `Already up to date`.
+- [x] Earlier Docker Compose validation reported `api`, `db`, and `web` healthy, with web bound only to `127.0.0.1:8080`; not rerun in the latest command sequence.
+- [x] User reports the application acceptance check passed (earlier validation).
+- [x] The npm workspace `package-lock.json` is tracked in the repository; the old untracked-lockfile note is obsolete.
+- [x] The injectable Fastify app factory and separated runtime bootstrap compile and pass the latest tests.
 
 ### Remaining foundation work
 - [~] Expand route-level tests beyond the initial authentication/authorization cases, especially registration, credential update, device lifecycle, and error paths.
