@@ -200,3 +200,13 @@ The administrator shall manage Hub access configuration from the existing **Admi
 The UI and API shall distinguish at least: configured desired address, pending application, applied deployment binding, and verified reachability. Saving an address must not be presented as proof that the host is reachable. A real probe from an appropriate client/network vantage point is required to mark reachability verified.
 
 The application container cannot change the Docker host's published-port binding merely by updating a database row. Applying a binding change requires a separate, narrowly scoped host-side deployment mechanism or an explicit operator apply workflow. The implementation must not grant the web/API containers unrestricted Docker socket access. Until manager authentication/authorization and the host-side apply boundary are implemented and reviewed, remote binding remains unavailable and loopback remains enforced. Public reverse-proxy exposure is out of scope for the unauthenticated stage.
+
+
+
+## Manager identity, audit, and alert administration
+
+The manager authentication baseline uses database-backed sessions and the two supported roles, `admin` and `user`. The initial manager-user administration capability shall allow administrators to create accounts, assign these roles, enable or disable accounts, and reset account passwords. Password material must never be returned to clients. Disabled accounts cannot authenticate, and security-sensitive account changes revoke existing sessions. The last active administrator cannot be disabled or demoted.
+
+Audit events are persisted as append-only records. The initial implementation records authentication outcomes, access denials, user administration, Hub reachability preference changes, alert lifecycle actions, and automatic recovery of firewall polling alerts. Audit records include UTC timestamps, actor information, action, outcome, target, safe summary, request ID, and sanitized metadata. Secrets and password material must be redacted.
+
+Alerts are persisted separately from audit events. The initial rule creates or updates a deduplicated warning/critical alert when read-only firewall polling fails, and automatically resolves it after a fully successful poll. Administrators can acknowledge and resolve alerts. Notification delivery, retention policy, export, and production backup policy remain separate release requirements and must not be represented as implemented.
