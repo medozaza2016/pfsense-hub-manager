@@ -72,7 +72,9 @@ export class PfSenseProvider {
       `UPDATE managed_devices
        SET name=$1,location=$2,edition=$3,enabled=$4,updated_at=now()
        WHERE id=$5
-       RETURNING id,name,location,edition,enabled,connection_status,last_checked_at,last_success_at,last_error_class`,
+       RETURNING id,name,location,edition,enabled,
+                 connection_status AS "connectionStatus",last_checked_at AS "lastCheckedAt",
+                 last_success_at AS "lastSuccessAt",last_error_class AS "lastErrorClass"`,
       [input.name.trim(), input.location?.trim() || null, input.edition, input.enabled, deviceId]
     );
     return result.rows[0] ?? null;
