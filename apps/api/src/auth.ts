@@ -55,7 +55,7 @@ export async function findSession(pool: pg.Pool, token: string): Promise<AdminUs
     `SELECT u.id, u.username, u.role
        FROM admin_sessions s
        JOIN admin_users u ON u.id = s.admin_user_id
-      WHERE s.token_hash = $1 AND s.expires_at > now()`,
+      WHERE s.token_hash = $1 AND s.expires_at > now() AND u.is_active = true`,
     [hashSessionToken(token)]
   );
   if (!result.rowCount) return null;
