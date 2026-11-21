@@ -98,9 +98,9 @@ export function DataTable<T>({
   </section>;
 }
 
-export function ListToolbar({ search, onSearch, placeholder, filters, activeCount = 0, onClear, children, actions }: {
+export function ListToolbar({ search, onSearch, placeholder, filters, activeCount = 0, onClear, children, actions, chips = [] }: {
   search: string; onSearch: (value: string) => void; placeholder?: string;
-  filters?: boolean; activeCount?: number; onClear?: () => void; children?: ReactNode; actions?: ReactNode;
+  filters?: boolean; activeCount?: number; onClear?: () => void; children?: ReactNode; actions?: ReactNode; chips?: Array<{ label: string; onRemove: () => void }>; chips?: Array<{ label: string; onRemove: () => void }>;
 }) {
   const [expanded, setExpanded] = useState(false);
   return <section className="ui-list-toolbar">
@@ -113,6 +113,7 @@ export function ListToolbar({ search, onSearch, placeholder, filters, activeCoun
         {actions}
       </div>
     </div>
+    {chips.length > 0 && <div className="ui-active-chips">{chips.map((chip,index)=><button type="button" key={index} onClick={chip.onRemove}>{chip.label}<span aria-hidden="true"> ×</span></button>)}</div>}
     {filters && expanded && <div className="ui-filter-panel">
       <div className="ui-filter-panel-heading"><div><strong>Filter records</strong><span>Combine filters to narrow this list</span></div>
       {activeCount > 0 && onClear && <button type="button" className="ui-clear-filters" onClick={onClear}>Clear all</button>}</div>
