@@ -95,3 +95,8 @@ This document records confirmed architectural decisions. Proposals and open ques
 ### DEC-020, Local-only initial UI exposure
 **Status:** Accepted as an implementation safety boundary
 **Decision:** Until manager-user authentication and authorization are selected and implemented, publish the web UI only on the LXC loopback address (127.0.0.1). Do not expose the application through a public reverse proxy or public interface. Access it remotely through an authenticated administrative tunnel such as SSH. The API and database remain unpublished to the host network.
+
+
+### DEC-021, Approved frontend workspace design and navigation
+**Status:** Accepted
+**Decision:** Use a light main workspace with a dark navy sidebar, restrained blue primary actions, and clear status colors. The Hub workspace uses global navigation. Opening a site replaces the Hub navigation with contextual Site navigation and a persistent **Back to Hub** action. On narrow screens, the sidebar becomes an off-canvas navigation drawer. Device configuration state must not be represented as live reachability unless the backend provides a verified connectivity result.
