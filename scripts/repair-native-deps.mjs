@@ -49,8 +49,8 @@ if (!rollupNativeName) {
   throw new Error(`Unsupported Windows architecture for Rollup native package: ${arch}`);
 }
 
-function installedVersion(name, fromDirectory) {
-  const packageJson = path.join(path.dirname(fromDirectory), ...name.split("/"), "package.json");
+function installedVersion(name, targetNodeModules) {
+  const packageJson = path.join(targetNodeModules, ...name.split("/"), "package.json");
   try {
     const data = JSON.parse(fs.readFileSync(packageJson, "utf8"));
     return data.name === name ? data.version : null;
@@ -62,13 +62,13 @@ function installedVersion(name, fromDirectory) {
 const requirements = [
   { owner: "Rollup", name: rollupNativeName, version: rollup.data.optionalDependencies?.[rollupNativeName], from: rollup.directory, targetNodeModules: path.dirname(rollup.directory) },
   { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory, targetNodeModules: path.dirname(viteEsbuild.directory) },
-  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, targetNodeModules: path.dirname(apiEsbuild.directory) }
+  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, targetNodeModules: path.join(apiEsbuild.directory, "node_modules") }
 ];
 
 const repairs = [];
 for (const item of requirements) {
   if (!item.version) throw new Error(`${item.owner} does not declare the expected native package ${item.name}.`);
-  const actual = installedVersion(item.name, item.from);
+  const actual = installedVersion(item.name, item.targetNodeModules);
   if (actual !== item.version) {
     console.log(`${item.owner}: ${item.name} requires ${item.version}, found ${actual ?? "missing"}.`);
     repairs.push(item);
@@ -111,7 +111,7 @@ for (const item of repairs) {
 
 const failures = [];
 for (const item of requirements) {
-  const actual = installedVersion(item.name, item.from);
+  const actual = installedVersion(item.name, item.targetNodeModules);
   if (actual !== item.version) failures.push(`${item.owner}: expected ${item.name}@${item.version}, found ${actual ?? "missing"}`);
 }
 if (failures.length) throw new Error(`Native dependency verification failed:\\n${failures.join("\\n")}`);
