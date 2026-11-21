@@ -12,9 +12,12 @@ const routes={
 export type PfSenseOperation=keyof typeof routes;
 export class PfSenseClient{
  private readonly base:URL; private readonly dispatcher:Promise<Agent>;
- constructor(private readonly config:AppConfig,private readonly key:string){
-  this.base=new URL(config.PFSENSE_API_BASE_URL);
-  this.dispatcher=(async()=>{const caPath=process.env.PFSENSE_CA_FILE;return caPath?new Agent({connect:{ca:await readFile(caPath),rejectUnauthorized:true}}):new Agent({connect:{rejectUnauthorized:true}});})();
+ constructor(private readonly config:AppConfig,private readonly key:string,options?:{baseUrl?:string;caCertificatePem?:string|null}){
+  this.base=new URL(options?.baseUrl ?? config.PFSENSE_API_BASE_URL);
+  this.dispatcher=(async()=>{
+   const ca=options?.caCertificatePem ? options.caCertificatePem : (!options && process.env.PFSENSE_CA_FILE ? await readFile(process.env.PFSENSE_CA_FILE) : undefined);
+   return new Agent({connect:{...(ca ? {ca} : {}),rejectUnauthorized:true}});
+  })();
  }
  async get(operation:PfSenseOperation){
   const dispatcher=await this.dispatcher;
