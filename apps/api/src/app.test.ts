@@ -52,6 +52,7 @@ function createHarness(role: "admin" | "user" | null = "admin") {
     updateDeviceCredentials: vi.fn(),
     deleteDevice: vi.fn(),
     capabilities: vi.fn().mockResolvedValue([]),
+    getFirewallRules: vi.fn().mockResolvedValue({ rules: [], truncated: false }),
     collect: vi.fn()
   } as unknown as PfSenseProvider;
 
@@ -120,6 +121,46 @@ describe("Fastify route authentication and authorization", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ data: [] });
+  });
+
+  it("denies regular users access to firewall rule inventory", async () => {
+    const { app, provider, cookie } = createHarness("user");
+    apps.push(app);
+    vi.mocked(provider.listDevices).mockResolvedValue([{
+      id: "device-1", enabled: true
+    }] as never);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/devices/device-1/firewall/rules",
+      headers: { cookie }
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe("FORBIDDEN");
+    expect(provider.getFirewallRules).not.toHaveBeenCalled();
+  });
+
+  it("allows administrators to read firewall rule inventory", async () => {
+    const { app, provider, cookie } = createHarness("admin");
+    apps.push(app);
+    vi.mocked(provider.listDevices).mockResolvedValue([{
+      id: "device-1", enabled: true
+    }] as never);
+    vi.mocked(provider.getFirewallRules).mockResolvedValue({
+      rules: [{ id: 7, type: "pass", source: "any", destination: "any" }],
+      truncated: false
+    } as never);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/devices/device-1/firewall/rules",
+      headers: { cookie }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.rules).toHaveLength(1);
+    expect(provider.getFirewallRules).toHaveBeenCalledWith("device-1");
   });
 
   it("allows an authenticated regular user to access permitted device inventory", async () => {
