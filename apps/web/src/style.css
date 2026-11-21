@@ -905,3 +905,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   .page-transition,.inventory-device,.inventory-detail{animation:none!important}
   .nav-link,.content-card,.stat-card,.inventory-overview article,.inventory-device-actions button{transition:none!important}
 }
+
+
+/* Dialog entrance motion */
+.modal-backdrop{animation:modal-backdrop-enter .16s ease both}
+.modal-card{animation:modal-card-enter .2s cubic-bezier(.2,.75,.25,1) both}
+@keyframes modal-backdrop-enter{from{opacity:0}to{opacity:1}}
+@keyframes modal-card-enter{from{opacity:0;transform:translateY(9px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){
+  .modal-backdrop,.modal-card{animation:none!important}
+}
