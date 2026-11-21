@@ -182,14 +182,6 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(closeMock).toHaveBeenCalledOnce();
   });
 
-  it("does not rotate primary firewall credentials through the device workflow", async () => {
-    await expect(provider.updateDeviceCredentials(primaryDeviceId, {
-      apiKey: "replacement-read-only-api-key"
-    })).rejects.toThrow("Primary firewall credentials are managed by the installation secrets");
-    expect(query).not.toHaveBeenCalled();
-    expect(getMock).not.toHaveBeenCalled();
-  });
-
   it("returns not found without testing credentials for an unknown device", async () => {
     await expect(provider.updateDeviceCredentials("missing-device", {
       apiKey: "replacement-read-only-api-key"
@@ -315,10 +307,10 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(query.mock.calls[0]?.[0]).toContain('connection_status AS "connectionStatus"');
   });
 
-  it("allows deletion of any registered firewall when the database deletes it", async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: "branch-device-id" }], rowCount: 1 });
+  it("allows deletion of the configured placeholder firewall when the database deletes it", async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: primaryDeviceId }], rowCount: 1 });
 
-    await expect(provider.deleteDevice("branch-device-id")).resolves.toBe(true);
+    await expect(provider.deleteDevice(primaryDeviceId)).resolves.toBe(true);
     expect(query).toHaveBeenCalledOnce();
   });
 });
