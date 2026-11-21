@@ -136,7 +136,7 @@ export default function App(){
  function go(id:Page){setPage(id);setMenuOpen(false);setQuery("");}
  function openSite(d:Device){setSelected(d);go("overview");}
  function backHub(){setSelected(null);go("overview");}
- function refresh(){setRefreshCount(x=>x+1);notify("Preview refreshed. No firewall was contacted.");}
+ async function refresh(){try{const records=await apiRequest<ManagedDeviceRecord[]>("/api/v1/devices");setLocalSites(records.map(record=>({id:record.id,name:record.name,location:record.location,edition:record.edition==="plus"?"Plus":record.edition==="ce"?"CE":"Unknown",address:"Not configured",state:"unknown",lastSeen:record.isDemo?"Development sample · not connected":"Awaiting verified status",isDemo:record.isDemo})));setRefreshCount(x=>x+1);notify("Managed-site inventory refreshed from the Hub API.");}catch(error){notify(error instanceof Error?error.message:"Unable to refresh managed-site inventory.");}}
  function addSite(){if(!formName.trim()){notify("Enter a site name to continue.");return;}const d:Device={id:"preview-"+Date.now(),name:formName.trim(),location:formLocation.trim()||"Location not set",edition:"Plus",address:"Not configured",state:"offline",lastSeen:"Not connected"};setLocalSites(s=>[...s,d]);setFormName("");setFormLocation("");setDialog("none");go("sites");notify("Preview site added locally. No device was registered with the backend.");}
  async function signOut(){await fetch("/api/v1/auth/logout",{method:"POST",credentials:"same-origin"});setAuthUser("");setAuthMode("login");setDialog("none");}
  if(authMode==="checking")return <AuthScreen mode="loading" onAuthenticated={()=>{}}/>;
