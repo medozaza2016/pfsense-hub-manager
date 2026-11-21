@@ -42,7 +42,9 @@ function getCookie(request: { headers: { cookie?: string } }): string | null {
   for (const part of raw.split(";")) {
     const separator = part.indexOf("=");
     if (separator < 0) continue;
-    if (part.slice(0, separator).trim() === COOKIE_NAME) return decodeURIComponent(part.slice(separator + 1).trim());
+    if (part.slice(0, separator).trim() === COOKIE_NAME) {
+      try { return decodeURIComponent(part.slice(separator + 1).trim()); } catch { return null; }
+    }
   }
   return null;
 }
@@ -104,7 +106,7 @@ app.post("/api/v1/auth/setup", async (request, reply) => {
     if (!user) throw new Error("Administrator account creation returned no user.");
     await db.query("COMMIT");
     const token = await createSession(pool, user.id);
-    setSessionCookie(reply, token.token, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
+    setSessionCookie(reply, token.token, ((request.protocol === "https" || request.headers["x-forwarded-proto"] === "https") || request.headers["x-forwarded-proto"] === "https"));
     return reply.code(201).send({ data: { id: user.id, username: user.username } });
   } catch (error) {
     try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
@@ -135,13 +137,13 @@ app.post("/api/v1/auth/login", async (request, reply) => {
   }
   loginAttempts.delete(ip);
   const session = await createSession(pool, user.id);
-  setSessionCookie(reply, session.token, request.protocol === "https");
+  setSessionCookie(reply, session.token, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
   return { data: { id: user.id, username: user.username } };
 });
 app.post("/api/v1/auth/logout", async (request, reply) => {
   const token = getCookie(request);
   if (token) await deleteSession(pool, token);
-  clearSessionCookie(reply, request.protocol === "https");
+  clearSessionCookie(reply, (request.protocol === "https" || request.headers["x-forwarded-proto"] === "https"));
   return { data: { signedOut: true } };
 });
 app.get("/api/v1/auth/me", async (request, reply) => {
@@ -167,11 +169,20 @@ app.put("/api/v1/hub-settings", async (request, reply) => {
   if (value.reachabilityMethod !== "local" && (!value.addressType || !value.address)) {
     return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "An address is required for the selected optional reachability method." } });
   }
-  if (value.addressType === "tailscale_ip" && !z.string().ip({ version: "v4" }).safeParse(value.address).success) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid Tailscale IPv4 address." } });
+  if (value.reachabilityMethod === "tailscale" && !["magic_dns", "tailscale_ip"].includes(value.addressType ?? "")) {
+    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Choose a Tailscale MagicDNS hostname or Tailscale IPv4 address." } });
   }
-  if (value.addressType === "magic_dns" && (!value.address?.includes(".") || /\s/.test(value.address))) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter the MagicDNS hostname assigned to the device." } });
+  if (value.reachabilityMethod === "hostname" && !["hostname", "ip"].includes(value.addressType ?? "")) {
+    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Choose a hostname or IP address." } });
+  }
+  if (["tailscale_ip", "ip"].includes(value.addressType ?? "") && !z.string().ip(value.addressType === "tailscale_ip" ? { version: "v4" } : {}).safeParse(value.address).success) {
+    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid IP address." } });
+  }
+  if (["magic_dns", "hostname"].includes(value.addressType ?? "")) {
+    const hostname = z.string().min(1).max(253).regex(/^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/);
+    if (!hostname.safeParse(value.address).success) {
+      return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid fully qualified hostname." } });
+    }
   }
   const admin = (request as typeof request & { admin?: { id: string } }).admin;
   const result = await pool.query(
