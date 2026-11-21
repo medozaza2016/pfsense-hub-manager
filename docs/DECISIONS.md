@@ -128,3 +128,9 @@ This document records confirmed architectural decisions. Proposals and open ques
 ### DEC-027, Monitoring visibility and administrator-only operations
 **Status:** Accepted  
 **Decision:** The manager defines two application roles for this feature: `admin` and `user`. Authenticated users with either role may view the System Monitoring and Recovery status information in Administration. Only `admin` may invoke service-level or whole-stack operational controls, including start, stop, restart, and Compose validation. For a `user`, those controls remain visible but disabled with a clear administrator-only explanation. The API must enforce the same rule server-side on every operational endpoint; frontend visibility or disabled state is not an authorization boundary. Unauthenticated requests are denied. This role rule does not authorize arbitrary Docker or host operations and does not relax the fixed project/service allowlists or host-side management boundary.
+
+
+
+### DEC-028, Manager user administration, audit events, and operational alerts
+**Status:** Accepted
+**Decision:** Preserve the existing database-backed session authentication and the existing `admin` and `user` roles. Add administrator-only user management, append-only audit records, and persisted operational alerts. Disabled accounts must not authenticate; role, activation, and password changes revoke the affected user's sessions. The last active administrator cannot be demoted or disabled. Audit data must exclude credentials and secret material. Alert lifecycle mutations require administrator authorization and must be audited. Initial automatic alerting is limited to the existing read-only firewall polling health signal. This decision does not authorize firewall configuration writes, arbitrary host operations, or an unreviewed notification channel.
