@@ -95,3 +95,8 @@ This document records confirmed architectural decisions. Proposals and open ques
 ### DEC-020, Local-only initial UI exposure
 **Status:** Accepted as an implementation safety boundary
 **Decision:** Until manager-user authentication and authorization are selected and implemented, publish the web UI only on the LXC loopback address (127.0.0.1). Do not expose the application through a public reverse proxy or public interface. Access it remotely through an authenticated administrative tunnel such as SSH. The API and database remain unpublished to the host network.
+
+### DEC-021, Frontend routing
+**Status:** Accepted  
+**Decision:** Use React Router for all frontend page navigation. Every navigable page must have a stable URL using lowercase kebab-case path segments. Routes must support direct links, browser history navigation, bookmarks, and refresh/deep links. Keep route definitions centralized and enforce access authorization in the backend independently of frontend route guards.
+
