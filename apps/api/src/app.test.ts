@@ -154,7 +154,7 @@ describe("Fastify route authentication and authorization", () => {
         edition: "ce",
         apiBaseUrl: "https://branch.example.test:10443",
         apiKey: "test-read-only-key",
-        caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----",
+        caCertificatePem: "-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----",
         tlsServername: "branch.example.test"
       }
     });
@@ -221,7 +221,7 @@ describe("Fastify route authentication and authorization", () => {
       headers: { cookie },
       payload: {
         apiKey: "replacement-read-only-key",
-        caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----",
+        caCertificatePem: "-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----",
         tlsServername: "branch.example.test"
       }
     });
@@ -232,6 +232,21 @@ describe("Fastify route authentication and authorization", () => {
       tlsServername: "branch.example.test"
     }));
     expect(response.body).not.toContain("replacement-read-only-key");
+  });
+
+  it("denies credential rotation to regular users", async () => {
+    const { app, provider, cookie } = createHarness("user");
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/devices/branch-device-id/credentials",
+      headers: { cookie },
+      payload: { apiKey: "replacement-read-only-key" }
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(provider.updateDeviceCredentials).not.toHaveBeenCalled();
   });
 
   it("prevents credential changes to the installation-managed primary firewall", async () => {
@@ -264,7 +279,7 @@ describe("Fastify route authentication and authorization", () => {
         edition: "ce",
         apiBaseUrl: "https://branch.example.test:10443",
         apiKey: "test-read-only-key",
-        caCertificatePem: "-----BEGIN CERTIFICATE-----\\ntest-ca\\n-----END CERTIFICATE-----",
+        caCertificatePem: "-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----",
         tlsServername: "branch.example.test"
       }
     });
