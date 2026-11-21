@@ -275,6 +275,8 @@ export default function App() {
       setCredentialTlsServername("");
       setClearCredentialCa(false);
       setClearCredentialTls(false);
+      const latest = await api<Device[]>("/api/v1/devices");
+      setDevices(latest.data);
       notify("Credentials verified and updated. The firewall passed its read-only connection test.", "success");
     } catch (e) {
       reportError(e instanceof Error ? e.message : "Credential update failed. Existing saved credentials were not changed.");
