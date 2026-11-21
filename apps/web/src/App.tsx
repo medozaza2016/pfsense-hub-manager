@@ -50,6 +50,8 @@ export default function App() {
   const [firewallUrl, setFirewallUrl] = useState("https://");
   const [firewallApiKey, setFirewallApiKey] = useState("");
   const [firewallCa, setFirewallCa] = useState("");
+  const [firewallTlsServername, setFirewallTlsServername] = useState("");
+  const [certificateDiscovery, setCertificateDiscovery] = useState<{ subjectAltName: string; fingerprint256: string | null; validTo: string | null; suggestedServername: string | null; dnsNames: string[] } | null>(null);
   const [firewallTested, setFirewallTested] = useState(false);
   const [firewallTestResult, setFirewallTestResult] = useState<string | null>(null);
 
@@ -121,7 +123,7 @@ export default function App() {
     finally { setBusy(false); }
   }
   function firewallPayload() {
-    return { name: firewallName, location: firewallLocation, edition: firewallEdition, apiBaseUrl: firewallUrl, apiKey: firewallApiKey, ...(firewallCa.trim() ? { caCertificatePem: firewallCa } : {}) };
+    return { name: firewallName, location: firewallLocation, edition: firewallEdition, apiBaseUrl: firewallUrl, apiKey: firewallApiKey, ...(firewallCa.trim() ? { caCertificatePem: firewallCa } : {}), ...(firewallTlsServername.trim() ? { tlsServername: firewallTlsServername.trim() } : {}) };
   }
   async function importCaCertificate(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -146,6 +148,25 @@ export default function App() {
     }
   }
 
+  async function discoverFirewallCertificate() {
+    setBusy(true); setError(null); setCertificateDiscovery(null); setFirewallTested(false); setFirewallTestResult(null);
+    try {
+      const result = await api<{ subjectAltName: string; fingerprint256: string | null; validTo: string | null; suggestedServername: string | null; dnsNames: string[] }>("/api/v1/devices/discover-certificate", {
+        method: "POST", body: JSON.stringify({ apiBaseUrl: firewallUrl })
+      });
+      setCertificateDiscovery(result.data);
+      if (result.data.suggestedServername) {
+        setFirewallTlsServername(result.data.suggestedServername);
+        setFirewallTestResult("Certificate discovered. TLS hostname was filled in automatically. Verify the fingerprint and provide the trust certificate before testing.");
+      } else {
+        setFirewallTlsServername("");
+        setFirewallTestResult("Certificate discovered, but it has no single unambiguous DNS name. Select a DNS name from the certificate or use an IP address listed in its SAN.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Certificate discovery failed.");
+    } finally { setBusy(false); }
+  }
+
   async function testFirewallConnection() {
     setBusy(true); setError(null); setFirewallTested(false); setFirewallTestResult(null);
     try {
@@ -162,7 +183,7 @@ export default function App() {
     setBusy(true); setError(null);
     try {
       await api("/api/v1/devices", { method: "POST", body: JSON.stringify(firewallPayload()) });
-      setFirewallApiKey(""); setFirewallCa(""); setFirewallTested(false); setFirewallTestResult(null);
+      setFirewallApiKey(""); setFirewallCa(""); setFirewallTlsServername(""); setCertificateDiscovery(null); setFirewallTested(false); setFirewallTestResult(null);
       if (currentUser) await loadAppData(currentUser);
       setPage("firewalls");
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to register firewall."); }
@@ -331,10 +352,20 @@ export default function App() {
                 <label>Display name<input value={firewallName} onChange={e => {setFirewallName(e.target.value);setFirewallTested(false);}} minLength={2} maxLength={120} placeholder="Branch pfSense CE" required /></label>
                 <label>Location / site<input value={firewallLocation} onChange={e => {setFirewallLocation(e.target.value);setFirewallTested(false);}} maxLength={120} placeholder="Branch office" /></label>
                 <label>pfSense edition<select value={firewallEdition} onChange={e => {setFirewallEdition(e.target.value as "plus" | "ce" | "unknown");setFirewallTested(false);}}><option value="plus">pfSense Plus</option><option value="ce">pfSense CE</option><option value="unknown">Unknown</option></select></label>
-                <label>API base URL<input type="url" value={firewallUrl} onChange={e => {setFirewallUrl(e.target.value);setFirewallTested(false);}} placeholder="https://192.168.1.1:10443" required /></label>
+                <label>API base URL<input type="url" value={firewallUrl} onChange={e => {setFirewallUrl(e.target.value);setFirewallTested(false);setCertificateDiscovery(null);setFirewallTlsServername("");setFirewallTestResult(null);}} placeholder="https://192.168.1.1:10443" required /></label>
+                <div className="field-action"><button type="button" onClick={() => void discoverFirewallCertificate()} disabled={busy || !firewallUrl.startsWith("https://")}>{busy ? "Discovering…" : "Discover TLS certificate"}</button><p className="field-hint">Reads the presented certificate without sending your API key. The certificate is not trusted automatically.</p></div>
               </div>
               <div className="form-section-title"><h3>API authentication</h3><p className="muted">Use a dedicated API key with only the eight required GET permissions.</p></div>
               <label>Read-only API key<input type="password" value={firewallApiKey} onChange={e => {setFirewallApiKey(e.target.value);setFirewallTested(false);}} autoComplete="off" required /></label>
+              {certificateDiscovery && <section className="certificate-discovery">
+                <h4>Discovered TLS certificate</h4>
+                <p><strong>DNS names:</strong> {certificateDiscovery.dnsNames.length ? certificateDiscovery.dnsNames.join(", ") : "No DNS Subject Alternative Name found"}</p>
+                <p><strong>SHA-256:</strong> <code>{certificateDiscovery.fingerprint256 || "Unavailable"}</code></p>
+                <p><strong>Expires:</strong> {certificateDiscovery.validTo || "Unknown"}</p>
+                {certificateDiscovery.suggestedServername && <p className="field-hint">TLS hostname automatically selected: <code>{firewallTlsServername}</code></p>}
+                <label>TLS server name<input value={firewallTlsServername} onChange={e => {setFirewallTlsServername(e.target.value);setFirewallTested(false);setFirewallTestResult(null);}} placeholder="DNS name from the certificate" /></label>
+                <p className="field-hint">The manager connects to the API URL above but verifies the certificate against this DNS name. Leave blank only when the certificate has a matching IP Subject Alternative Name.</p>
+              </section>}
               <div className="ca-certificate-field">
                 <label htmlFor="firewall-ca-file">Import certificate file (PEM, CRT, or CER), optional</label>
                 <input id="firewall-ca-file" type="file" accept=".pem,.crt,.cer,.txt,application/x-pem-file,application/x-x509-ca-cert" onChange={event => void importCaCertificate(event)} />
