@@ -4,16 +4,17 @@ import type { AppConfig } from "../config.js";
 import { decryptSecret } from "../auth/credential-crypto.js";
 import { PfSenseProvider, type FirewallInput } from "./provider.js";
 
-const { getMock, closeMock } = vi.hoisted(() => ({
+const { getMock, closeMock, constructorMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
-  closeMock: vi.fn()
+  closeMock: vi.fn(),
+  constructorMock: vi.fn()
 }));
 
 vi.mock("./client.js", () => ({
   PfSenseClient: class {
     get = getMock;
     close = closeMock;
-    constructor(..._args: unknown[]) {}
+    constructor(...args: unknown[]) { constructorMock(...args); }
   }
 }));
 
@@ -50,6 +51,7 @@ describe("pfSense provider device registration and credential safety", () => {
   beforeEach(() => {
     getMock.mockReset();
     closeMock.mockReset().mockResolvedValue(undefined);
+    constructorMock.mockReset();
     query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
     pool = { query } as unknown as Pool;
     provider = new PfSenseProvider({} as never, config, pool, encryptionKey);
@@ -65,6 +67,11 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(getMock).toHaveBeenNthCalledWith(1, "version");
     expect(getMock).toHaveBeenNthCalledWith(2, "system");
     expect(closeMock).toHaveBeenCalledOnce();
+    expect(constructorMock).toHaveBeenCalledWith(config, input.apiKey, {
+      baseUrl: input.apiBaseUrl,
+      caCertificatePem: null,
+      tlsServername: null
+    });
     expect(query).toHaveBeenCalledOnce();
 
     const [statement, values] = query.mock.calls[0] as unknown as [string, unknown[]];
@@ -142,6 +149,11 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(getMock).toHaveBeenNthCalledWith(1, "version");
     expect(getMock).toHaveBeenNthCalledWith(2, "system");
     expect(closeMock).toHaveBeenCalledOnce();
+    expect(constructorMock).toHaveBeenCalledWith(config, replacement.apiKey, {
+      baseUrl: input.apiBaseUrl,
+      caCertificatePem: replacement.caCertificatePem,
+      tlsServername: replacement.tlsServername
+    });
     expect(query).toHaveBeenCalledTimes(2);
     const [statement, values] = query.mock.calls[1] as unknown as [string, unknown[]];
     expect(statement).toContain("UPDATE managed_devices");
