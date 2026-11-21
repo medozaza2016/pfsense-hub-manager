@@ -26,7 +26,9 @@ const app = Fastify({
 
 const COOKIE_NAME = "pfsense_hub_session";
 const usernameSchema = z.string().trim().min(3).max(64).regex(/^[a-zA-Z0-9._-]+$/);
-const passwordSchema = z.string().min(14).max(128);\nconst userCreateSchema = z.object({ username: usernameSchema, password: passwordSchema, role: z.enum(["admin", "user"]) }).strict();\nconst userUpdateSchema = z.object({ role: z.enum(["admin", "user"]).optional(), isActive: z.boolean().optional(), password: passwordSchema.optional() }).strict().refine(v => Object.keys(v).length > 0);
+const passwordSchema = z.string().min(14).max(128);
+const userCreateSchema = z.object({ username: usernameSchema, password: passwordSchema, role: z.enum(["admin", "user"]) }).strict();
+const userUpdateSchema = z.object({ role: z.enum(["admin", "user"]).optional(), isActive: z.boolean().optional(), password: passwordSchema.optional() }).strict().refine(v => Object.keys(v).length > 0);
 const setupSchema = z.object({ username: usernameSchema, password: passwordSchema }).strict();
 const loginSchema = z.object({ username: usernameSchema, password: z.string().min(1).max(128) }).strict();
 const hubSettingsSchema = z.object({
@@ -305,7 +307,8 @@ app.post("/api/v1/alerts/:alertId/resolve", async (request, reply) => {
   await appendAudit(pool,{actorId:actor.id,actorUsername:actor.username,action:"alert.resolve",outcome:"success",targetType:"alert",targetId:alertId,summary:"Resolved alert",requestId:request.id});
   return { data:{ resolved:true } };
 });
-\napp.get("/api/v1/hub-settings", async () => {
+
+app.get("/api/v1/hub-settings", async () => {
   const result = await pool.query(
     "SELECT reachability_method AS \"reachabilityMethod\", address_type AS \"addressType\", address, https_port AS \"httpsPort\", updated_at AS \"updatedAt\" FROM hub_settings WHERE id=1"
   );
