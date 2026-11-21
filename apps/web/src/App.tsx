@@ -63,6 +63,7 @@ export default function App() {
   const [firewallSearch, setFirewallSearch] = useState("");
   const [firewallFilter, setFirewallFilter] = useState<"all" | "enabled" | "disabled">("all");
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [checkingDeviceId, setCheckingDeviceId] = useState<string | null>(null);
   const [deviceChecks, setDeviceChecks] = useState<Record<string, { outcome: "success" | "partial" | "failed"; checkedAt: string; failedOperations: number }>>({});
   const [editDevice, setEditDevice] = useState<Device | null>(null);
   const [credentialApiKey, setCredentialApiKey] = useState("");
@@ -175,7 +176,7 @@ export default function App() {
     finally { setBusy(false); }
   }
   async function runCheck(id: string) {
-    setBusy(true); setOverview(null);  setCheckError(null); setSelectedDeviceId(id); setCheckModalOpen(true);
+    setBusy(true); setOverview(null); setCheckError(null); setCheckingDeviceId(id); setCheckModalOpen(true);
     try {
       const result = await api<Record<string, unknown>>("/api/v1/devices/" + encodeURIComponent(id) + "/overview");
       const outcome = result.meta?.outcome === "success" ? "success" : "partial";
@@ -200,6 +201,7 @@ export default function App() {
         setDevices(latest.data);
       } catch { /* Keep the last known inventory if the refresh itself fails. */ }
       setBusy(false);
+      setCheckingDeviceId(null);
     }
   }
   async function confirmDeleteDevice() {
@@ -494,7 +496,7 @@ export default function App() {
                     {isAdmin && <button className="device-action device-action-edit" title="Edit appliance" aria-label={`Edit ${device.name}`} onClick={() => openDeviceEditor(device)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m13.8 3.2 3 3-9.7 9.7-3.8.8.8-3.8 9.7-9.7Z"/><path d="m11.9 5.1 3 3"/></svg><span>Edit</span></button>}
                     {isAdmin && <button className="device-action device-action-remove" title="Remove appliance" aria-label={`Remove ${device.name}`} onClick={() => { setDeleteConfirmation(""); setDeleteDevice(device); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h13M8 5.5V3.8h4v1.7m-6.5 0 .7 11h7.6l.7-11M8.2 8.2v5.7m3.6-5.7v5.7"/></svg><span>Remove</span></button>}
                     <button className="device-action device-action-details" aria-expanded={detailsOpen} onClick={() => setSelectedDeviceId(detailsOpen ? null : device.id)}><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 9v4m0-7h.01"/></svg><span>{detailsOpen ? "Hide" : "Details"}</span></button>
-                    <button className="device-action device-action-check primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.8 16 5v4.3c0 3.6-2.4 6.2-6 7.9-3.6-1.7-6-4.3-6-7.9V5l6-2.2Z"/><path d="m7.1 9.8 1.9 1.9 3.9-4"/></svg><span>{busy && selectedDeviceId === device.id ? "Checking…" : "Run check"}</span></button>
+                    <button className="device-action device-action-check primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.8 16 5v4.3c0 3.6-2.4 6.2-6 7.9-3.6-1.7-6-4.3-6-7.9V5l6-2.2Z"/><path d="m7.1 9.8 1.9 1.9 3.9-4"/></svg><span>{busy && checkingDeviceId === device.id ? "Checking…" : "Run check"}</span></button>
                   </div>
                   {detailsOpen && <div className="inventory-detail fleet-device-detail">
                     <div><span>Appliance</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div><div><span>Connection status</span><strong>{connectionStatusLabel(device.connectionStatus)}</strong></div><div><span>Last successful check</span><strong>{device.lastSuccessAt ? new Date(device.lastSuccessAt).toLocaleString() : "Not yet successful"}</strong></div><div><span>Last error class</span><strong>{device.lastErrorClass || "None"}</strong></div>
@@ -551,7 +553,7 @@ export default function App() {
                   {isAdmin && <button className="device-action device-action-edit" title="Edit appliance" aria-label={`Edit ${device.name}`} onClick={() => openDeviceEditor(device)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m13.8 3.2 3 3-9.7 9.7-3.8.8.8-3.8 9.7-9.7Z"/><path d="m11.9 5.1 3 3"/></svg><span>Edit</span></button>}
                   {isAdmin && <button className="device-action device-action-remove" title="Remove appliance" aria-label={`Remove ${device.name}`} onClick={() => { setDeleteConfirmation(""); setDeleteDevice(device); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h13M8 5.5V3.8h4v1.7m-6.5 0 .7 11h7.6l.7-11M8.2 8.2v5.7m3.6-5.7v5.7"/></svg><span>Remove</span></button>}
                   <button className="device-action device-action-details" title={selectedDeviceId === device.id ? "Hide appliance details" : "View appliance details"} aria-expanded={selectedDeviceId === device.id} onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 9v4m0-7h.01"/></svg><span>{selectedDeviceId === device.id ? "Hide" : "Details"}</span></button>
-                  <button className="device-action device-action-check primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.8 16 5v4.3c0 3.6-2.4 6.2-6 7.9-3.6-1.7-6-4.3-6-7.9V5l6-2.2Z"/><path d="m7.1 9.8 1.9 1.9 3.9-4"/></svg><span>{busy && selectedDeviceId === device.id ? "Checking…" : "Run check"}</span></button>
+                  <button className="device-action device-action-check primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.8 16 5v4.3c0 3.6-2.4 6.2-6 7.9-3.6-1.7-6-4.3-6-7.9V5l6-2.2Z"/><path d="m7.1 9.8 1.9 1.9 3.9-4"/></svg><span>{busy && checkingDeviceId === device.id ? "Checking…" : "Run check"}</span></button>
                 </div>
                 {selectedDeviceId === device.id && <div className="inventory-detail">
                   <div><span>Appliance</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div>
