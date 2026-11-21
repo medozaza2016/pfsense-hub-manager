@@ -148,7 +148,7 @@ export default function App() {
 
   const isAdmin = currentUser?.role === "admin";
   function navigate(next: Page) { setPage(next); setMobileNavOpen(false); setOverview(null); setError(null); }
-  const navClass = sidebarCollapsed ? "app-layout sidebar-collapsed" : "app-layout";
+  const navClass = (sidebarCollapsed ? "app-layout sidebar-collapsed" : "app-layout") + (mobileNavOpen ? " mobile-nav-open" : "");
   const sidebar = <aside className="sidebar">
     <div className="brand">
       <div className="brand-mark">pf</div>
