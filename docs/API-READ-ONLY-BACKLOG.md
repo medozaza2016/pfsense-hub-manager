@@ -59,7 +59,23 @@ This order is a product recommendation, not a compatibility claim. No candidate 
 
 ## 5. First feature gate: firewall rules
 
-### Confirmed from current public REST API documentation
+### Confirmed from the operator's installed firewall documentation (2026-11-21)
+
+The live firewall documentation at `https://pfsense.luxoritpro.com/api/v2/documentation#/FIREWALL/getFirewallRulesEndpoint` confirms:
+
+- Method/path: `GET /api/v2/firewall/rules`
+- Description: reads all existing Firewall Rules.
+- Endpoint type: Plural.
+- Associated model: `FirewallRule`; no parent model.
+- Authentication required; supported modes are BasicAuth, JWTAuth, and KeyAuth.
+- Allowed privileges: `page-all` and `api-v2-firewall-rules-get`. Use only the endpoint-specific `api-v2-firewall-rules-get` privilege. Do not grant `page-all`.
+- Required packages: None.
+- Applies immediately: No.
+- Cache: None.
+
+This confirms endpoint availability in the installed firewall's documentation and identifies the narrow privilege. It does **not** yet provide the query parameters or response schema needed for implementation.
+
+### Additional public REST API documentation context
 
 - `GET /api/v2/firewall/rules` is the plural/many endpoint for reading the firewall rule collection. Its documented endpoint class is `FirewallRulesEndpoint`. The plural response's `data` field is an array of objects.
 - Plural GET endpoints support querying/filtering and pagination. The REST API exposes pagination through limit/offset and HATEOAS previous/next links; the manager should use bounded page sizes and follow links or offsets deliberately, not fetch an unbounded collection.
