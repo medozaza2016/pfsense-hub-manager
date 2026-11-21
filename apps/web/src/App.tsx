@@ -220,6 +220,8 @@ function UserManagement(){
  const [password,setPassword]=useState("");
  const [role,setRole]=useState<"admin"|"user">("user");
  const [creating,setCreating]=useState(false);
+ const [pendingStatusChange,setPendingStatusChange]=useState<ApiUser|null>(null);
+ const [statusChanging,setStatusChanging]=useState(false);
  async function load(){
   setBusy(true);setError("");
   try{setUsers(await apiRequest<ApiUser[]>("/api/v1/users?search="+encodeURIComponent(search)));}
@@ -237,10 +239,18 @@ function UserManagement(){
   }catch(e){setError(e instanceof Error?e.message:"Unable to create user.");}
   finally{setCreating(false);}
  }
- async function changeUser(user:ApiUser,patch:Partial<Pick<ApiUser,"role"|"isActive">>){
+ async function changeUser(user:ApiUser,patch:Partial<Pick<ApiUser,"role"|"isActive">>):Promise<boolean>{
   setError("");setMessage("");
-  try{await apiRequest("/api/v1/users/"+user.id,{method:"PATCH",body:JSON.stringify(patch)});setMessage("User updated successfully. Existing sessions were revoked when access changed.");await load();}
-  catch(e){setError(e instanceof Error?e.message:"Unable to update user.");}
+  try{await apiRequest("/api/v1/users/"+user.id,{method:"PATCH",body:JSON.stringify(patch)});setMessage("User updated successfully. Existing sessions were revoked when access changed.");await load();return true;}
+  catch(e){setError(e instanceof Error?e.message:"Unable to update user.");return false;}
+ }
+ async function confirmStatusChange(){
+  if(!pendingStatusChange)return;
+  setStatusChanging(true);
+  const user=pendingStatusChange;
+  const updated=await changeUser(user,{isActive:!user.isActive});
+  setStatusChanging(false);
+  if(updated)setPendingStatusChange(null);
  }
  const columns=[
   {id:"username",header:"Username",sortable:true,value:(u:ApiUser)=>u.username,accessor:(u:ApiUser)=><strong>{u.username}</strong>},
@@ -257,9 +267,21 @@ function UserManagement(){
   {error&&<div className="settings-message error" role="alert">{error}</div>}
   {message&&<div className="settings-message" role="status">{message}</div>}
   <Panel title="Application users" action={<span className="subtle">{users.length} users</span>}>
-   <DataTable rows={users.filter(u=>(roleFilter==="all"||u.role===roleFilter)&&(statusFilter==="all"||(statusFilter==="active"?u.isActive:!u.isActive)))} columns={columns} getRowId={u=>u.id} searchableText={u=>u.username+" "+u.role+" "+(u.isActive?"active":"disabled")} search={search} loading={busy} error="" emptyTitle="No users found" emptyDescription="Create a user or adjust the search." pageSize={25} actions={u=><><button className="secondary-button" disabled={!u.isActive} onClick={()=>void changeUser(u,{isActive:false})}>Disable</button> <button className="secondary-button" disabled={u.isActive} onClick={()=>void changeUser(u,{isActive:true})}>Enable</button></>}/>
+   <DataTable rows={users.filter(u=>(roleFilter==="all"||u.role===roleFilter)&&(statusFilter==="all"||(statusFilter==="active"?u.isActive:!u.isActive)))} columns={columns} getRowId={u=>u.id} searchableText={u=>u.username+" "+u.role+" "+(u.isActive?"active":"disabled")} search={search} loading={busy} error="" emptyTitle="No users found" emptyDescription="Create a user or adjust the search." pageSize={25} actions={u=><button type="button" role="switch" aria-checked={u.isActive} aria-label={(u.isActive?"Disable ":"Enable ")+u.username} className={"switch user-status-toggle "+(u.isActive?"on":"")} onClick={()=>setPendingStatusChange(u)}><i/></button>}/>
   </Panel>
   <p className="preview-footnote">Only administrators can manage accounts. Passwords are never returned by the API. Changing role or status revokes existing sessions.</p>
+  {pendingStatusChange&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!statusChanging)setPendingStatusChange(null);}}>
+   <section className="modal user-status-modal" role="dialog" aria-modal="true" aria-labelledby="user-status-title">
+    <span className="eyebrow">USER ACCESS</span>
+    <h2 id="user-status-title">{pendingStatusChange.isActive?"Disable user?":"Enable user?"}</h2>
+    <p>{pendingStatusChange.isActive?<>Disabling <strong>{pendingStatusChange.username}</strong> will prevent the account from signing in. Its existing sessions will be revoked.</>:<>Enabling <strong>{pendingStatusChange.username}</strong> will restore the account's ability to sign in.</>}</p>
+    {error&&<div className="settings-message error" role="alert">{error}</div>}
+    <div className="modal-actions">
+     <button type="button" className="secondary-button" disabled={statusChanging} onClick={()=>setPendingStatusChange(null)}>Cancel</button>
+     <button type="button" className="primary-button" disabled={statusChanging} onClick={()=>void confirmStatusChange()}>{statusChanging?"Saving…":pendingStatusChange.isActive?"Disable user":"Enable user"}</button>
+    </div>
+   </section>
+  </div>}
   {createOpen&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)closeCreate();}}>
    <section className="modal user-create-modal" role="dialog" aria-modal="true" aria-labelledby="create-user-title">
     {!createSuccess&&<button className="modal-close" aria-label="Close dialog" onClick={closeCreate}><Icon name="close"/></button>}
