@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useToast } from "./components/ToastProvider";
 
 type Role = "admin" | "user";
 type User = { id: string; name: string; email: string; role: Role; active?: boolean };
@@ -37,12 +38,13 @@ export default function App() {
   const location = useLocation();
   const routerNavigate = useNavigate();
   const page = pathPages[location.pathname] ?? "dashboard";
+  const { notify } = useToast();
+  function reportError(message: string) { notify(message, "error"); }
   const [screen, setScreen] = useState<"loading" | "setup" | "login" | "app">("loading");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
   const [overview, setOverview] = useState<Record<string, unknown> | null>(null);
@@ -121,7 +123,7 @@ export default function App() {
   }, [screen, location.pathname, currentUser?.role, page, routerNavigate]);
 
   async function completeSignIn(path: string, payload: Record<string, string>) {
-    setBusy(true); setError(null);
+    setBusy(true); 
     try {
       await api<User>(path, { method: "POST", body: JSON.stringify(payload) });
       const session = await api<User>("/api/v1/auth/me");
@@ -131,7 +133,8 @@ export default function App() {
       setPassword("");
       setScreen("app");
       routerNavigate("/dashboard", { replace: true });
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to sign in."); }
+      notify(path.includes("/setup/") ? "Administrator account created." : "Signed in successfully.", "success");
+    } catch (e) { reportError(e instanceof Error ? e.message : "Unable to sign in."); }
     finally { setBusy(false); }
   }
   async function submitSetup(event: FormEvent) {
@@ -144,46 +147,56 @@ export default function App() {
   }
   async function logout() {
     setBusy(true);
-    try { await api("/api/v1/auth/logout", { method: "POST" }); }
+    try { await api("/api/v1/auth/logout", { method: "POST" }); notify("Signed out successfully.", "success"); }
+    catch (e) { reportError(e instanceof Error ? e.message : "Unable to sign out."); }
     finally { setCurrentUser(null); setOverview(null); setScreen("login"); routerNavigate("/login", { replace: true }); setBusy(false); }
   }
   async function refresh() {
     if (!currentUser) return;
-    setBusy(true); setError(null);
-    try { await loadAppData(currentUser); }
-    catch (e) { setError(e instanceof Error ? e.message : "Unable to refresh."); }
+    setBusy(true); 
+    try { await loadAppData(currentUser); notify("Application data refreshed.", "success"); }
+    catch (e) { reportError(e instanceof Error ? e.message : "Unable to refresh."); }
     finally { setBusy(false); }
   }
   async function runCheck(id: string) {
-    setBusy(true); setOverview(null); setError(null); setCheckError(null); setSelectedDeviceId(id); setCheckModalOpen(true);
+    setBusy(true); setOverview(null);  setCheckError(null); setSelectedDeviceId(id); setCheckModalOpen(true);
     try {
       const result = await api<Record<string, unknown>>("/api/v1/devices/" + encodeURIComponent(id) + "/overview");
       const outcome = result.meta?.outcome === "success" ? "success" : "partial";
       const failedOperations = result.meta?.failedOperations ?? 0;
       setOverview(result.data);
       setDeviceChecks(current => ({ ...current, [id]: { outcome, checkedAt: new Date().toISOString(), failedOperations } }));
-      if (outcome !== "success") setCheckError("Read-only check completed with " + failedOperations + " failed operations.");
+      if (outcome !== "success") {
+        const message = "Read-only check completed with " + failedOperations + " failed operations.";
+        setCheckError(message);
+        notify(message, "warning");
+      } else {
+        notify("Read-only firewall check completed successfully.", "success");
+      }
     } catch (e) {
       setDeviceChecks(current => ({ ...current, [id]: { outcome: "failed", checkedAt: new Date().toISOString(), failedOperations: 8 } }));
-      setCheckError(e instanceof Error ? e.message : "Read-only check failed.");
+      const message = e instanceof Error ? e.message : "Read-only check failed.";
+      setCheckError(message);
+      reportError(message);
     } finally { setBusy(false); }
   }
   async function confirmDeleteDevice() {
     if (!deleteDevice) return;
-    setBusy(true); setError(null);
+    setBusy(true); 
     try {
       await api<{ id: string; deleted: boolean }>("/api/v1/devices/" + encodeURIComponent(deleteDevice.id), { method: "DELETE" });
       setDevices(current => current.filter(device => device.id !== deleteDevice.id));
       setDeviceChecks(current => { const next = { ...current }; delete next[deleteDevice.id]; return next; });
       if (selectedDeviceId === deleteDevice.id) { setSelectedDeviceId(null); setOverview(null); }
       setDeleteDevice(null);
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to remove firewall."); }
+      notify("Firewall removed from inventory.", "success");
+    } catch (e) { reportError(e instanceof Error ? e.message : "Unable to remove firewall."); }
     finally { setBusy(false); }
   }
   async function saveDeviceEdit(event: FormEvent) {
     event.preventDefault();
     if (!editDevice) return;
-    setBusy(true); setError(null);
+    setBusy(true); 
     try {
       const result = await api<Device>("/api/v1/devices/" + encodeURIComponent(editDevice.id), {
         method: "PATCH",
@@ -191,7 +204,8 @@ export default function App() {
       });
       setDevices(current => current.map(device => device.id === result.data.id ? result.data : device));
       setEditDevice(null);
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to update firewall."); }
+      notify("Firewall inventory updated.", "success");
+    } catch (e) { reportError(e instanceof Error ? e.message : "Unable to update firewall."); }
     finally { setBusy(false); }
   }
   function firewallPayload() {
@@ -200,9 +214,9 @@ export default function App() {
   async function importCaCertificate(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    setError(null);
+    
     if (file.size > 128 * 1024) {
-      setError("Certificate file is too large. Choose a PEM certificate file under 128 KB.");
+      notify("Certificate file is too large. Choose a PEM certificate file under 128 KB.", "warning");
       event.target.value = "";
       return;
     }
@@ -214,14 +228,15 @@ export default function App() {
       setFirewallCa(pem.trim());
       setFirewallTested(false);
       setFirewallTestResult(null);
+      notify("CA certificate imported successfully.", "success");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to read the certificate file.");
+      reportError(e instanceof Error ? e.message : "Unable to read the certificate file.");
       event.target.value = "";
     }
   }
 
   async function discoverFirewallCertificate() {
-    setBusy(true); setError(null); setCertificateDiscovery(null); setFirewallTested(false); setFirewallTestResult(null);
+    setBusy(true);  setCertificateDiscovery(null); setFirewallTested(false); setFirewallTestResult(null);
     try {
       const result = await api<{ subjectAltName: string; fingerprint256: string | null; validTo: string | null; suggestedServername: string | null; dnsNames: string[] }>("/api/v1/devices/discover-certificate", {
         method: "POST", body: JSON.stringify({ apiBaseUrl: firewallUrl })
@@ -230,53 +245,59 @@ export default function App() {
       if (result.data.suggestedServername) {
         setFirewallTlsServername(result.data.suggestedServername);
         setFirewallTestResult("Certificate discovered. TLS hostname was filled in automatically. Verify the fingerprint and provide the trust certificate before testing.");
+        notify("TLS certificate discovered. Verify its fingerprint and trust chain before testing.", "success");
       } else {
         setFirewallTlsServername("");
         setFirewallTestResult("Certificate discovered, but it has no single unambiguous DNS name. Select a DNS name from the certificate or use an IP address listed in its SAN.");
+        notify("Certificate discovered, but its DNS name is ambiguous. Review the certificate details.", "warning");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Certificate discovery failed.");
+      reportError(e instanceof Error ? e.message : "Certificate discovery failed.");
     } finally { setBusy(false); }
   }
 
   async function testFirewallConnection() {
-    setBusy(true); setError(null); setFirewallTested(false); setFirewallTestResult(null);
+    setBusy(true);  setFirewallTested(false); setFirewallTestResult(null);
     try {
       await api<{ reachable: boolean; version: unknown }>("/api/v1/devices/test-connection", { method: "POST", body: JSON.stringify(firewallPayload()) });
       setFirewallTested(true);
       setFirewallTestResult("Connection successful. pfSense API version endpoint responded.");
+      notify("Firewall connection test passed.", "success");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Connection test failed.");
+      reportError(e instanceof Error ? e.message : "Connection test failed.");
     } finally { setBusy(false); }
   }
   async function addFirewall(event: FormEvent) {
     event.preventDefault();
-    if (!firewallTested) { setError("Test the firewall connection successfully before registering it."); return; }
-    setBusy(true); setError(null);
+    if (!firewallTested) { notify("Test the firewall connection successfully before registering it.", "warning"); return; }
+    setBusy(true); 
     try {
       await api("/api/v1/devices", { method: "POST", body: JSON.stringify(firewallPayload()) });
       setFirewallApiKey(""); setFirewallCa(""); setFirewallTlsServername(""); setCertificateDiscovery(null); setFirewallTested(false); setFirewallTestResult(null);
       if (currentUser) await loadAppData(currentUser);
       navigate("firewalls");
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to register firewall."); }
+      notify("Firewall registered successfully.", "success");
+    } catch (e) { reportError(e instanceof Error ? e.message : "Unable to register firewall."); }
     finally { setBusy(false); }
   }
 
   async function createUser(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError(null);
+    event.preventDefault(); setBusy(true); 
     try {
       await api<User>("/api/v1/users", { method: "POST", body: JSON.stringify({ name: newName, email: newEmail, password: newPassword, role: newRole }) });
       setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("user");
       if (currentUser) await loadAppData(currentUser);
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to create user."); }
+      notify("Manager user created successfully.", "success");
+    } catch (e) { reportError(e instanceof Error ? e.message : "Unable to create user."); }
     finally { setBusy(false); }
   }
   async function changeRole(user: User, role: Role) {
-    setBusy(true); setError(null);
+    setBusy(true); 
     try {
       await api("/api/v1/users/" + encodeURIComponent(user.id) + "/role", { method: "PATCH", body: JSON.stringify({ role }) });
       if (currentUser) await loadAppData(currentUser);
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to update role."); }
+      notify("User role updated successfully.", "success");
+    } catch (e) { reportError(e instanceof Error ? e.message : "Unable to update role."); }
     finally { setBusy(false); }
   }
 
@@ -292,7 +313,7 @@ export default function App() {
         <label>Email address<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required /></label>
         <label>Password<input type="password" autoComplete={isSetup ? "new-password" : "current-password"} value={password} onChange={e => setPassword(e.target.value)} minLength={isSetup ? 12 : 1} maxLength={128} required /></label>
         {isSetup && <p className="field-hint">Use at least 12 characters. Store this password securely.</p>}
-        {error && <div className="notice">{error}</div>}
+        
         <button className="primary-button" type="submit" disabled={busy}>{busy ? "Please wait…" : isSetup ? "Create administrator" : "Sign in"}</button>
       </form>
       <p className="security-note">Firewall credentials remain on the server and are never sent to this page.</p>
@@ -300,7 +321,7 @@ export default function App() {
   }
 
   const isAdmin = currentUser?.role === "admin";
-  function navigate(next: Page) { routerNavigate(pagePaths[next]); setMobileNavOpen(false); setOverview(null); setError(null); }
+  function navigate(next: Page) { routerNavigate(pagePaths[next]); setMobileNavOpen(false); setOverview(null);  }
   const navClass = (sidebarCollapsed ? "app-layout sidebar-collapsed" : "app-layout") + (mobileNavOpen ? " mobile-nav-open" : "");
   const visibleDevices = devices.filter(device => {
     const query = firewallSearch.trim().toLowerCase();
@@ -353,7 +374,7 @@ export default function App() {
         <div className="topbar-right"><div className="api-indicator"><span className="dot online" />{status}</div><div className="topbar-avatar" title={currentUser?.name}>{(currentUser?.name || "U").slice(0,1).toUpperCase()}</div></div>
       </header>
       <main className="page-content">
-        {error && <div className="notice">{error}</div>}
+        
         {page === "dashboard" && <div className="dashboard-layout">
           <div className="dashboard-heading">
             <div><p className="dashboard-kicker">NETWORK OPERATIONS</p><h2>Good to see you, {currentUser?.name?.split(" ")[0] || "Administrator"}</h2><p className="muted">Here is the current state of your firewall environment.</p></div>
