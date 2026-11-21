@@ -316,6 +316,28 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(lifecycleWrite?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
   });
 
+  it("reads firewall rules in bounded pages and returns only allowlisted fields", async () => {
+    getMock.mockResolvedValueOnce({ data: [{
+      id: 7, type: "pass", interface: ["lan"], source: "10.0.0.0/24",
+      destination: "any", descr: "test rule", disabled: false, log: true,
+      tracker: 123456, created_by: "operator", updated_by: null
+    }] });
+
+    const result = await provider.getFirewallRules(primaryDeviceId);
+
+    expect(getMock).toHaveBeenCalledWith("firewallRules", { limit: 100, offset: 0 });
+    expect(result).toEqual({
+      rules: [{
+        id: 7, type: "pass", interface: ["lan"], source: "10.0.0.0/24",
+        destination: "any", descr: "test rule", disabled: false, log: true
+      }],
+      truncated: false
+    });
+    expect(closeMock).toHaveBeenCalledOnce();
+    expect(JSON.stringify(result)).not.toContain("tracker");
+    expect(JSON.stringify(result)).not.toContain("created_by");
+  });
+
   it("returns lifecycle metadata in the manager API naming convention after inventory edits", async () => {
     query.mockResolvedValueOnce({
       rows: [{
