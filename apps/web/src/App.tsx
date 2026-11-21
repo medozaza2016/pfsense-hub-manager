@@ -312,6 +312,7 @@ function Alerts({onNavigate}:{onNavigate:(p:Page)=>void}){
  const [bulkBusy,setBulkBusy]=useState(false);
  async function load(){setBusy(true);setError("");try{const params=new URLSearchParams({status});if(severity!=="all")params.set("severity",severity);setAlerts(await apiRequest<ApiAlert[]>("/api/v1/alerts?"+params));}catch(e){setError(e instanceof Error?e.message:"Unable to load alerts.");}finally{setBusy(false);}}
  useEffect(()=>{void load();},[status,severity]);
+ useEffect(()=>{setSelected([]);},[status,severity,search]);
  const matchingAlerts=alerts.filter(a=>[a.title,a.message,a.source,a.severity,a.status].join(" ").toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
  const selectedAlerts=alerts.filter(a=>selected.includes(a.id));
  const selectableAlerts=matchingAlerts.filter(a=>a.status!=="resolved");
