@@ -46,7 +46,8 @@ function diagnosticJson(value: unknown): string {
   return JSON.stringify(redactDiagnosticData(value), null, 2);
 }
 type ApiResponse<T> = { data: T; meta?: { outcome?: string; failedOperations?: number; durationMs?: number }; error?: { message: string } };
-type Page = "dashboard" | "firewalls" | "add-firewall" | "monitoring" | "users" | "audit" | "manager-api" | "settings";
+type Page = "dashboard" | "firewalls" | "firewall-compatibility" | "add-firewall" | "monitoring" | "users" | "audit" | "manager-api" | "settings";
+type CompatibilityProfile = { device: { id: string; edition: string; release: string | null; architecture: string | null; restApiPackageVersion: string | null; compatibilityVerifiedAt: string | null }; capabilities: { key: string; endpoint: string; method: string; supported: boolean | null; verification: "unknown" | "verified" | "unsupported"; lastCheckedAt: string | null; lastErrorClass: string | null }[] };
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers = new Headers(init.headers);
@@ -58,7 +59,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<ApiResponse
 }
 
 const pageTitles: Record<Page, string> = {
-  dashboard: "Dashboard", firewalls: "Firewall inventory", "add-firewall": "Add firewall", monitoring: "Monitoring",
+  dashboard: "Dashboard", firewalls: "Firewall inventory", "firewall-compatibility": "Firewall compatibility", "add-firewall": "Add firewall", monitoring: "Monitoring",
   users: "User management", audit: "Audit logs", "manager-api": "Manager API", settings: "Settings"
 };
 
@@ -77,7 +78,9 @@ const pathPages = Object.fromEntries(Object.entries(pagePaths).map(([page, path]
 export default function App() {
   const location = useLocation();
   const routerNavigate = useNavigate();
-  const page = pathPages[location.pathname] ?? "dashboard";
+  const compatibilityMatch = location.pathname.match(/^\/firewalls\/([^/]+)\/compatibility$/);
+  const compatibilityDeviceId = compatibilityMatch ? decodeURIComponent(compatibilityMatch[1]) : null;
+  const page: Page = compatibilityMatch ? "firewall-compatibility" : pathPages[location.pathname] ?? "dashboard";
   const { notify } = useToast();
   function reportError(message: string) { notify(message, "error"); }
   const [screen, setScreen] = useState<"loading" | "setup" | "login" | "app">("loading");
@@ -87,6 +90,9 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
+  const [compatibilityProfile, setCompatibilityProfile] = useState<CompatibilityProfile | null>(null);
+  const [compatibilityLoading, setCompatibilityLoading] = useState(false);
+  const [compatibilityError, setCompatibilityError] = useState<string | null>(null);
   const [overview, setOverview] = useState<Record<string, unknown> | null>(null);
   const [firewallSearch, setFirewallSearch] = useState("");
   const [firewallFilter, setFirewallFilter] = useState<"all" | "enabled" | "disabled">("all");
@@ -147,8 +153,19 @@ export default function App() {
   }
   useEffect(() => { void initialize(); }, []);
   useEffect(() => {
+    if (screen !== "app" || !compatibilityDeviceId) { setCompatibilityProfile(null); setCompatibilityError(null); return; }
+    let active = true;
+    setCompatibilityLoading(true); setCompatibilityError(null);
+    api<CompatibilityProfile>("/api/v1/devices/" + encodeURIComponent(compatibilityDeviceId) + "/capabilities")
+      .then(result => { if (active) setCompatibilityProfile(result.data); })
+      .catch(error => { if (active) setCompatibilityError(error instanceof Error ? error.message : "Unable to load compatibility profile."); })
+      .finally(() => { if (active) setCompatibilityLoading(false); });
+    return () => { active = false; };
+  }, [screen, compatibilityDeviceId]);
+
+  useEffect(() => {
     if (screen === "app") {
-      if (!pathPages[location.pathname] || location.pathname === "/login" || location.pathname === "/setup") {
+      if ((!pathPages[location.pathname] && !compatibilityMatch) || location.pathname === "/login" || location.pathname === "/setup") {
         routerNavigate("/dashboard", { replace: true });
       } else if (currentUser?.role !== "admin" && ["users", "audit", "settings"].includes(page)) {
         routerNavigate("/dashboard", { replace: true });
@@ -573,11 +590,27 @@ export default function App() {
                   <div><span>Last error class</span><strong>{device.lastErrorClass || "None"}</strong></div>
                   <div><span>Failed operations in latest check</span><strong>{check ? check.failedOperations : "Not available"}</strong></div>
                   <p>Connection status is stored by the manager and reflects the latest read-only collection. This manager does not change firewall configuration.</p>
+                  <button className="text-button compatibility-link" onClick={() => routerNavigate("/firewalls/" + encodeURIComponent(device.id) + "/compatibility")}>View compatibility profile <span>→</span></button>
                 </div>}
               </article>;
             })}
           </section>
 
+        </div>}
+        {page === "firewall-compatibility" && <div className="page-stack compatibility-page">
+          <div className="inventory-heading"><div><p className="dashboard-kicker">FIREWALLS / COMPATIBILITY</p><h2>{devices.find(device => device.id === compatibilityDeviceId)?.name ?? "Firewall"} compatibility</h2><p className="muted">Per-device evidence for the read-only API operations available to this manager.</p></div><div className="inventory-heading-actions"><button onClick={() => routerNavigate("/firewalls")}>← Firewall inventory</button></div></div>
+          {!compatibilityDeviceId || !devices.some(device => device.id === compatibilityDeviceId) ? <section className="content-card compatibility-empty"><strong>Firewall not found</strong><p className="muted">This firewall is not present in the current inventory.</p><button onClick={() => routerNavigate("/firewalls")}>Return to inventory</button></section> :
+          compatibilityLoading ? <section className="content-card compatibility-empty">Loading compatibility evidence…</section> :
+          compatibilityError ? <section className="content-card compatibility-empty"><strong>Unable to load compatibility profile</strong><p className="muted">{compatibilityError}</p><button onClick={() => routerNavigate("/firewalls")}>Return to inventory</button></section> :
+          compatibilityProfile && <><section className="compatibility-metadata">
+            <article><span>EDITION</span><strong>pfSense {compatibilityProfile.device.edition.toUpperCase()}</strong></article>
+            <article><span>RELEASE</span><strong>{compatibilityProfile.device.release || "Not discovered"}</strong></article>
+            <article><span>ARCHITECTURE</span><strong>{compatibilityProfile.device.architecture || "Not discovered"}</strong></article>
+            <article><span>REST API PACKAGE</span><strong>{compatibilityProfile.device.restApiPackageVersion || "Not discovered"}</strong></article>
+          </section>
+          <section className="content-card compatibility-list"><div className="inventory-section-heading"><div><span className="eyebrow">DEVICE-SPECIFIC EVIDENCE</span><h2>Read-only API capabilities</h2><p className="muted">A successful test verifies only the listed endpoint on this firewall.</p></div><span className="inventory-total">{compatibilityProfile.capabilities.filter(item => item.verification === "verified").length} of {compatibilityProfile.capabilities.length} verified</span></div>
+            {compatibilityProfile.capabilities.map(item => <article className="compatibility-row" key={item.key}><div className="compatibility-copy"><strong>{diagnosticLabel(item.key)}</strong><code>{item.method} {item.endpoint}</code><small>{item.lastCheckedAt ? "Checked " + new Date(item.lastCheckedAt).toLocaleString() : "Not yet checked"}{item.lastErrorClass ? " · " + diagnosticLabel(item.lastErrorClass) : ""}</small></div><span className={"compatibility-state compatibility-" + item.verification}>{item.verification === "verified" ? "Verified" : item.verification === "unsupported" ? "Unsupported" : "Unknown"}</span></article>)}
+          </section><p className="compatibility-note">Unknown means there is no conclusive evidence yet. Authorization failures, timeouts, and other inconclusive errors are not treated as proof that an endpoint is unsupported. Compatibility evidence is separate from operational connection health. Last metadata verification: {compatibilityProfile.device.compatibilityVerifiedAt ? new Date(compatibilityProfile.device.compatibilityVerifiedAt).toLocaleString() : "Not recorded"}.</p></>}
         </div>}
         {page === "add-firewall" && isAdmin && <div className="page-stack firewall-onboarding">
           <div className="inventory-heading"><div><p className="dashboard-kicker">FIREWALLS / ONBOARDING</p><h2>Register a pfSense appliance</h2><p className="muted">Add a firewall using a dedicated read-only API key. Credentials are encrypted before storage.</p></div><button onClick={() => navigate("firewalls")}>Cancel</button></div>
