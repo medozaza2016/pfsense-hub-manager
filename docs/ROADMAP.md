@@ -4,6 +4,21 @@
 
 **Discovery completed. Initial application foundation scaffolded; CI and Docker image builds passed. Live runtime validation on the Proxmox LXC remains pending.**
 
+## Frontend design foundation, November 21, 2026
+
+This is a separate UI implementation milestone, not completion of the live-data dashboard milestone below.
+
+- [x] Implement the approved Hub and Site workspace visual structure.
+- [x] Implement responsive sidebar, mobile drawer, and mobile bottom navigation.
+- [x] Implement the Hub and Site navigation surfaces and local preview interactions.
+- [x] Simplify Hub Overview site rows to one primary Open Site/Details action.
+- [x] Make the Site navigation sidebar vertically scrollable.
+- [ ] Run local Windows/Docker typecheck and production build after the latest branch pull.
+- [ ] Validate desktop and mobile layouts against the approved mockup in a running browser.
+- [ ] Replace local demonstration fixtures with database-backed site inventory and verified API state.
+
+**Data boundary:** The current redesigned frontend is still a mockup/preview. The API and PostgreSQL foundation exist on `main`, but the current API is configured for one firewall through environment variables. Multi-site onboarding, per-site credential storage, and live-data UI integration are not complete. See [Frontend Implementation](FRONTEND-IMPLEMENTATION.md) for the ordered implementation plan and security gates.
+
 ## M0, Discovery and environment validation
 
 - [x] Create private GitHub repository and documentation foundation.

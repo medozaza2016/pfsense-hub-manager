@@ -101,3 +101,15 @@ A change is not complete merely because code was written. It is complete when:
 - Security implications have been considered.
 - Documentation is updated.
 - No secrets or real infrastructure credentials have been introduced.
+
+## Approved frontend visual reference (binding requirement)
+
+- The user has explicitly approved the image named **pfSense Hub Manager Redesign Mockup** as the authoritative, one-to-one visual specification for the frontend.
+- Reproduce that reference faithfully across desktop and mobile. Do not reinterpret, modernize, simplify, substitute, or invent a different visual direction.
+- Do not use a generic dashboard template or infer colors/layout from descriptions when the approved image is available. Inspect the actual mockup before implementing or reviewing visual work.
+- Match the reference's exact composition and visual treatment, including the dark navy contextual sidebars, light workspace, typography, spacing, card geometry, borders, icon style, status treatments, navigation hierarchy, desktop Hub overview, Site overview, and mobile screen arrangements as shown. The image itself takes precedence over prose summaries.
+- Extend the same visual system consistently to screens not pictured, without changing the pictured screens or introducing a competing design language.
+- Build the complete frontend surface first: every planned page, route, state, and visible control should have a coherent mock presentation and meaningful local interaction. Clearly distinguish mock interactions from live backend operations. Do not imply a firewall configuration change occurred.
+- Preserve the existing application, backend, API contracts, documented product decisions, and working functionality. Do not rebuild the application or change architecture to implement the visual work.
+- Do not ask the user to re-approve or restate this design decision. Treat it as settled. If the image is unavailable in the working repository, report that limitation and request no design re-decision; recover the approved asset from the project reference files.
+- The approved source image is saved in the project's persistent reference files at `/Projects/pfSense Hub Manager/mockups/pfsense-hub-manager-approved.png`. Use that exact asset as the visual reference. When a binary-asset upload path is available for the repository, commit the original image at `docs/mockups/pfsense-hub-manager-approved.png`; do not claim it is in Git until that commit is verified. Do not replace it with a recreated or approximate image.
