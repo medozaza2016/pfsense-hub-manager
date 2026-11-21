@@ -203,11 +203,13 @@ async function main(): Promise<void> {
   try {
     await migrate(pool);
     const result = await runDevelopmentSeed(pool);
-    if (result.skipped) {
+    if (result.skipped && result.sitesInserted === 0) {
       console.log("Development seed already applied. No records were changed.");
     } else {
       console.log(`Development seed complete: ${result.usersInserted} users, ${result.sitesInserted} demo sites, ${result.alertsInserted} alerts, ${result.auditEventsInserted} audit events inserted.`);
-      console.log("Seeded users have random unknown passwords. Set passwords through User Management before attempting to sign in.");
+      if (result.usersInserted > 0) {
+        console.log("Seeded users have random unknown passwords. Set passwords through User Management before attempting to sign in.");
+      }
     }
   } finally {
     await pool.end();
