@@ -109,9 +109,7 @@ const mockRows:Record<string,string[][]>={
  dns:[["Resolver","Enabled","127.0.0.1","Active"],["Forwarder","Enabled","1.1.1.1","Active"]],
  services:[["DHCP Server","Running","Automatic"],["DNS Resolver","Running","Automatic"],["NTP","Running","Automatic"],["OpenVPN","Stopped","Manual"]],
  certificates:[["webConfigurator","Local CA","2027-08-12","Valid"],["vpn-server","Internal CA","2027-03-04","Valid"]],
- vpn:[["Site-to-site VPN","IPsec","Connected","00:14:32"],["Remote access","OpenVPN","Disconnected","—"]],
- ["Operator","operator@example.local","Read only","Active"]],
- audit:[["14:32:08","Session authenticated","Administrator","Success"],["14:28:41","Read-only inventory refresh","System","Success"],["14:12:03","Firewall poll failed","System","Warning"]]
+ vpn:[["Site-to-site VPN","IPsec","Connected","00:14:32"],["Remote access","OpenVPN","Disconnected","—"]]
 };
 function Status({state,label}:{state:"online"|"offline"|"warning";label?:string}){return <span className={"status-pill "+state}><i/>{label??(state==="online"?"Online":state==="offline"?"Offline":"Attention")}</span>}
 function Metric({icon,label,value,detail,tone}:{icon:IconName;label:string;value:string;detail:string;tone:string}){return <article className="metric-card"><div className={"metric-icon "+tone}><Icon name={icon} size={23}/></div><div className="metric-copy"><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>}
