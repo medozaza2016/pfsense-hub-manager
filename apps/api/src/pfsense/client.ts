@@ -7,7 +7,7 @@ const envelope=z.object({code:z.number().optional(),status:z.string().optional()
 const routes={
  system:"/api/v2/status/system",gateways:"/api/v2/status/gateways",interfaces:"/api/v2/status/interfaces",
  services:"/api/v2/status/services",version:"/api/v2/system/version",arpTable:"/api/v2/diagnostics/arp_table",
- firewallStates:"/api/v2/firewall/states",firewallStateSize:"/api/v2/firewall/states/size", restApiVersion:"/api/v2/system/restapi/version"
+ firewallStates:"/api/v2/firewall/states",firewallStateSize:"/api/v2/firewall/states/size", firewallRules:"/api/v2/firewall/rules", restApiVersion:"/api/v2/system/restapi/version"
 } as const;
 export type PfSenseOperation=keyof typeof routes;
 export class PfSenseClient{
@@ -19,10 +19,11 @@ export class PfSenseClient{
    return new Agent({connect:{...(ca ? {ca} : {}),...(options?.tlsServername ? {servername:options.tlsServername} : {}),rejectUnauthorized:true}});
   })();
  }
- async get(operation:PfSenseOperation){
+ async get(operation:PfSenseOperation, pagination?:{limit:number;offset:number}){
+  if(pagination && (operation!=="firewallRules" || !Number.isInteger(pagination.limit) || pagination.limit<1 || pagination.limit>100 || !Number.isInteger(pagination.offset) || pagination.offset<0)) throw new Error("Invalid pfSense pagination parameters.");
   const dispatcher=await this.dispatcher;
   let response;
-  try{response=await fetch(new URL(routes[operation],this.base),{method:"GET",headers:{"X-API-Key":this.key,Accept:"application/json"},signal:AbortSignal.timeout(this.config.PFSENSE_API_TIMEOUT_MS),dispatcher});}
+  try{const url=new URL(routes[operation],this.base);if(pagination){url.searchParams.set("limit",String(pagination.limit));url.searchParams.set("offset",String(pagination.offset));}response=await fetch(url,{method:"GET",headers:{"X-API-Key":this.key,Accept:"application/json"},signal:AbortSignal.timeout(this.config.PFSENSE_API_TIMEOUT_MS),dispatcher});}
   catch(error){const message=error instanceof Error?error.message:"";if(/certificate|tls|ssl/i.test(message))throw new PfSenseApiError("Firewall TLS verification failed.","tls");if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError"))throw new PfSenseApiError("Firewall request timed out.","timeout");throw new PfSenseApiError("Firewall connection failed.","unknown");}
   if(response.status===401)throw new PfSenseApiError("Firewall authentication failed.","authentication",401);
   if(response.status===403)throw new PfSenseApiError("Firewall denied the requested operation.","authorization",403);
