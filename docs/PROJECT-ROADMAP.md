@@ -4,7 +4,7 @@
 **Canonical tracking document:** `docs/PROJECT-ROADMAP.md`  
 **Active branch:** `feature/installation-onboarding`  
 **Last updated:** 2026-11-21  
-**Status:** Dashboard and diagnostic presentation have been locally validated. Per-firewall compatibility evidence API and dedicated compatibility subpage are implemented. The first Plus firewall reports nine of nine approved GET checks verified, including REST API package version v2.11.0; compatibility UI validation is pending.
+**Status:** Firewall rules read-only inventory and interface-name resolution are implemented and manually accepted on the first Plus firewall. Windows tests, typecheck, build, Docker API/web rebuild, and live UI verification are complete for this feature. The feature branch is being prepared for merge to `main`.
 
 This is the authoritative cross-session project tracker. At the end of every meaningful development session, update this document before stopping. A new chat should read this file first, then `AGENTS.md`, `docs/DECISIONS.md`, and the phase-specific documents linked below. Do not rely on chat history as the project record.
 
@@ -65,7 +65,11 @@ Status meanings:
 - [x] User reported a successful local firewall connection test and read-only collection.
 - [x] Dashboard appliance cards are status-only. Administrators navigate to Firewall Inventory for edit, remove, details, and read-only checks. User confirmed the revised dashboard and the Windows typecheck/build/Compose startup passed after the change.
 - [x] Read-only diagnostic modal presents a human-readable collection summary, returned counts, system metrics, pfSense version, and state-table usage, with expandable redacted technical JSON. User validated the Windows typecheck/build/Compose startup and accepted the UI.
-- [~] Per-firewall Compatibility subpage is implemented at `/firewalls/:deviceId/compatibility`, linked from the inventory details panel. The first Plus device profile displays nine of nine verified checks and package version `v2.11.0`. Awaiting Windows typecheck/build and manual UI acceptance.
+- [x] Per-firewall Compatibility subpage is implemented at `/firewalls/:deviceId/compatibility`; the first Plus device profile displays nine of nine verified checks and package version `v2.11.0`.
+- [x] Read-only firewall rules inventory at `/firewalls/:deviceId/rules`, administrator-only API route, bounded pagination (100 per page, 1,000-rule cap), normalized allowlisted fields, and no raw-rule persistence.
+- [x] Interface assignment lookup via `GET /api/v2/interfaces`; interface identifiers map using `id` and display descriptions using `descr`, with fallback to the logical ID.
+- [x] Rules UI groups all 30 returned rules across eight interfaces, displays descriptions such as `Main (OPT1)`, preserves original pfSense order and per-interface priority through filtering, and keeps disabled rules visible.
+- [x] User manually accepted the live rules page on 2026-11-21. Screenshot confirmed LAN (4), OpenVPN (1), Main/OPT1 (7), TestLab/OPT2 (4), IoT/OPT3 (3), Mgt/OPT4 (1), WAN (9), and WireGuard (1), 30 total, 25 enabled, 5 disabled.
 
 ### Validated local development baseline
 - [x] Windows development installer completed successfully, including native Rollup/esbuild verification, dependency audit, type checks, production builds, Docker image builds, and Compose startup (earlier validated session).
@@ -189,7 +193,8 @@ The phases are ordered. A phase may overlap with documentation or design work, b
 **Status: [ ] Planned**
 
 Before changing firewall configuration, build a comprehensive read-only inventory:
-- [ ] Firewall rules and rule ordering.
+- [x] Firewall rules and rule ordering, read-only administrator inventory implemented and manually verified on the first Plus firewall.
+- [ ] Aliases and alias contents, with sensitive values appropriately protected.
 - [ ] Aliases and alias contents, with sensitive values appropriately protected.
 - [ ] NAT: port forwards, outbound NAT, 1:1 NAT, and related mappings.
 - [ ] Interfaces, assignments, VLANs, bridges, LAGG, and interface status.
@@ -425,3 +430,20 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
+
+
+## 9. Session closeout, 2026-11-21
+
+**Completed today:** The firewall rules inventory is implemented end to end and accepted by the user. The manager exposes an administrator-only read-only endpoint, retrieves rules in bounded pages, caps collection at 1,000, normalizes an explicit field allowlist, and does not persist raw firewall rule records. The UI is available at `/firewalls/:deviceId/rules`, with search and filters, summary counts, interface-grouped tables, original pfSense order, stable per-interface priority numbers, and visible disabled entries. There are no edit, enable, disable, reorder, apply, or delete controls.
+
+**Interface mapping:** The manager calls the fixed `GET /api/v2/interfaces` operation and maps the logical interface identifier from `id` to the human-readable description in `descr`. The user granted only the endpoint-specific `api-v2-interfaces-get` privilege, not `page-all`. The first implementation incorrectly used the underlying device name from `if`; commits `f6acafb` and `04e536a` corrected the mapping and added a regression test using the six actual WAN/LAN/OPT assignment records.
+
+**User acceptance (2026-11-21):** Screenshot review confirmed 30 rules across eight groups: LAN 4, OpenVPN 1, Main (OPT1) 7, TestLab (OPT2) 4, IoT (OPT3) 3, Mgt (OPT4) 1, WAN 9, and WireGuard 1. Counts were 25 enabled and 5 disabled. The user accepted the interface descriptions and grouped display.
+
+**Local validation reported by the user:** `npm test` passed 52 tests across 7 files; `npm run typecheck` passed for API and web; `npm run build` passed for API and web. Docker API and web services were rebuilt and the live rules page was verified. Earlier Vite React Router `use client` warnings were non-fatal. No CI was run.
+
+**Commits relevant to today's rules work:** `9c58d30`, `8634b59`, `4b786f5`, `997a15e`, `5d7fd2e`, `21a5b1f`, `180f7ab`, `e1ab5ad`, `d0eae4a`, `64e27d3`, `8431eca`, `9b93de3`, `c58e554`, `356d6ba`, `c71b7af`, `ad62f06`, `30f5760`, `105abbf`, `dfe8635`, `d0ff52e`, `f6acafb`, and `04e536a`.
+
+**Next session, 2026-11-22:** Continue with read-only firewall inventory, starting with aliases. Before implementation, inspect the installed Plus v2.11.0 endpoint documentation, exact response schema, privilege, sensitivity, pagination, and package requirements. Keep aliases as a separate feature and do not expand permissions until the user explicitly approves. Do not begin write operations.
+
+**Release/branch closeout:** Documentation updated for this session. Merge of `feature/installation-onboarding` into `main` remains pending until the branch comparison and PR mergeability are reconciled. The branch currently compares as 278 commits ahead and 2 behind `main`; do not force-push or overwrite `main`.
