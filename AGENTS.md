@@ -10,6 +10,11 @@ The product is a management layer. It must not replace pfSense, bypass its secur
 
 ## Source of truth
 
+- Treat `docs/PROJECT-ROADMAP.md` as the canonical phased delivery plan and cross-session handoff. Read its current position and next action at the start of each session, and update it before ending a meaningful session.
+- Treat `docs/PRD.md` as the product requirements source of truth.
+- Treat `docs/DECISIONS.md` as the record of approved architectural decisions.
+- Treat `docs/ROADMAP.md` as a concise implementation checklist only; it must not contradict the canonical project roadmap.
+
 Before implementing a feature:
 1. Read this file and the relevant documents in `docs/`.
 2. Treat `docs/PRD.md` as the product requirements source of truth.
