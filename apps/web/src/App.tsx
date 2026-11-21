@@ -123,7 +123,6 @@ export default function App() {
     setSidebarOpen(false);
   }
 
-  const pageTitle = selectedSite ? sitePageLabels[sitePage] : hubNavigation.find((item) => item.id === hubPage)?.label ?? "Hub Overview";
 
   return (
     <div className="app-shell">
