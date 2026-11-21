@@ -328,22 +328,18 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: validate the isolated Windows native-dependency repair.**
+**Next task: validate the corrected Windows native-dependency verification.**
 
-The user ran `install.ps1 -Development` after the previous fix. The script correctly detected separate esbuild versions, but npm failed when installing with `--prefix` inside the repository's `node_modules` tree because it discovered the root npm workspace and a `link:` dependency (`EUNSUPPORTEDPROTOCOL`).
+The user ran the isolated installer repair. npm successfully installed both native packages into the intended locations:
+- Vite esbuild `0.25.12` at `node_modules/vite/node_modules/@esbuild/win32-x64`.
+- API esbuild `0.28.2` at `node_modules/@esbuild/win32-x64`.
 
-The repair script has now been changed to:
-1. Create an isolated temporary directory under the OS temp directory.
-2. Install each exact native package version there using npm with workspaces disabled.
-3. Copy the installed package into the `node_modules` directory belonging to the corresponding Rollup/esbuild package.
-4. Remove the temporary directory.
-5. Verify each owner resolves the expected native package version.
+The script then incorrectly reported both as missing because its verification used `require.resolve()` on native packages that are not necessarily resolvable as JavaScript entry points. The repair itself succeeded; the verification method was wrong.
 
-This keeps Vite esbuild `0.25.12` and API esbuild `0.28.2` separate and avoids npm workspace resolution in the repository. It uses `--no-save --package-lock=false`; it does not modify package manifests or the user's lockfile.
+The verification now reads each package's `package.json` directly from the expected sibling `node_modules` location, then checks its name and version. This avoids requiring a JavaScript entry point from a native binary package.
 
-Recent commits:
-- `6d353704fab60f694f2e9886954b6a5e4ab2ba7a` implements isolated temporary npm installs and copies native packages into their owning dependency directories.
-- `767153a2147f2811b4b0ffee5b7494dfd3fb617e` documents the isolated installation approach.
+Fix commit:
+- `566c9163a134401e7ccf5c977f66cf1f01b23619` verifies native packages from their installed filesystem paths.
 
 On the user's Windows machine, run:
 
@@ -352,7 +348,9 @@ git pull --ff-only
 .\scripts\install.ps1 -Development
 ```
 
-If the installer passes, run:
+The two native packages should already be installed from the previous run. The corrected script should recognize them and continue to the npm audit, typecheck, and build stages.
+
+If the installer completes, run:
 
 ```powershell
 npm audit
@@ -364,6 +362,16 @@ npm run build
 Expected audit: 0 vulnerabilities. Expected API test run: 15 source tests, not duplicated compiled tests. If the repair fails, capture the complete output and stop before manual package installation. Keep the untracked `package-lock.json`. Do not delete it, reset the working tree, or remove node_modules. No CI.
 
 After validation, review and commit the generated lockfile, then continue Phase 1 manual acceptance testing: Compose config/build, authentication, route refresh/deep links, role restrictions, firewall inventory operations, read-only checks, and restart persistence.
+
+## 8. Session handoff
+
+**Current state:** npm successfully installed the Vite and API native esbuild packages at their separate intended paths. The prior script's final verification incorrectly used module resolution and reported them missing. That check has now been corrected to inspect the package manifests directly. The new verification has not yet been run by the user.
+
+**Next action:** Pull the latest feature branch and rerun ` .\scripts\install.ps1 -Development`. Do not proceed to firewall feature work until local install/test/build is stable.
+
+**Preserve:** Keep the untracked `package-lock.json`; do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5.
+
+**Update this section at every session end:** Record latest commit, actual validation results, blockers, and next exact action.
 
 ## 8. Session handoff
 
