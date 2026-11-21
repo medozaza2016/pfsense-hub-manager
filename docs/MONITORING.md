@@ -45,6 +45,16 @@ Prometheus is optional, not required in the initial Compose stack. If adopted, s
 8. Record the resolution without credentials or sensitive payloads.
 
 
+## Hub Docker Compose monitoring and recovery (approved, implementation pending)
+
+### Access policy (DEC-027)
+- Application roles for this area are `admin` and `user`.
+- Both authenticated roles may view service health/status, host telemetry when available, and bounded sanitized service logs.
+- Only `admin` may invoke service start/stop/restart, whole-stack start/stop/restart, or Compose validation.
+- For `user`, operational controls are visible but disabled and explain that administrator access is required.
+- The API must deny unauthenticated requests with 401 and authenticated non-admin operation requests with 403. The UI is presentation only and is never an authorization boundary.
+- Role checks must use the role loaded from the server-side database-backed session, never a role supplied by the browser.
+
 ## Hub Docker Compose monitoring and recovery (planned)
 
 This section concerns the Hub's own four-service Compose project only: Web, API, PostgreSQL, and Code Server. The dedicated host is not intended to be a general-purpose Docker host, and unrelated containers are out of scope.
