@@ -100,3 +100,12 @@ This document records confirmed architectural decisions. Proposals and open ques
 ### DEC-021, Approved frontend workspace design and navigation
 **Status:** Accepted
 **Decision:** Use a light main workspace with a dark navy sidebar, restrained blue primary actions, and clear status colors. The Hub workspace uses global navigation. Opening a site replaces the Hub navigation with contextual Site navigation and a persistent **Back to Hub** action. On narrow screens, the sidebar becomes an off-canvas navigation drawer. Device configuration state must not be represented as live reachability unless the backend provides a verified connectivity result.
+
+
+### DEC-022, Development and production platforms
+**Status:** Accepted  
+**Decision:** Use Windows 11 with VS Code and Docker Desktop for local development. Production deployment will run on Linux. Keep application services and installation automation portable across these environments. The existing Proxmox LXC remains the currently intended Linux deployment target unless a later decision changes it; production distribution, host provisioning, and deployment topology remain to be finalized.
+
+### DEC-023, GUI-first installation and onboarding
+**Status:** Accepted  
+**Decision:** Installation, first-run setup, and ongoing product onboarding are part of the product, not deferred operational documentation. The installation and onboarding workflow must be updated alongside every feature that adds a dependency, configuration requirement, credential, or operational task. Automate infrastructure prerequisites and one-time bootstrap wherever practical. Normal site registration, credential entry/rotation, connection testing, and site lifecycle management must be available through the GUI without routine shell commands. Exact secret-storage and encryption/key-management mechanisms remain open and must be approved before implementation.
