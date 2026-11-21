@@ -23,7 +23,7 @@ The supplied OpenAPI 3.0 snapshot contains **267 paths, 694 operations, and 186 
 
 ## Currently verified Plus operations
 
-These eight GET calls returned HTTP 200 against the Netgate 2100 running pfSense Plus 26.07.2-RELEASE. They are wired into the backend's fixed read-only client allowlist. Endpoint-specific response mapping and automated upstream contract tests remain incomplete.
+The manager's approved read-only integration contains **nine GET operations** on the Netgate 2100 running pfSense Plus 26.07.2-RELEASE: eight core operational reads and one separate REST API package-version metadata probe. The compatibility page currently reports 9 of 9 endpoint checks verified for this device. This is per-device evidence, not proof of CE compatibility. Endpoint-specific response mapping and automated upstream contract tests remain incomplete.
 
 | Method | Path | Device | Backend | Frontend | Automated tests |
 |---|---|---|---|---|
@@ -35,6 +35,9 @@ These eight GET calls returned HTTP 200 against the Netgate 2100 running pfSense
 | GET | `/api/v2/diagnostics/arp_table` | Verified | Implemented | Not exposed | Not tested |
 | GET | `/api/v2/firewall/states` | Verified | Implemented | Not exposed | Not tested |
 | GET | `/api/v2/firewall/states/size` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/system/restapi/version` | Verified | Implemented, metadata probe | Compatibility metadata | Not tested |
+
+The ninth operation, `GET /api/v2/system/restapi/version`, is a package-version metadata probe, separate from the eight core operational checks. Its adjacent `PATCH` operation is not enabled.
 
 ## Generate the full inventory
 With the original JSON already committed at `docs/reference/pfsense-openapi.json`, run:
