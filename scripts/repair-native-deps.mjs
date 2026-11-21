@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 
@@ -31,7 +32,8 @@ function resolvePackage(name, fromDirectory) {
 const rollup = resolvePackage("rollup", path.join(root, "node_modules"));
 const vite = resolvePackage("vite", path.join(root, "node_modules"));
 const viteEsbuild = resolvePackage("esbuild", vite.directory);
-const apiEsbuild = resolvePackage("esbuild", path.join(root, "node_modules"));
+const tsx = resolvePackage("tsx", path.join(root, "node_modules"));
+const apiEsbuild = resolvePackage("esbuild", tsx.directory);
 
 const arch = process.arch;
 const esbuildNativeName = `@esbuild/win32-${arch}`;
@@ -47,52 +49,88 @@ if (!rollupNativeName) {
   throw new Error(`Unsupported Windows architecture for Rollup native package: ${arch}`);
 }
 
-function installedVersion(name, fromDirectory) {
+function installedVersion(name, targetNodeModules) {
+  const packageJson = path.join(targetNodeModules, ...name.split("/"), "package.json");
   try {
-    const req = createRequire(path.join(fromDirectory, "package.json"));
-    const entry = req.resolve(name);
-    return findPackageRoot(entry, name).data.version;
+    const data = JSON.parse(fs.readFileSync(packageJson, "utf8"));
+    return data.name === name ? data.version : null;
   } catch {
     return null;
   }
 }
 
 const requirements = [
-  { owner: "Rollup", name: rollupNativeName, version: rollup.data.optionalDependencies?.[rollupNativeName], from: rollup.directory },
-  { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory },
-  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory }
+  { owner: "Rollup", name: rollupNativeName, version: rollup.data.optionalDependencies?.[rollupNativeName], from: rollup.directory, targetNodeModules: path.dirname(rollup.directory) },
+  { owner: "Vite esbuild", name: esbuildNativeName, version: viteEsbuild.data.optionalDependencies?.[esbuildNativeName], from: viteEsbuild.directory, targetNodeModules: path.dirname(viteEsbuild.directory) },
+  { owner: "API esbuild", name: esbuildNativeName, version: apiEsbuild.data.optionalDependencies?.[esbuildNativeName], from: apiEsbuild.directory, targetNodeModules: path.dirname(apiEsbuild.directory) }
 ];
 
-const repairs = new Map();
+const repairs = [];
 for (const item of requirements) {
   if (!item.version) throw new Error(`${item.owner} does not declare the expected native package ${item.name}.`);
-  const actual = installedVersion(item.name, item.from);
+  const actual = installedVersion(item.name, item.targetNodeModules);
   if (actual !== item.version) {
     console.log(`${item.owner}: ${item.name} requires ${item.version}, found ${actual ?? "missing"}.`);
-    const previous = repairs.get(item.name);
-    if (previous && previous !== item.version) {
-      throw new Error(`Conflicting native package versions requested for ${item.name}: ${previous} and ${item.version}.`);
-    }
-    repairs.set(item.name, item.version);
+    repairs.push(item);
   }
 }
 
-if (repairs.size > 0) {
-  const specs = [...repairs].map(([name, version]) => `${name}@${version}`);
-  console.log("Repairing Windows native optional dependencies in one npm operation...");
-  const command = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(command, ["install", "--no-save", "--package-lock=false", ...specs], {
-    cwd: root,
-    stdio: "inherit",
-    shell: process.platform === "win32"
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`npm native dependency repair failed with exit code ${result.status}.`);
+for (const item of repairs) {
+  const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "pfsense-native-deps-"));
+  try {
+    const spec = `${item.name}@${item.version}`;
+    console.log(`Installing ${spec} in an isolated temporary directory...`);
+    const result = spawnSync("npm.cmd", [
+      "install",
+      "--prefix", tempDirectory,
+      "--no-save",
+      "--package-lock=false",
+      "--workspaces=false",
+      "--ignore-scripts",
+      spec
+    ], {
+      cwd: tempDirectory,
+      stdio: "inherit",
+      shell: true
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(`npm failed to install ${spec} in the temporary directory (exit code ${result.status}).`);
+
+    const source = path.join(tempDirectory, "node_modules", ...item.name.split("/"));
+    const destination = path.join(item.targetNodeModules, ...item.name.split("/"));
+    if (!fs.existsSync(path.join(source, "package.json"))) {
+      throw new Error(`npm completed but did not produce the expected package at ${source}.`);
+    }
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.cpSync(source, destination, { recursive: true, force: true });
+    console.log(`Installed ${spec} at ${destination}.`);
+  } finally {
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  }
+}
+
+// npm's lockfile places the API esbuild native optional dependency at the
+// root node_modules level. Remove only the stale nested duplicate left by the
+// earlier repair implementation, and only after verifying the root copy.
+const apiNativeRequirement = requirements.find((item) => item.owner === "API esbuild");
+const apiRootVersion = installedVersion(apiNativeRequirement.name, apiNativeRequirement.targetNodeModules);
+if (apiRootVersion === apiNativeRequirement.version) {
+  const staleNestedPackage = path.join(apiEsbuild.directory, "node_modules", ...apiNativeRequirement.name.split("/"));
+  const staleManifest = path.join(staleNestedPackage, "package.json");
+  if (fs.existsSync(staleManifest)) {
+    const staleData = JSON.parse(fs.readFileSync(staleManifest, "utf8"));
+    if (staleData.name === apiNativeRequirement.name && staleData.version === apiNativeRequirement.version) {
+      fs.rmSync(staleNestedPackage, { recursive: true, force: true });
+      console.log(`Removed obsolete duplicate at ${staleNestedPackage}.`);
+    } else {
+      throw new Error(`Refusing to remove unexpected package at ${staleNestedPackage}.`);
+    }
+  }
 }
 
 const failures = [];
 for (const item of requirements) {
-  const actual = installedVersion(item.name, item.from);
+  const actual = installedVersion(item.name, item.targetNodeModules);
   if (actual !== item.version) failures.push(`${item.owner}: expected ${item.name}@${item.version}, found ${actual ?? "missing"}`);
 }
 if (failures.length) throw new Error(`Native dependency verification failed:\\n${failures.join("\\n")}`);
