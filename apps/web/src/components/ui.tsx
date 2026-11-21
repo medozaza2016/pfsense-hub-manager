@@ -8,7 +8,6 @@ export type DataColumn<T> = {
   value?: (row: T) => string | number | Date | null | undefined;
   sortable?: boolean;
   className?: string;
-  mobileCard?: (row: T) => ReactNode;
 };
 export type DataTableProps<T> = {
   rows: T[];
@@ -26,6 +25,7 @@ export type DataTableProps<T> = {
   actions?: (row: T) => ReactNode;
   caption?: string;
   className?: string;
+  mobileCard?: (row: T) => ReactNode;
 };
 
 function compareValues(a: unknown, b: unknown): number {
