@@ -55,7 +55,7 @@ describe("pfSense provider device registration and credential safety", () => {
     constructorMock.mockReset();
     query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
     pool = { query } as unknown as Pool;
-    provider = new PfSenseProvider({ get: getMock, close: closeMock } as never, config, pool, encryptionKey);
+    provider = new PfSenseProvider(config, pool, encryptionKey);
   });
 
   it("tests connectivity before saving a device and stores only encrypted API credentials", async () => {
@@ -315,12 +315,7 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(query.mock.calls[0]?.[0]).toContain('connection_status AS "connectionStatus"');
   });
 
-  it("protects the primary firewall from deletion without querying the database", async () => {
-    await expect(provider.deleteDevice(primaryDeviceId)).resolves.toBe(false);
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it("allows deletion of a non-primary firewall when the database deletes it", async () => {
+  it("allows deletion of any registered firewall when the database deletes it", async () => {
     query.mockResolvedValueOnce({ rows: [{ id: "branch-device-id" }], rowCount: 1 });
 
     await expect(provider.deleteDevice("branch-device-id")).resolves.toBe(true);
