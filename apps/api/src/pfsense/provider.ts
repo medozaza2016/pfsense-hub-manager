@@ -7,7 +7,7 @@ import { classifyError } from "./errors.js";
 
 const groups: Record<PfSenseOperation, string> = {
   system: "system", gateways: "gateways", interfaces: "interfaces", services: "services",
-  version: "version", arpTable: "diagnostics", firewallStates: "firewallStates", firewallStateSize: "firewallStates", restApiVersion: "compatibility"
+  version: "version", arpTable: "diagnostics", firewallStates: "firewallStates", firewallStateSize: "firewallStates", firewallRules: "firewallRules", restApiVersion: "compatibility"
 };
 function recordCount(value: unknown): number | null { return Array.isArray(value) ? value.length : null; }
 
