@@ -393,6 +393,7 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 - `8837bb8`: frontend credential and TLS editor.
 - `01aeeff`: credential form state reset and editor markup correction.
 - `e6b8c20`: credential/TLS editor styling.
+- `ccf3a82`: clear credential form secrets after editor close.
 
 **Next action:** run `git pull --ff-only origin feature/installation-onboarding`, then `npm test`, `npm run typecheck`, and `npm run build`. Manually test credential rotation on an additional firewall with a valid replacement key, then test a deliberately invalid key and confirm the old credentials remain usable. Verify CA preservation, replacement, and explicit clearing, plus TLS server-name preservation/update/clearing. Do not attempt primary firewall rotation through this screen. No firewall configuration writes are involved.
 
