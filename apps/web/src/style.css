@@ -1272,3 +1272,32 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   .fleet-device-updated .dashboard-device-actions .device-action-check{grid-column:1/-1}
   .fleet-device-detail{grid-column:1/-1}
 }
+
+
+/* Dashboard is a status overview, not an appliance administration surface */
+.fleet-device-updated{
+  grid-template-columns:42px minmax(0,1fr);
+  align-items:start;
+}
+.fleet-device-updated .fleet-device-copy{gap:7px}
+.fleet-view-link{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  justify-self:start;
+  width:max-content;
+  margin-top:1px;
+  padding:3px 0;
+  border:0;
+  background:transparent;
+  color:#e95c2a;
+  font-size:.69rem;
+  font-weight:750;
+  box-shadow:none;
+  cursor:pointer;
+}
+.fleet-view-link:hover{color:#c9471b;text-decoration:underline}
+.fleet-view-link:focus-visible{outline:3px solid #f36b3540;outline-offset:3px;border-radius:4px}
+@media(max-width:620px){
+  .fleet-device-updated{grid-template-columns:36px minmax(0,1fr)}
+}
