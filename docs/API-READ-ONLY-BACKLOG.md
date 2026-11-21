@@ -1,6 +1,6 @@
 # Read-Only API Expansion Backlog
 
-**Status:** Firewall rules read-only access is live-verified on the first Plus firewall and the manager backend endpoint is implemented. No firewall configuration writes are in scope.  
+**Status (2026-11-21):** Firewall rules read-only access is implemented end to end and user-accepted on the first Plus firewall. The manager UI displays 30 rules across eight interfaces, with 25 enabled and 5 disabled. Interface descriptions are resolved from `GET /api/v2/interfaces`. No firewall configuration writes are in scope.  
 **Source:** The committed firewall-generated OpenAPI snapshot at `docs/reference/pfsense-openapi.json`, summarized by `docs/API-MATRIX.generated.md`.  
 **Snapshot:** OpenAPI 3.0, 267 paths, 694 operations, 186 component schemas. The generated inventory contains 243 GET operations. The snapshot metadata version is `unknown`, it is not the installed package version.
 
@@ -109,9 +109,9 @@ Before marking `GET /api/v2/firewall/rules` complete:
 - [x] Grant only `api-v2-firewall-rules-get`; do not grant `page-all`.
 - [x] Test the endpoint on the first Plus firewall and verify HTTP 200 with the API key.
 - [x] Add a fixed GET operation, bounded pagination, response field allowlisting, and administrator-only API route.
-- [ ] Validate the implementation on Windows with API tests, typecheck, and build.
-- [ ] Establish trusted TLS for the private Tailscale endpoint without bypassing certificate verification.
-- [ ] Add the administrator-only frontend inventory and complete manual acceptance.
+- [x] Validate the implementation on Windows: 52 tests across 7 files, API/web typecheck, and API/web production builds passed (2026-11-21).
+- [x] Verify the manager endpoint through the existing stored CA/TLS server-name configuration with certificate verification enabled.
+- [x] Add the administrator-only frontend inventory and complete manual acceptance on 2026-11-21.
 - [x] Keep rule writes, apply operations, and all configuration mutation methods disabled.
 
 ## 6. Evidence and limitations
@@ -121,3 +121,12 @@ Before marking `GET /api/v2/firewall/rules` complete:
 - The installed package version displayed by the first Plus device is `v2.11.0`; compatibility must still be checked against that release and ARM architecture.
 - The second CE firewall remains unconnected and unverified.
 - The current baseline is eight core operational GET operations plus one package-version metadata GET.
+
+
+## 7. Session update, 2026-11-21
+
+The firewall rules feature is complete and accepted on the first Plus firewall. The user verified the rendered page with 30 rules across LAN (4), OpenVPN (1), Main/OPT1 (7), TestLab/OPT2 (4), IoT/OPT3 (3), Mgt/OPT4 (1), WAN (9), and WireGuard (1). The UI reports 25 enabled and 5 disabled. Interface names come from the administrator-only manager endpoint backed by `GET /api/v2/interfaces`, with `id` used as the logical interface key and `descr` as the display name. Only the endpoint-specific interface GET privilege was added, not `page-all`.
+
+The user-reported Windows checks passed: 52 tests across 7 files, API/web typecheck, and API/web production builds. The Docker API and web services were rebuilt, and the live UI was inspected. Rule collection remains bounded to 1,000 records, normalized to allowlisted fields, and read-only. No raw firewall rule records are persisted. No firewall configuration writes were introduced.
+
+Next candidate for tomorrow (2026-11-22): investigate firewall aliases as a separate read-only domain. Verify the installed endpoint schema, privilege, package dependency, pagination, and data sensitivity before proposing implementation or requesting any new firewall permission.
