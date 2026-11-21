@@ -58,3 +58,10 @@ Back up PostgreSQL and the runtime encryption key separately. Protect the recove
 - Docker Compose file secrets are not encrypted at rest.
 - Windows host ACLs do not by themselves prove container-side access restrictions.
 - The eight upstream routes are fixed in code. No arbitrary proxy, command execution, or write operation exists.
+
+
+## GUI-managed Hub access settings, planned behavior
+
+The initial installation remains bound to `127.0.0.1`. The future Administration → Hub Settings page will store optional Tailscale IPv4 and later hostname/proxy settings in PostgreSQL. Entering an address does not install Tailscale, configure DNS, create a proxy, change Docker's host-port publication, or prove remote reachability.
+
+Do not change `HUB_BIND_ADDRESS` or enable a remote binding until manager authentication/authorization and a reviewed apply workflow exist. Docker host-port publication is controlled outside the application container. A future apply mechanism must be narrowly scoped, validate that the address belongs to a host interface, preserve rollback to the previous binding, and report applied state separately from reachability. Do not mount the Docker socket into the web or API container. See `HUB-ACCESS-CONFIGURATION.md` and DEC-025.
