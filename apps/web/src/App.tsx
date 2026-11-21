@@ -53,6 +53,11 @@ export default function App() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [deviceChecks, setDeviceChecks] = useState<Record<string, { outcome: "success" | "partial" | "failed"; checkedAt: string; failedOperations: number }>>({});
   const [editDevice, setEditDevice] = useState<Device | null>(null);
+  const [credentialApiKey, setCredentialApiKey] = useState("");
+  const [credentialCa, setCredentialCa] = useState("");
+  const [credentialTlsServername, setCredentialTlsServername] = useState("");
+  const [clearCredentialCa, setClearCredentialCa] = useState(false);
+  const [clearCredentialTls, setClearCredentialTls] = useState(false);
   const [deleteDevice, setDeleteDevice] = useState<Device | null>(null);
   const [checkModalOpen, setCheckModalOpen] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
@@ -206,6 +211,56 @@ export default function App() {
     } catch (e) { reportError(e instanceof Error ? e.message : "Unable to update firewall."); }
     finally { setBusy(false); }
   }
+  async function updateDeviceCredentials(event: FormEvent) {
+    event.preventDefault();
+    if (!editDevice || !credentialApiKey.trim()) return;
+    if (editDevice.canDelete === false) {
+      notify("Primary firewall credentials are managed through the protected installation settings.", "warning");
+      return;
+    }
+    setBusy(true);
+    try {
+      const payload = {
+        apiKey: credentialApiKey,
+        ...(clearCredentialCa ? { caCertificatePem: null } : credentialCa.trim() ? { caCertificatePem: credentialCa.trim() } : {}),
+        ...(clearCredentialTls ? { tlsServername: null } : credentialTlsServername.trim() ? { tlsServername: credentialTlsServername.trim() } : {})
+      };
+      await api<{ deviceId: string; connection: { reachable: boolean; version: unknown } }>(
+        "/api/v1/devices/" + encodeURIComponent(editDevice.id) + "/credentials",
+        { method: "PATCH", body: JSON.stringify(payload) }
+      );
+      setCredentialApiKey("");
+      setCredentialCa("");
+      setCredentialTlsServername("");
+      setClearCredentialCa(false);
+      setClearCredentialTls(false);
+      notify("Credentials verified and updated. The firewall passed its read-only connection test.", "success");
+    } catch (e) {
+      reportError(e instanceof Error ? e.message : "Credential update failed. Existing saved credentials were not changed.");
+    } finally { setBusy(false); }
+  }
+  async function importCredentialCa(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 128 * 1024) {
+      notify("Certificate file is too large. Choose a PEM certificate file under 128 KB.", "warning");
+      event.target.value = "";
+      return;
+    }
+    try {
+      const pem = await file.text();
+      if (!pem.includes("-----BEGIN CERTIFICATE-----") || !pem.includes("-----END CERTIFICATE-----")) {
+        throw new Error("This file does not contain a PEM certificate. Choose a PEM, CRT, or CER certificate file.");
+      }
+      setCredentialCa(pem.trim());
+      setClearCredentialCa(false);
+      notify("CA certificate loaded locally. It will be saved only after the connection test succeeds.", "success");
+    } catch (e) {
+      reportError(e instanceof Error ? e.message : "Unable to read the certificate file.");
+      event.target.value = "";
+    }
+  }
+
   function firewallPayload() {
     return { name: firewallName, location: firewallLocation, edition: firewallEdition, apiBaseUrl: firewallUrl, apiKey: firewallApiKey, ...(firewallCa.trim() ? { caCertificatePem: firewallCa } : {}), ...(firewallTlsServername.trim() ? { tlsServername: firewallTlsServername.trim() } : {}) };
   }
@@ -516,7 +571,27 @@ export default function App() {
               <label>Location / site<input value={editDevice.location ?? ""} onChange={e => setEditDevice({ ...editDevice, location: e.target.value })} maxLength={120} /></label>
               <label>pfSense edition<select value={editDevice.edition} onChange={e => setEditDevice({ ...editDevice, edition: e.target.value })}><option value="plus">pfSense Plus</option><option value="ce">pfSense CE</option><option value="unknown">Unknown</option></select></label>
               <label className="modal-checkbox"><input type="checkbox" checked={editDevice.enabled} onChange={e => setEditDevice({ ...editDevice, enabled: e.target.checked })} /> Enable this appliance for read-only checks</label>
-              <div className="modal-actions"><button type="button" onClick={() => setEditDevice(null)} disabled={busy}>Cancel</button><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button></div>
+              <div className="modal-actions"><button type="button" onClick={() => setEditDevice(null)} disabled={busy}>Cancel</button><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : "Save inventory changes"}</button></div>
+            </form>
+            <section className="credential-editor">
+              <div className="credential-editor-heading">
+                <span className="eyebrow">CONNECTION SECURITY</span>
+                <h3>API credentials and TLS</h3>
+                <p>Replace the API key or update the trust settings for this appliance.</p>
+              </div>
+              {editDevice.canDelete === false ? <div className="credential-managed-notice"><strong>Managed by installation</strong><p>The primary firewall credentials and TLS configuration are controlled by the protected installation secrets. This screen cannot rotate them.</p></div> : <>
+                <form className="credential-form" onSubmit={updateDeviceCredentials}>
+                  <label>New read-only API key<input type="password" value={credentialApiKey} onChange={e => setCredentialApiKey(e.target.value)} autoComplete="new-password" placeholder="Enter replacement API key" required /></label>
+                  <p className="field-hint">The replacement key is tested against this firewall before it is encrypted and saved. The current key remains active if the test fails.</p>
+                  <label>Replacement CA certificate (PEM, optional)<input type="file" accept=".pem,.crt,.cer,.txt,application/x-pem-file,application/x-x509-ca-cert" onChange={event => void importCredentialCa(event)} /></label>
+                  <textarea aria-label="Replacement CA certificate PEM" value={credentialCa} onChange={e => {setCredentialCa(e.target.value);setClearCredentialCa(false);}} rows={4} placeholder="Leave blank to keep the currently saved CA certificate." />
+                  <label className="modal-checkbox"><input type="checkbox" checked={clearCredentialCa} onChange={e => {setClearCredentialCa(e.target.checked);if(e.target.checked)setCredentialCa("");}} /> Clear the currently saved CA certificate</label>
+                  <label>TLS server name<input value={credentialTlsServername} onChange={e => {setCredentialTlsServername(e.target.value);setClearCredentialTls(false);}} maxLength={253} placeholder="Leave blank to keep the current TLS server name" /></label>
+                  <label className="modal-checkbox"><input type="checkbox" checked={clearCredentialTls} onChange={e => {setClearCredentialTls(e.target.checked);if(e.target.checked)setCredentialTlsServername("");}} /> Clear the currently saved TLS server name</label>
+                  <div className="credential-submit-row"><button className="primary-button" type="submit" disabled={busy || !credentialApiKey.trim() || clearCredentialCa && Boolean(credentialCa.trim()) || clearCredentialTls && Boolean(credentialTlsServername.trim())}>{busy ? "Testing and saving…" : "Verify and update credentials"}</button></div>
+                </form>
+              </>}
+            </section>
             </form>
           </section>
         </div>}
