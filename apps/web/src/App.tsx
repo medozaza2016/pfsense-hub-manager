@@ -325,15 +325,27 @@ function Alerts({onNavigate}:{onNavigate:(p:Page)=>void}){
  async function act(id:string,action:"acknowledge"|"resolve"){setError("");try{await apiRequest("/api/v1/alerts/"+id+"/"+action,{method:"POST"});setSelected(current=>current.filter(item=>item!==id));notify(action==="acknowledge"?"Alert acknowledged.":"Alert resolved.","success");await load();}catch(e){const message=e instanceof Error?e.message:"Unable to update alert.";setError(message);notify(message,"error");}}
  async function confirmBulkAction(){
   if(!pendingBulkAction)return;
-  const targets=pendingBulkAction==="acknowledge"?selectedActive:selectedPending;
+  const action=pendingBulkAction;
+  const targets=action==="acknowledge"?selectedActive:selectedPending;
   if(!targets.length){setPendingBulkAction(null);return;}
   setBulkBusy(true);setError("");
-  const results=await Promise.allSettled(targets.map(a=>apiRequest("/api/v1/alerts/"+a.id+"/"+pendingBulkAction,{method:"POST"})));
-  const succeeded=results.filter(result=>result.status==="fulfilled").length;
-  const failed=results.length-succeeded;
+  let succeeded=0;
+  const failures:string[]=[];
+  for(const alert of targets){
+   try{await apiRequest("/api/v1/alerts/"+alert.id+"/"+action,{method:"POST"});succeeded++;}
+   catch(error){failures.push(error instanceof Error?error.message:"Unknown request failure");}
+  }
   setSelected([]);setPendingBulkAction(null);setBulkBusy(false);
   await load();
-  if(failed){const message=`${succeeded} alert(s) updated, ${failed} failed. Refresh and review the remaining records.`;setError(message);notify(message,"warning");}else notify(`${succeeded} alert(s) ${pendingBulkAction==="acknowledge"?"acknowledged":"resolved"}.`,"success");
+  const failed=targets.length-succeeded;
+  if(failed){
+   const reason=Array.from(new Set(failures)).slice(0,2).join(" | ");
+   const message=`${succeeded} alert(s) updated, ${failed} failed. Reason: ${reason}`;
+   setError("");
+   notify(message,"error");
+  }else{
+   notify(`${succeeded} alert(s) ${action==="acknowledge"?"acknowledged":"resolved"}.`,"success");
+  }
  }
  const formatAlertTime=(value:string)=><time className="alert-time" dateTime={value}><span>{new Date(value).toLocaleDateString()}</span><small>{new Date(value).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})}</small></time>;
  const columns=[
