@@ -256,6 +256,47 @@ export class PfSenseProvider {
     }
   }
 
+  async getFirewallRules(deviceId: string) {
+    const selected = await this.clientForDevice(deviceId);
+    if (!selected) return null;
+    const pageSize = 100;
+    const maxRules = 1000;
+    const rules: Record<string, unknown>[] = [];
+    let offset = 0;
+    let truncated = false;
+    try {
+      while (offset < maxRules) {
+        const response = await selected.client.get("firewallRules", { limit: pageSize, offset });
+        if (!Array.isArray(response.data)) throw new Error("Firewall returned an invalid rules collection.");
+        for (const item of response.data) {
+          if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Firewall returned an invalid rule record.");
+          const source = item as Record<string, unknown>;
+          if (typeof source.id !== "number" || !Number.isInteger(source.id)) throw new Error("Firewall returned a rule without a valid numeric ID.");
+          const rule: Record<string, unknown> = { id: source.id };
+          const fields = ["type", "interface", "ipprotocol", "protocol", "icmptype", "source", "source_port",
+            "destination", "destination_port", "descr", "disabled", "log", "dscp", "tag", "statetype",
+            "tcp_flags_any", "tcp_flags_out_of", "tcp_flags_set", "gateway", "sched", "dnpipe", "pdnpipe",
+            "defaultqueue", "ackqueue", "floating", "quick", "direction"];
+          for (const field of fields) {
+            const value = source[field];
+            if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean" ||
+                (Array.isArray(value) && value.every(entry => typeof entry === "string"))) rule[field] = value;
+          }
+          rules.push(rule);
+          if (rules.length >= maxRules) {
+            truncated = response.data.length === pageSize || offset + response.data.length < maxRules;
+            break;
+          }
+        }
+        if (rules.length >= maxRules || response.data.length < pageSize) break;
+        offset += pageSize;
+      }
+      return { rules, truncated };
+    } finally {
+      if (selected.owned) await selected.client.close();
+    }
+  }
+
   async capabilities(deviceId: string) {
     const result = await this.pool.query(
       "SELECT operation_key,endpoint,http_method,verification_status,last_checked_at,last_error_class FROM device_capabilities WHERE device_id=$1",
