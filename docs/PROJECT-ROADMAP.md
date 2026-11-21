@@ -4,7 +4,7 @@
 **Canonical tracking document:** `docs/PROJECT-ROADMAP.md`  
 **Active branch:** `feature/installation-onboarding`  
 **Last updated:** 2026-11-21  
-**Status:** Dashboard and diagnostic presentation have been locally validated. Per-firewall compatibility evidence API and dedicated compatibility subpage are implemented; frontend validation is pending.
+**Status:** Dashboard and diagnostic presentation have been locally validated. Per-firewall compatibility evidence API and dedicated compatibility subpage are implemented. The first Plus firewall reports nine of nine approved GET checks verified, including REST API package version v2.11.0; compatibility UI validation is pending.
 
 This is the authoritative cross-session project tracker. At the end of every meaningful development session, update this document before stopping. A new chat should read this file first, then `AGENTS.md`, `docs/DECISIONS.md`, and the phase-specific documents linked below. Do not rely on chat history as the project record.
 
@@ -54,7 +54,8 @@ Status meanings:
 - [x] Additional firewall API credentials encrypted in PostgreSQL with AES-256-GCM, using a separate 32-byte key mounted as a Docker secret.
 - [x] Per-firewall CA certificate and TLS server-name configuration.
 - [x] TLS certificate discovery during onboarding. Discovery inspects the presented certificate; it does not automatically trust it.
-- [x] Fixed allowlist of eight initial read-only pfSense GET operations.
+- [x] Fixed allowlist of eight core operational read-only pfSense GET operations.
+- [x] Separate ninth read-only GET probe for `/api/v2/system/restapi/version`, persisting the installed package version from `data.current_version`; first Plus device compatibility profile reports 9 of 9 checks Verified and package version `v2.11.0` (2026-11-21).
 - [~] Per-device compatibility discovery: persist edition/release/architecture/package metadata and nine GET endpoint evidence records. API and persistence tests pass; live secondary CE verification remains deferred until that firewall is connected.
 - [x] User-triggered per-device read-only checks and overview collection.
 - [x] Inventory metadata editing and enable/disable for all registered devices. Any registered device, including the legacy installation-configured placeholder, can be deleted after administrator confirmation. The UI requires typing DELETE before enabling the destructive action.
@@ -64,7 +65,7 @@ Status meanings:
 - [x] User reported a successful local firewall connection test and read-only collection.
 - [x] Dashboard appliance cards are status-only. Administrators navigate to Firewall Inventory for edit, remove, details, and read-only checks. User confirmed the revised dashboard and the Windows typecheck/build/Compose startup passed after the change.
 - [x] Read-only diagnostic modal presents a human-readable collection summary, returned counts, system metrics, pfSense version, and state-table usage, with expandable redacted technical JSON. User validated the Windows typecheck/build/Compose startup and accepted the UI.
-- [~] Per-firewall Compatibility subpage is implemented at `/firewalls/:deviceId/compatibility`, linked from the inventory details panel. It displays device metadata and per-endpoint Verified/Unsupported/Unknown evidence. Awaiting Windows typecheck/build and manual UI acceptance.
+- [~] Per-firewall Compatibility subpage is implemented at `/firewalls/:deviceId/compatibility`, linked from the inventory details panel. The first Plus device profile displays nine of nine verified checks and package version `v2.11.0`. Awaiting Windows typecheck/build and manual UI acceptance.
 
 ### Validated local development baseline
 - [x] Windows development installer completed successfully, including native Rollup/esbuild verification, dependency audit, type checks, production builds, Docker image builds, and Compose startup (earlier validated session).
@@ -89,7 +90,7 @@ Status meanings:
 - [ ] Full monitoring pages and useful normalized per-firewall detail views.
 - [ ] Automatic/scheduled polling, concurrency controls, backoff, and stale-data behavior.
 - [ ] Full Plus/CE/API-package compatibility evidence.
-- [ ] Additional verified read-only API capabilities beyond the initial eight endpoints. The package-version GET is implemented but still requires live response validation.
+- [ ] Audit and prioritize additional read-only API capabilities from the existing 694-operation OpenAPI inventory. The current nine-operation integration baseline is eight core operational GETs plus the verified REST API package-version metadata GET.
 - [ ] Configuration backup and restore workflow, with tested recovery.
 - [ ] Durable audit trail for privileged and configuration-changing actions.
 - [ ] Safe configuration-change engine and first write-capable feature.
@@ -354,7 +355,7 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Immediate acceptance task: pull the per-firewall Compatibility subpage and validate on Windows (`npm run typecheck`, `npm run build`, and a manual visit to a firewall inventory detail link). Confirm metadata and all nine endpoint statuses render correctly, including Unknown for unverified evidence. Live secondary CE verification remains deferred until the CE firewall is connected. The transport-specific connection profile remains deferred until DEC-010 is resolved.**
+**Immediate task: audit the existing generated 694-operation OpenAPI inventory and produce a prioritized read-only integration backlog. Classify candidate GET operations by feature domain, required privilege, package/release dependencies, response schema complexity, data sensitivity, and operational value. Confirm which candidates are already covered by the nine-operation baseline (eight core operational GETs plus `GET /api/v2/system/restapi/version`). Do not add firewall permissions or manager allowlist entries during discovery. After the audit, select one small read-only feature for exact schema review and live Plus verification. The per-firewall Compatibility subpage still needs Windows typecheck/build and manual UI acceptance; live secondary CE verification remains deferred until that firewall is connected. The transport-specific connection profile remains deferred until DEC-010 is resolved.**
 
 The user has successfully completed the corrected Windows development installer. The installer:
 - Recognized the required Windows native Rollup and esbuild packages at their expected versions.
@@ -386,6 +387,8 @@ Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` was validated locally. The ins
 **Previous action completed:** Phase 1 route/provider tests for registration, credential rotation, authorization, TLS configuration, and certificate discovery are implemented and recorded above. The user accepted the UI refresh. The Phase 2 frontend credential/TLS editor is committed. A follow-up layout fix now places the inventory form and credential editor inside one scroll container and corrects checkbox sizing. The unified dialog scroll fix is not yet locally validated. A further polish commit themes the native certificate file picker and hides the dialog scrollbar track while preserving wheel, touch, and keyboard scrolling. The latest sidebar refinement prevents horizontal overflow, hides scrollbar chrome, retains vertical scrolling, and keeps the account footer fixed within the sidebar. The user confirmed the dialog and sidebar visual changes are good.
 
 ## 8. Session handoff
+
+**API scope reconciliation (2026-11-21):** The ninth approved GET operation is `GET /api/v2/system/restapi/version`, added to discover the installed REST API package version. The compatibility page showed 9 of 9 endpoint checks Verified and package version `v2.11.0` for the first Plus firewall. The baseline is eight core operational GETs plus one package metadata probe, not nine equivalent monitoring endpoints. The adjacent PATCH is excluded. Documentation was reconciled across `AGENTS.md`, API matrix/reference, compatibility, integration status, decisions, and roadmap. Next work is an inventory audit and read-only candidate prioritization, not a blind expansion of permissions. No firewall permissions or runtime behavior were changed in this documentation update.
 
 **Dashboard and diagnostic UI handoff (2026-11-21):** The user validated the dashboard as a status-only view and reported successful `npm run typecheck`, `npm run build`, and `docker compose up -d --build`. The dashboard no longer offers Edit, Remove, Details expansion, or Run check; the View firewall link opens Firewall Inventory and selects the relevant device. The diagnostic modal enhancement is committed but not yet locally validated. It summarizes the eight core read-only operations, aggregate gateway/interface/service/ARP/firewall-state counts, available system metrics, pfSense version, and state-table usage. Raw JSON is behind an expandable Technical details section and key-name-based redaction. This UI summarizes returned data and explicitly avoids claiming that successful collection proves each subsystem is healthy. Latest implementation commit at handoff: `72a7579c1c059a29c66dea98cccf9967bf840044`. After diagnostic UI validation, resume Phase 2 per-device compatibility discovery. No firewall permissions or write operations were changed.
 
