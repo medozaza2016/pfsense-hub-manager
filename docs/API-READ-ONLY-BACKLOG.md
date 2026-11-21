@@ -59,6 +59,20 @@ This order is a product recommendation, not a compatibility claim. No candidate 
 
 ## 5. First feature gate: firewall rules
 
+### Confirmed from current public REST API documentation
+
+- `GET /api/v2/firewall/rules` is the plural/many endpoint for reading the firewall rule collection. Its documented endpoint class is `FirewallRulesEndpoint`. The plural response's `data` field is an array of objects.
+- Plural GET endpoints support querying/filtering and pagination. The REST API exposes pagination through limit/offset and HATEOAS previous/next links; the manager should use bounded page sizes and follow links or offsets deliberately, not fetch an unbounded collection.
+- The generated project OpenAPI matrix lists the endpoint-specific privilege `api-v2-firewall-rules-get` and also `page-all`. The manager should request only the endpoint-specific privilege. Do not grant `page-all`, because it grants access to all API endpoints.
+- The upstream documentation distinguishes GET's read behavior from POST/PATCH/PUT/DELETE operations on the same endpoint family. Only GET is in scope here.
+
+References:
+- [FirewallRulesEndpoint class documentation](https://pfrest.org/php-docs/classes/RESTAPI-Endpoints-FirewallRulesEndpoint.html)
+- [Swagger and OpenAPI guide](https://pfrest.org/SWAGGER_AND_OPENAPI/)
+- [Endpoint types, plural collections and pagination](https://pfrest.org/ENDPOINT_TYPES/)
+
+These public docs explain the endpoint model and generic plural endpoint behavior. The project's pinned OpenAPI JSON and the live firewall's own Swagger page remain authoritative for the installed package version and exact component fields. The current online documentation is not a substitute for checking the Plus device's installed v2.11.0 package.
+
 Before implementing `GET /api/v2/firewall/rules`:
 
 - [ ] Inspect the exact OpenAPI operation and all referenced component schemas, including nested references.
