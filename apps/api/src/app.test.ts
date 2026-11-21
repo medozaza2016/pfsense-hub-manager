@@ -234,6 +234,22 @@ describe("Fastify route authentication and authorization", () => {
     expect(response.body).not.toContain("replacement-read-only-key");
   });
 
+  it("allows an administrator to delete the configured placeholder device", async () => {
+    const { app, provider, cookie } = createHarness("admin");
+    apps.push(app);
+    vi.mocked(provider.deleteDevice).mockResolvedValue(true);
+
+    const response = await app.inject({
+      method: "DELETE",
+      url: `/api/v1/devices/${config.PFSENSE_DEVICE_ID}`,
+      headers: { cookie }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({ id: config.PFSENSE_DEVICE_ID, deleted: true });
+    expect(provider.deleteDevice).toHaveBeenCalledWith(config.PFSENSE_DEVICE_ID);
+  });
+
   it("denies credential rotation to regular users", async () => {
     const { app, provider, cookie } = createHarness("user");
     apps.push(app);
