@@ -110,7 +110,7 @@ app.post("/api/v1/auth/setup", async (request, reply) => {
       return reply.code(409).send({ error: { code: "SETUP_ALREADY_COMPLETED", message: "An administrator account already exists." } });
     }
     const created = await db.query<{ id: string; username: string; role: "admin" | "user" }>(
-      "INSERT INTO admin_users(username,password_hash,password_salt,password_iterations) VALUES($1,$2,$3,$4) RETURNING id,username",
+      "INSERT INTO admin_users(username,password_hash,password_salt,password_iterations) VALUES($1,$2,$3,$4) RETURNING id,username,role",
       [parsed.data.username, credentials.hash, credentials.salt, credentials.iterations]
     );
     const user = created.rows[0];
