@@ -28,7 +28,7 @@ function safeSystemMetrics(value: unknown): Record<string, string | number | boo
   return output;
 }
 
-export type FirewallInput = { name: string; location?: string; edition: "plus" | "ce" | "unknown"; apiBaseUrl: string; apiKey: string; caCertificatePem?: string };
+export type FirewallInput = { name: string; location?: string | undefined; edition: "plus" | "ce" | "unknown"; apiBaseUrl: string; apiKey: string; caCertificatePem?: string | undefined };
 function validateBaseUrl(value: string): string {
   const url = new URL(value);
   if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
