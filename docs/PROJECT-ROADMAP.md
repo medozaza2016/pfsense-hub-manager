@@ -55,6 +55,7 @@ Status meanings:
 - [x] Per-firewall CA certificate and TLS server-name configuration.
 - [x] TLS certificate discovery during onboarding. Discovery inspects the presented certificate; it does not automatically trust it.
 - [x] Fixed allowlist of eight initial read-only pfSense GET operations.
+- [~] Add the ninth approved GET operation for REST API package-version discovery, persist compatibility metadata, and validate the live response on the Plus firewall.
 - [x] User-triggered per-device read-only checks and overview collection.
 - [x] Inventory metadata editing, enable/disable, and confirmation-based removal of eligible additional devices. The environment-configured primary device is protected from deletion.
 - [x] Responsive dashboard shell, sidebar hierarchy, user administration, firewall inventory, and placeholder navigation areas.
@@ -84,7 +85,7 @@ Status meanings:
 - [ ] Full monitoring pages and useful normalized per-firewall detail views.
 - [ ] Automatic/scheduled polling, concurrency controls, backoff, and stale-data behavior.
 - [ ] Full Plus/CE/API-package compatibility evidence.
-- [ ] Additional verified read-only API capabilities beyond the initial eight endpoints.
+- [ ] Additional verified read-only API capabilities beyond the initial eight endpoints. The package-version GET is implemented but still requires live response validation.
 - [ ] Configuration backup and restore workflow, with tested recovery.
 - [ ] Durable audit trail for privileged and configuration-changing actions.
 - [ ] Safe configuration-change engine and first write-capable feature.
