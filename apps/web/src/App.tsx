@@ -313,6 +313,19 @@ export default function App() {
               <div className="form-section-title"><h3>API authentication</h3><p className="muted">Use a dedicated API key with only the eight required GET permissions.</p></div>
               <label>Read-only API key<input type="password" value={firewallApiKey} onChange={e => {setFirewallApiKey(e.target.value);setFirewallTested(false);}} autoComplete="off" required /></label>
               <label>Private CA certificate (PEM), optional<textarea value={firewallCa} onChange={e => {setFirewallCa(e.target.value);setFirewallTested(false);}} rows={5} placeholder="-----BEGIN CERTIFICATE-----" /></label>
+              <details className="certificate-help">
+                <summary>How do I obtain the CA certificate?</summary>
+                <div>
+                  <p>Only provide a certificate here if the firewall uses a self-signed certificate or a certificate issued by a private certificate authority. If its web interface uses a certificate trusted by your system's public certificate authorities, leave this field blank.</p>
+                  <ol>
+                    <li>On pfSense, open <strong>System → Cert. Manager → CAs</strong>.</li>
+                    <li>Find the certificate authority that issued the certificate used by the pfSense web interface.</li>
+                    <li>Export the CA certificate, not its private key, and copy the PEM certificate text into this field.</li>
+                    <li>The text should begin with <code>-----BEGIN CERTIFICATE-----</code> and end with <code>-----END CERTIFICATE-----</code>.</li>
+                  </ol>
+                  <p>If the web interface certificate is self-signed, provide that self-signed certificate as the trust certificate. Do not paste or upload a private key.</p>
+                </div>
+              </details>
               <p className="security-note">TLS certificate verification is always enabled. Provide the issuing CA certificate when the firewall uses a private certificate authority. Do not disable TLS verification.</p>
               {firewallTestResult && <div className="success-notice">{firewallTestResult}</div>}
               <div className="onboarding-actions"><button type="button" onClick={() => void testFirewallConnection()} disabled={busy || !firewallName.trim() || !firewallUrl.startsWith("https://") || !firewallApiKey.trim()}>{busy ? "Testing…" : "Test connection"}</button><button className="primary-button" type="submit" disabled={busy || !firewallTested}>{busy ? "Registering…" : "Register firewall"}</button></div>
