@@ -46,8 +46,16 @@ function diagnosticJson(value: unknown): string {
   return JSON.stringify(redactDiagnosticData(value), null, 2);
 }
 type ApiResponse<T> = { data: T; meta?: { outcome?: string; failedOperations?: number; durationMs?: number }; error?: { message: string } };
-type Page = "dashboard" | "firewalls" | "firewall-compatibility" | "add-firewall" | "monitoring" | "users" | "audit" | "manager-api" | "settings";
+type Page = "dashboard" | "firewalls" | "firewall-compatibility" | "firewall-rules" | "add-firewall" | "monitoring" | "users" | "audit" | "manager-api" | "settings";
 type CompatibilityProfile = { device: { id: string; edition: string; release: string | null; architecture: string | null; restApiPackageVersion: string | null; compatibilityVerifiedAt: string | null }; capabilities: { key: string; endpoint: string; method: string; supported: boolean | null; verification: "unknown" | "verified" | "unsupported"; lastCheckedAt: string | null; lastErrorClass: string | null }[] };
+type FirewallRule = { id: number; type?: unknown; interface?: unknown; ipprotocol?: unknown; protocol?: unknown; source?: unknown; source_port?: unknown; destination?: unknown; destination_port?: unknown; descr?: unknown; disabled?: unknown; log?: unknown; [key: string]: unknown };
+type FirewallRulesResponse = { rules: FirewallRule[]; truncated: boolean };
+function firewallRuleValue(value: unknown, fallback = "Any"): string {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (Array.isArray(value)) return value.map(item => String(item)).join(", ") || fallback;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers = new Headers(init.headers);
@@ -59,7 +67,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<ApiResponse
 }
 
 const pageTitles: Record<Page, string> = {
-  dashboard: "Dashboard", firewalls: "Firewall inventory", "firewall-compatibility": "Firewall compatibility", "add-firewall": "Add firewall", monitoring: "Monitoring",
+  dashboard: "Dashboard", firewalls: "Firewall inventory", "firewall-compatibility": "Firewall compatibility", "firewall-rules": "Firewall rules", "add-firewall": "Add firewall", monitoring: "Monitoring",
   users: "User management", audit: "Audit logs", "manager-api": "Manager API", settings: "Settings"
 };
 
@@ -67,6 +75,7 @@ const pagePaths: Record<Page, string> = {
   dashboard: "/dashboard",
   firewalls: "/firewalls",
   "firewall-compatibility": "/firewall-compatibility",
+  "firewall-rules": "/firewall-rules",
   "add-firewall": "/firewalls/add",
   monitoring: "/monitoring",
   users: "/users",
@@ -81,7 +90,9 @@ export default function App() {
   const routerNavigate = useNavigate();
   const compatibilityMatch = location.pathname.match(/^\/firewalls\/([^/]+)\/compatibility$/);
   const compatibilityDeviceId = compatibilityMatch ? decodeURIComponent(compatibilityMatch[1]) : null;
-  const page: Page = compatibilityMatch ? "firewall-compatibility" : pathPages[location.pathname] ?? "dashboard";
+  const firewallRulesMatch = location.pathname.match(/^\/firewalls\/([^/]+)\/rules$/);
+  const firewallRulesDeviceId = firewallRulesMatch ? decodeURIComponent(firewallRulesMatch[1]) : null;
+  const page: Page = firewallRulesMatch ? "firewall-rules" : compatibilityMatch ? "firewall-compatibility" : pathPages[location.pathname] ?? "dashboard";
   const { notify } = useToast();
   function reportError(message: string) { notify(message, "error"); }
   const [screen, setScreen] = useState<"loading" | "setup" | "login" | "app">("loading");
@@ -94,6 +105,15 @@ export default function App() {
   const [compatibilityProfile, setCompatibilityProfile] = useState<CompatibilityProfile | null>(null);
   const [compatibilityLoading, setCompatibilityLoading] = useState(false);
   const [compatibilityError, setCompatibilityError] = useState<string | null>(null);
+  const [firewallRules, setFirewallRules] = useState<FirewallRule[]>([]);
+  const [firewallRulesTruncated, setFirewallRulesTruncated] = useState(false);
+  const [firewallRulesLoading, setFirewallRulesLoading] = useState(false);
+  const [firewallRulesError, setFirewallRulesError] = useState<string | null>(null);
+  const [firewallRulesRefreshKey, setFirewallRulesRefreshKey] = useState(0);
+  const [firewallRulesSearch, setFirewallRulesSearch] = useState("");
+  const [firewallRulesAction, setFirewallRulesAction] = useState("all");
+  const [firewallRulesInterface, setFirewallRulesInterface] = useState("all");
+  const [firewallRulesState, setFirewallRulesState] = useState<"all" | "enabled" | "disabled">("all");
   const [overview, setOverview] = useState<Record<string, unknown> | null>(null);
   const [firewallSearch, setFirewallSearch] = useState("");
   const [firewallFilter, setFirewallFilter] = useState<"all" | "enabled" | "disabled">("all");
@@ -165,10 +185,32 @@ export default function App() {
   }, [screen, compatibilityDeviceId]);
 
   useEffect(() => {
+    if (screen !== "app" || !firewallRulesDeviceId || currentUser?.role !== "admin") {
+      setFirewallRules([]);
+      setFirewallRulesError(null);
+      return;
+    }
+    let active = true;
+    setFirewallRulesLoading(true);
+    setFirewallRulesError(null);
+    api<FirewallRulesResponse>("/api/v1/devices/" + encodeURIComponent(firewallRulesDeviceId) + "/firewall/rules")
+      .then(result => {
+        if (!active) return;
+        setFirewallRules(result.data.rules);
+        setFirewallRulesTruncated(result.data.truncated);
+      })
+      .catch(error => {
+        if (active) setFirewallRulesError(error instanceof Error ? error.message : "Unable to load firewall rules.");
+      })
+      .finally(() => { if (active) setFirewallRulesLoading(false); });
+    return () => { active = false; };
+  }, [screen, firewallRulesDeviceId, currentUser?.role, firewallRulesRefreshKey]);
+
+  useEffect(() => {
     if (screen === "app") {
       if ((!pathPages[location.pathname] && !compatibilityMatch) || location.pathname === "/login" || location.pathname === "/setup") {
         routerNavigate("/dashboard", { replace: true });
-      } else if (currentUser?.role !== "admin" && ["users", "audit", "settings"].includes(page)) {
+      } else if (currentUser?.role !== "admin" && ["users", "audit", "settings", "firewall-rules"].includes(page)) {
         routerNavigate("/dashboard", { replace: true });
       }
     } else if (screen === "setup" && location.pathname !== "/setup") {
@@ -466,6 +508,16 @@ export default function App() {
     return matchesQuery && matchesFilter;
   });
   const connectedCount = devices.filter(device => device.connectionStatus === "online").length;
+  const firewallRulesDevice = devices.find(device => device.id === firewallRulesDeviceId);
+  const availableRuleInterfaces = [...new Set(firewallRules.map(rule => firewallRuleValue(rule.interface, "")).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const visibleFirewallRules = firewallRules.filter(rule => {
+    const query = firewallRulesSearch.trim().toLowerCase();
+    const action = firewallRuleValue(rule.type, "").toLowerCase();
+    const interfaceName = firewallRuleValue(rule.interface, "");
+    const disabled = rule.disabled === true || rule.disabled === "true" || rule.disabled === 1;
+    const searchable = [rule.id, rule.descr, rule.source, rule.source_port, rule.destination, rule.destination_port, rule.protocol, rule.ipprotocol, rule.interface].map(value => firewallRuleValue(value, "")).join(" ").toLowerCase();
+    return (!query || searchable.includes(query)) && (firewallRulesAction === "all" || action === firewallRulesAction) && (firewallRulesInterface === "all" || interfaceName.split(", ").includes(firewallRulesInterface)) && (firewallRulesState === "all" || (firewallRulesState === "disabled" ? disabled : !disabled));
+  });
   const sidebar = <aside className="sidebar">
     <div className="brand">
       <div className="brand-mark">pf</div>
@@ -591,12 +643,48 @@ export default function App() {
                   <div><span>Last error class</span><strong>{device.lastErrorClass || "None"}</strong></div>
                   <div><span>Failed operations in latest check</span><strong>{check ? check.failedOperations : "Not available"}</strong></div>
                   <p>Connection status is stored by the manager and reflects the latest read-only collection. This manager does not change firewall configuration.</p>
+                  {isAdmin && <button className="text-button compatibility-link" onClick={() => routerNavigate("/firewalls/" + encodeURIComponent(device.id) + "/rules")}>Inspect firewall rules <span>→</span></button>}
                   <button className="text-button compatibility-link" onClick={() => routerNavigate("/firewalls/" + encodeURIComponent(device.id) + "/compatibility")}>View compatibility profile <span>→</span></button>
                 </div>}
               </article>;
             })}
           </section>
 
+        </div>}
+        {page === "firewall-rules" && <div className="page-stack firewall-rules-page">
+          <div className="inventory-heading"><div><p className="dashboard-kicker">FIREWALLS / INSPECTION</p><h2>{firewallRulesDevice?.name ?? "Firewall"} rules</h2><p className="muted">Read-only view of the firewall's configured rules, in the order returned by pfSense.</p></div><div className="inventory-heading-actions"><button onClick={() => routerNavigate("/firewalls")}>← Firewall inventory</button><button onClick={() => setFirewallRulesRefreshKey(value => value + 1)} disabled={firewallRulesLoading || !firewallRulesDevice?.enabled}>↻ {firewallRulesLoading ? "Refreshing…" : "Refresh rules"}</button></div></div>
+          {!isAdmin ? <section className="content-card compatibility-empty"><strong>Administrator access required</strong><p className="muted">Firewall rule inspection is restricted to administrators.</p></section> : !firewallRulesDevice || !firewallRulesDevice.enabled ? <section className="content-card compatibility-empty"><strong>Firewall unavailable</strong><p className="muted">This firewall is missing or disabled in the current inventory.</p><button onClick={() => routerNavigate("/firewalls")}>Return to inventory</button></section> : firewallRulesLoading && firewallRules.length === 0 ? <section className="content-card compatibility-empty">Loading firewall rules…</section> : firewallRulesError ? <section className="content-card compatibility-empty"><strong>Unable to load firewall rules</strong><p className="muted">{firewallRulesError}</p><button onClick={() => setFirewallRulesRefreshKey(value => value + 1)} disabled={firewallRulesLoading}>Try again</button></section> : <>
+            <section className="firewall-rules-summary">
+              <article><span>TOTAL RULES</span><strong>{firewallRules.length}</strong><small>Returned by pfSense</small></article>
+              <article><span>ENABLED</span><strong>{firewallRules.filter(rule => !(rule.disabled === true || rule.disabled === "true" || rule.disabled === 1)).length}</strong><small>Active configuration entries</small></article>
+              <article><span>DISABLED</span><strong>{firewallRules.filter(rule => rule.disabled === true || rule.disabled === "true" || rule.disabled === 1).length}</strong><small>Shown for context</small></article>
+              <article><span>DISPLAYING</span><strong>{visibleFirewallRules.length}</strong><small>After current filters</small></article>
+            </section>
+            {firewallRulesTruncated && <div className="notice firewall-rules-warning">The manager reached its 1,000-rule retrieval limit. This list may be incomplete.</div>}
+            <section className="content-card firewall-rules-toolbar">
+              <label className="inventory-search"><span>⌕</span><input aria-label="Search firewall rules" placeholder="Search description, source, destination, port…" value={firewallRulesSearch} onChange={event => setFirewallRulesSearch(event.target.value)} /></label>
+              <select aria-label="Filter by action" value={firewallRulesAction} onChange={event => setFirewallRulesAction(event.target.value)}><option value="all">All actions</option><option value="pass">Pass</option><option value="block">Block</option><option value="reject">Reject</option></select>
+              <select aria-label="Filter by interface" value={firewallRulesInterface} onChange={event => setFirewallRulesInterface(event.target.value)}><option value="all">All interfaces</option>{availableRuleInterfaces.map(name => <option key={name} value={name}>{name}</option>)}</select>
+              <select aria-label="Filter by rule status" value={firewallRulesState} onChange={event => setFirewallRulesState(event.target.value as "all" | "enabled" | "disabled")}><option value="all">All statuses</option><option value="enabled">Enabled only</option><option value="disabled">Disabled only</option></select>
+            </section>
+            <section className="content-card firewall-rules-table-card">
+              <div className="inventory-section-heading"><div><span className="eyebrow">READ-ONLY CONFIGURATION</span><h2>Firewall rules</h2><p className="muted">Original pfSense order is preserved. Disabled entries remain visible.</p></div><span className="inventory-total">Showing {visibleFirewallRules.length} of {firewallRules.length}</span></div>
+              {visibleFirewallRules.length === 0 ? <div className="inventory-empty"><strong>No matching rules</strong><p>Change the search or filters to see other rules.</p></div> : <div className="firewall-rules-table-wrap"><table className="firewall-rules-table"><thead><tr><th>Order / ID</th><th>Status</th><th>Action</th><th>Interface</th><th>Protocol</th><th>Source</th><th>Destination</th><th>Port</th><th>Description</th></tr></thead><tbody>{visibleFirewallRules.map(rule => {
+                const disabled = rule.disabled === true || rule.disabled === "true" || rule.disabled === 1;
+                const action = firewallRuleValue(rule.type, "Unknown").toLowerCase();
+                return <tr key={rule.id} className={disabled ? "firewall-rule-disabled" : ""}>
+                  <td className="firewall-rule-id">{rule.id}</td>
+                  <td><span className={disabled ? "firewall-rule-status is-disabled" : "firewall-rule-status is-enabled"}>{disabled ? "Disabled" : "Enabled"}</span></td>
+                  <td><span className={"firewall-rule-action action-" + action}>{action.toUpperCase()}</span></td>
+                  <td>{firewallRuleValue(rule.interface)}</td><td>{firewallRuleValue(rule.protocol, firewallRuleValue(rule.ipprotocol))}</td>
+                  <td>{firewallRuleValue(rule.source)}{rule.source_port ? <small className="firewall-rule-subvalue">Port {firewallRuleValue(rule.source_port)}</small> : null}</td>
+                  <td>{firewallRuleValue(rule.destination)}</td><td>{firewallRuleValue(rule.destination_port)}</td>
+                  <td className="firewall-rule-description">{firewallRuleValue(rule.descr, "No description")}</td>
+                </tr>;
+              })}</tbody></table></div>}
+            </section>
+            <p className="compatibility-note">This page displays configuration data only. It does not edit, reorder, enable, disable, apply, or delete firewall rules. Rule order is the order returned by the pfSense API.</p>
+          </>}
         </div>}
         {page === "firewall-compatibility" && <div className="page-stack compatibility-page">
           <div className="inventory-heading"><div><p className="dashboard-kicker">FIREWALLS / COMPATIBILITY</p><h2>{devices.find(device => device.id === compatibilityDeviceId)?.name ?? "Firewall"} compatibility</h2><p className="muted">Per-device evidence for the read-only API operations available to this manager.</p></div><div className="inventory-heading-actions"><button onClick={() => routerNavigate("/firewalls")}>← Firewall inventory</button></div></div>
