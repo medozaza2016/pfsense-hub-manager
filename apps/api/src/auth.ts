@@ -7,9 +7,17 @@ const PASSWORD_ITERATIONS = 310_000;
 const PASSWORD_BYTES = 64;
 export const SESSION_TTL_SECONDS = 12 * 60 * 60;
 
+export type AdminRole = "admin" | "user";
+
 export interface AdminUser {
   id: string;
   username: string;
+  role: AdminRole;
+}
+
+export function authorizationFailure(user: AdminUser | null): 401 | 403 | null {
+  if (!user) return 401;
+  return user.role === "admin" ? null : 403;
 }
 
 export async function hashPassword(password: string): Promise<{ hash: string; salt: string; iterations: number }> {
@@ -44,7 +52,7 @@ export async function createSession(pool: pg.Pool, adminUserId: string): Promise
 export async function findSession(pool: pg.Pool, token: string): Promise<AdminUser | null> {
   if (!/^[A-Za-z0-9_-]{40,50}$/.test(token)) return null;
   const result = await pool.query<AdminUser>(
-    `SELECT u.id, u.username
+    `SELECT u.id, u.username, u.role
        FROM admin_sessions s
        JOIN admin_users u ON u.id = s.admin_user_id
       WHERE s.token_hash = $1 AND s.expires_at > now()`,
