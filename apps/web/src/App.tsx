@@ -518,7 +518,13 @@ export default function App() {
     const searchable = [rule.id, rule.descr, rule.source, rule.source_port, rule.destination, rule.destination_port, rule.protocol, rule.ipprotocol, rule.interface].map(value => firewallRuleValue(value, "")).join(" ").toLowerCase();
     return (!query || searchable.includes(query)) && (firewallRulesAction === "all" || action === firewallRulesAction) && (firewallRulesInterface === "all" || interfaceName.split(", ").includes(firewallRulesInterface)) && (firewallRulesState === "all" || (firewallRulesState === "disabled" ? disabled : !disabled));
   });
-  const groupedFirewallRules = availableRuleInterfaces.map(interfaceName => ({ interfaceName, rules: visibleFirewallRules.filter(rule => (Array.isArray(rule.interface) ? rule.interface.map(value => String(value)) : [firewallRuleValue(rule.interface, "")]).includes(interfaceName)) })).filter(group => group.rules.length > 0);
+  const groupedFirewallRules = availableRuleInterfaces.map(interfaceName => ({
+    interfaceName,
+    rules: firewallRules
+      .filter(rule => (Array.isArray(rule.interface) ? rule.interface.map(value => String(value)) : [firewallRuleValue(rule.interface, "")]).includes(interfaceName))
+      .map((rule, index) => ({ rule, priority: index + 1 }))
+      .filter(entry => visibleFirewallRules.includes(entry.rule))
+  })).filter(group => group.rules.length > 0);
   const sidebar = <aside className="sidebar">
     <div className="brand">
       <div className="brand-mark">pf</div>
@@ -670,11 +676,11 @@ export default function App() {
             </section>
             <section className="content-card firewall-rules-table-card">
               <div className="inventory-section-heading"><div><span className="eyebrow">READ-ONLY CONFIGURATION</span><h2>Firewall rules</h2><p className="muted">Original pfSense order is preserved. Disabled entries remain visible.</p></div><span className="inventory-total">Showing {visibleFirewallRules.length} of {firewallRules.length}</span></div>
-              {visibleFirewallRules.length === 0 ? <div className="inventory-empty"><strong>No matching rules</strong><p>Change the search or filters to see other rules.</p></div> : <div className="firewall-rule-groups">{groupedFirewallRules.map(group => <section className="firewall-rule-interface-group" key={group.interfaceName}><div className="firewall-rule-group-heading"><div><span className="eyebrow">INTERFACE</span><h3>{group.interfaceName}</h3></div><span className="inventory-total">{group.rules.length} {group.rules.length === 1 ? "rule" : "rules"}</span></div><div className="firewall-rules-table-wrap"><table className="firewall-rules-table"><thead><tr><th>Priority</th><th>Rule ID</th><th>Status</th><th>Action</th><th>Protocol</th><th>Source</th><th>Destination</th><th>Port</th><th>Description</th></tr></thead><tbody>{group.rules.map((rule, index) => {
+              {visibleFirewallRules.length === 0 ? <div className="inventory-empty"><strong>No matching rules</strong><p>Change the search or filters to see other rules.</p></div> : <div className="firewall-rule-groups">{groupedFirewallRules.map(group => <section className="firewall-rule-interface-group" key={group.interfaceName}><div className="firewall-rule-group-heading"><div><span className="eyebrow">INTERFACE</span><h3>{group.interfaceName}</h3></div><span className="inventory-total">{group.rules.length} {group.rules.length === 1 ? "rule" : "rules"}</span></div><div className="firewall-rules-table-wrap"><table className="firewall-rules-table"><thead><tr><th>Priority</th><th>Rule ID</th><th>Status</th><th>Action</th><th>Protocol</th><th>Source</th><th>Destination</th><th>Port</th><th>Description</th></tr></thead><tbody>{group.rules.map(({ rule, priority }) => {
                 const disabled = rule.disabled === true || rule.disabled === "true" || rule.disabled === 1;
                 const action = firewallRuleValue(rule.type, "Unknown").toLowerCase();
                 return <tr key={`${group.interfaceName}-${rule.id}`} className={disabled ? "firewall-rule-disabled" : ""}>
-                  <td className="firewall-rule-id">{index + 1}</td><td className="firewall-rule-id">{rule.id}</td>
+                  <td className="firewall-rule-id">{priority}</td><td className="firewall-rule-id">{rule.id}</td>
                   <td><span className={disabled ? "firewall-rule-status is-disabled" : "firewall-rule-status is-enabled"}>{disabled ? "Disabled" : "Enabled"}</span></td>
                   <td><span className={"firewall-rule-action action-" + action}>{action.toUpperCase()}</span></td>
                   <td>{firewallRuleValue(rule.protocol, firewallRuleValue(rule.ipprotocol))}</td>
