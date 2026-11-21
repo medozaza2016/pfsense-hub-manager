@@ -66,7 +66,7 @@ export function DataTable<T>({
     setPage(0);
   }
 
-  return <section className="ui-table-shell" aria-busy={loading}>
+  return <section className={"ui-table-shell"+(mobileCard?" has-mobile-cards":"")} aria-busy={loading}>
     {error && <div className="ui-feedback ui-feedback-error" role="alert">{error}</div>}
     {loading ? <div className="ui-state" role="status"><span className="ui-spinner" />{loadingLabel}</div>
       : filtered.length === 0 ? <div className="ui-state"><strong>{emptyTitle}</strong><span>{emptyDescription}</span></div>
