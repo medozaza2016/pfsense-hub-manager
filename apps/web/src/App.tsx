@@ -124,7 +124,6 @@ export default function App(){
  const [query,setQuery]=useState("");
  const [dialog,setDialog]=useState<"add-site"|"profile"|"none">("none");
  const [toast,setToast]=useState("");
- const [expanded,setExpanded]=useState<string|null>(null);
  const [toggleStates,setToggleStates]=useState<Record<string,boolean>>({"Automatic polling":true,"Email notifications":false,"Require confirmation":true});
  const [filter,setFilter]=useState("All");
  const [refreshCount,setRefreshCount]=useState(0);
@@ -133,9 +132,8 @@ export default function App(){
  const [localSites,setLocalSites]=useState<Device[]>(demoDevices);
  const [mobileTab,setMobileTab]=useState("Overview");
  const notify=(message:string)=>{setToast(message);window.setTimeout(()=>setToast(""),2600)};
- const isSite=!!selected;
  const filteredSites=useMemo(()=>localSites.filter(s=>(s.name+" "+s.location+" "+s.address).toLowerCase().includes(query.toLowerCase())&&(filter==="All"||s.state===filter.toLowerCase())),[localSites,query,filter]);
- function go(id:Page){setPage(id);setMenuOpen(false);setExpanded(null);setQuery("");}
+ function go(id:Page){setPage(id);setMenuOpen(false);setQuery("");}
  function openSite(d:Device){setSelected(d);go("overview");}
  function backHub(){setSelected(null);go("overview");}
  function refresh(){setRefreshCount(x=>x+1);notify("Preview refreshed. No firewall was contacted.");}
@@ -155,7 +153,7 @@ export default function App(){
   <main className="main-area">
    <header className="topbar">
     <div className="topbar-leading"><button className="mobile-menu" aria-label="Toggle navigation" onClick={()=>setMenuOpen(v=>!v)}><Icon name="menu"/></button><div className="breadcrumb"><span>pfSense Hub Manager</span><strong>{selected?selected.name:"Hub Overview"}</strong></div></div>
-    <div className="topbar-actions"><span className="connection-chip"><i/>Hub operational</span><button className="primary-button add-site-top" onClick={()=>setDialog("add-site")}><Icon name="plus" size={16}/> Add Site</button><button className="avatar" onClick={()=>setDialog("profile")}>AM</button><button className="top-chevron" onClick={()=>setDialog("profile")}><span>⌄</span></button></div>
+    <div className="topbar-actions"><span className="connection-chip"><i/>Hub operational</span><button className="icon-button" title="Refresh preview" aria-label="Refresh preview" onClick={refresh}><Icon name="refresh"/></button><button className="primary-button add-site-top" onClick={()=>setDialog("add-site")}><Icon name="plus" size={16}/> Add Site</button><button className="avatar" onClick={()=>setDialog("profile")}>AM</button><button className="top-chevron" onClick={()=>setDialog("profile")}><span>⌄</span></button></div>
    </header>
    <div className="page-content">
     <div className="preview-banner"><span className="preview-dot"/> FRONTEND PREVIEW · DEMONSTRATION DATA · NO FIREWALL CHANGES</div>
