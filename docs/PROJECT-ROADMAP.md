@@ -352,6 +352,7 @@ After frontend validation, validate the API workspace and Compose configuration/
 
 **Latest installer commits:**
 - `b64ddfada5329565b6bac7fb8737a781ec43add1` adds the Windows `-Development` prerequisite profile.
+- `6afe6705bc55a6bbf29cab4264dd603132f13da9` fixes PowerShell version parsing in the prerequisite checks.
 - `5a842c5b46b8552744f6e94691e5889fd60aa1a5` documents the development installation path.
 
 **Next action on Windows:** Check the working tree, pull the latest branch, then run the development installer:
