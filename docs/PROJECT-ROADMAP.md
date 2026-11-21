@@ -63,7 +63,8 @@ Status meanings:
 
 ### Implemented but awaiting local validation
 - [~] Latest React Router dependency, URL routing, and navigation changes. Local TypeScript check and production build have not yet been reported after these changes.
-- [~] Windows installer development profile now checks Node.js 22+ and npm 10+, installs workspace dependencies when needed, verifies TypeScript, then runs type-check and production build. Committed but not yet executed on the user's Windows machine.
+- [x] Windows installer development profile checks Node.js 22+ and npm 10+, installs workspace dependencies when needed, verifies TypeScript, runs `npm audit`, applies compatible fixes with `npm audit fix` (never `--force`), reports remaining findings, then runs type-check and production build. User executed it successfully; 4 findings remained because the existing dependency ranges required major upgrades.
+- [~] Upgraded API workspace dependencies to Zod `^4.6.7` and Vitest `^5.1.1` to address the reported advisories. Requires local npm install, audit, API tests, type-check, and build validation.
 - [~] Windows development installer now audits npm dependencies, runs `npm audit fix` when vulnerabilities are found, and verifies the final audit. It does not use `--force`; this change is committed but still needs local validation.
 - [~] Latest documentation synchronization. The current branch contains documentation updates, but links and all cross-document claims should be reviewed as the project evolves.
 
@@ -327,21 +328,24 @@ A feature is not complete when the UI button appears or the backend route compil
 
 ## 7. Current next action
 
-**Next task: validate the new Windows development onboarding from the beginning before adding another feature.**
+**Next task: validate the dependency security remediation and finish the Windows development onboarding.**
 
 On the user's Windows development machine, from PowerShell:
 
 ```powershell
 cd C:\Users\ahmed\Desktop\Projects\pfsense-hub-manager
 git status --short
-git branch --show-current
+git pull --ff-only
+npm install
+npm audit
+npm run test --workspace @pfsense-hub/api
 npm run typecheck
 npm run build
 ```
 
-If the project scripts are not available at the repository root or commands fail, inspect `package.json` and workspace scripts first. Do not guess alternate scripts. Report the exact output. Do not run CI. Do not reset, stash, or discard local changes.
+Inspect the generated `package-lock.json` and dependency changes. Commit the lockfile only after the audit, tests, type checks, and build pass. If Zod 4 exposes compatibility issues, inspect and migrate the affected schemas rather than reverting to a vulnerable version. Do not use `npm audit fix --force`. Do not run CI. Do not reset, stash, or discard local changes.
 
-After frontend validation, validate the API workspace and Compose configuration/build using the repository's actual scripts. Then manually verify:
+After dependency validation, verify Compose configuration/build and manually test:
 - Sign-in and sign-out.
 - Browser refresh and direct URL navigation for every implemented route.
 - Admin versus User permissions.
@@ -357,6 +361,9 @@ After frontend validation, validate the API workspace and Compose configuration/
 - `5a842c5b46b8552744f6e94691e5889fd60aa1a5` documents the development installation path.
 - `35f83f876b7bd1ae35cfb4279048ad4b33988b57` adds automatic npm audit, compatible remediation, and a post-fix audit to the Windows development profile.
 - `02014c062a197600504e05f128978dbe2ac263b3` documents npm vulnerability remediation behavior.
+- `b6ea32b46cf2cc4d31ebdfd1729c6ad42dd05abb` upgrades Zod to `^4.6.7` and Vitest to `^5.1.1` to resolve the audit findings that required major-version updates.
+- `a202684380217817823350fa96ee588f503f7da5` corrects the installer message about manager authentication.
+- `5bfd1939da1e7464f7200db4b6b2c529a12625f8` documents the patched dependency versions and validation requirement.
 
 **Next action on Windows:** Check the working tree, pull the latest branch, then run the development installer:
 
@@ -367,7 +374,7 @@ git pull --ff-only
 .\scripts\install.ps1 -Development
 ```
 
-The user previously reported a clean working tree, but check again before pulling. Stop if pull reports local changes or conflicts. Do not discard local files, secrets, certificates, or Docker volumes. The script checks Node.js 22+ and npm 10+, installs workspace dependencies if needed, runs `npm audit`, applies compatible fixes with `npm audit fix` when needed (never `--force`), verifies the final audit, then runs type-check/build and continues the existing Docker installation prompts. Capture the complete output, including the audit summary. Inspect any generated package-lock or dependency changes before committing. No CI.
+The user previously reported a clean working tree, but check again before pulling. Stop if pull reports local changes or conflicts. Do not discard local files, secrets, certificates, or Docker volumes. The user pulled and ran the development installer successfully. The audit showed 4 findings (2 critical, 1 high, 1 moderate) requiring breaking major updates to Vitest and Zod. The dependency ranges were then upgraded in GitHub to patched major versions. Pull the latest commits and run `npm install`, `npm audit`, API tests, typecheck, and build. Inspect and commit the generated package-lock only after all checks pass. The installer status message was also corrected. No CI.
 
 **Unvalidated:** The new installer profile has not been executed on Windows. The existing React Router changes also remain unvalidated by local type-check/build.
 
