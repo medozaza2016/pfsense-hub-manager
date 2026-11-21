@@ -1351,3 +1351,26 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
  .diagnostic-stat strong{font-size:1.05rem}
  .diagnostic-results .check-result-summary{align-items:flex-start}
 }
+
+
+/* Per-firewall compatibility subpage */
+.compatibility-page { gap: 22px; }
+.compatibility-metadata { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.compatibility-metadata article { min-width: 0; display: flex; flex-direction: column; gap: 9px; padding: 19px 20px; border: 1px solid var(--border, #e5e7eb); border-radius: 14px; background: var(--surface, #fff); }
+.compatibility-metadata article span { color: var(--muted, #687386); font-size: 10px; font-weight: 700; letter-spacing: .09em; }
+.compatibility-metadata article strong { overflow-wrap: anywhere; font-size: 15px; font-weight: 650; }
+.compatibility-list { padding: 0 20px; }
+.compatibility-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 0; border-top: 1px solid var(--border, #e5e7eb); }
+.compatibility-copy { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.compatibility-copy strong { font-size: 13px; }
+.compatibility-copy code { overflow-wrap: anywhere; color: var(--muted, #687386); font-size: 11px; }
+.compatibility-copy small { color: var(--muted, #687386); font-size: 11px; }
+.compatibility-state { flex: 0 0 auto; border-radius: 999px; padding: 6px 10px; font-size: 11px; font-weight: 700; }
+.compatibility-verified { color: #16794b; background: #e8f6ee; }
+.compatibility-unsupported { color: #a33a3a; background: #fceeee; }
+.compatibility-unknown { color: #8a641c; background: #fbf4e5; }
+.compatibility-note { margin: 0; color: var(--muted, #687386); font-size: 12px; line-height: 1.65; }
+.compatibility-empty { padding: 24px; }
+.compatibility-link { margin-top: 10px; }
+@media (max-width: 900px) { .compatibility-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .compatibility-metadata { grid-template-columns: 1fr 1fr; gap: 9px; } .compatibility-metadata article { padding: 14px; } .compatibility-row { align-items: flex-start; gap: 10px; } .compatibility-state { font-size: 10px; padding: 5px 8px; } .compatibility-list { padding: 0 14px; } }
