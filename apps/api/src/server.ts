@@ -163,7 +163,7 @@ app.addHook("preHandler", async (request, reply) => {
   const publicRoutes = new Set(["/api/v1/setup/status", "/api/v1/setup/admin", "/api/v1/auth/login"]);
   if (publicRoutes.has(request.url.split("?")[0])) return;
   if (!request.url.startsWith("/api/v1/")) return;
-  const token = readSessionToken(request.headers.cookie);
+  const token = readSessionToken(request.headers.cookie ?? "");
   if (!token) return reply.code(401).send({ error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in to continue." } });
   const tokenHash = hashSessionToken(token);
   const result = await pool.query(
