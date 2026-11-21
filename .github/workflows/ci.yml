@@ -1,6 +1,12 @@
 name: CI
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/linux-production-gui-onboarding
+  pull_request:
+    branches:
+      - main
 concurrency:
   group: pfsense-app-${{ github.ref }}
   cancel-in-progress: true
