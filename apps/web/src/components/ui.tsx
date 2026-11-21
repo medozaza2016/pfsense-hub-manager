@@ -27,7 +27,7 @@ export type DataTableProps<T> = {
 };
 
 function compareValues(a: unknown, b: unknown): number {
-  if (a instanceof Date || b instanceof Date) return new Date(a as string | number | Date).getTime() - new Date(b as string | number | Date).getTime();
+  if (a instanceof Date || b instanceof Date) { const left = a instanceof Date ? a.getTime() : new Date(a as string | number).getTime(); const right = b instanceof Date ? b.getTime() : new Date(b as string | number).getTime(); return left - right; }
   if (typeof a === "number" && typeof b === "number") return a - b;
   return String(a ?? "").localeCompare(String(b ?? ""), undefined, { numeric: true, sensitivity: "base" });
 }
