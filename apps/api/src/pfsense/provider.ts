@@ -49,8 +49,16 @@ export class PfSenseProvider {
   }
 
   async listDevices() {
-    const result = await this.pool.query("SELECT id,name,location,edition,enabled FROM managed_devices ORDER BY name");
-    return result.rows.map(row => ({ id: row.id, name: row.name, location: row.location, edition: row.edition, release: null, enabled: row.enabled, canDelete: row.id !== this.config.PFSENSE_DEVICE_ID }));
+    const result = await this.pool.query(
+      "SELECT id,name,location,edition,enabled,connection_status,last_checked_at,last_success_at,last_error_class FROM managed_devices ORDER BY name"
+    );
+    return result.rows.map(row => ({
+      id: row.id, name: row.name, location: row.location, edition: row.edition, release: null,
+      enabled: row.enabled, connectionStatus: row.connection_status ?? "unknown",
+      lastCheckedAt: row.last_checked_at ?? null, lastSuccessAt: row.last_success_at ?? null,
+      lastErrorClass: row.last_error_class ?? null,
+      canDelete: row.id !== this.config.PFSENSE_DEVICE_ID
+    }));
   }
 
   async deleteDevice(deviceId: string): Promise<boolean> {
@@ -64,7 +72,7 @@ export class PfSenseProvider {
       `UPDATE managed_devices
        SET name=$1,location=$2,edition=$3,enabled=$4,updated_at=now()
        WHERE id=$5
-       RETURNING id,name,location,edition,enabled`,
+       RETURNING id,name,location,edition,enabled,connection_status,last_checked_at,last_success_at,last_error_class`,
       [input.name.trim(), input.location?.trim() || null, input.edition, input.enabled, deviceId]
     );
     return result.rows[0] ?? null;
@@ -92,8 +100,8 @@ export class PfSenseProvider {
     const encrypted = encryptSecret(input.apiKey, this.credentialKey);
     const id = randomUUID();
     await this.pool.query(
-      `INSERT INTO managed_devices(id,name,location,edition,api_base_url,api_key_ciphertext,api_key_iv,api_key_tag,ca_certificate_pem,tls_servername)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      `INSERT INTO managed_devices(id,name,location,edition,api_base_url,api_key_ciphertext,api_key_iv,api_key_tag,ca_certificate_pem,tls_servername,connection_status,last_checked_at,last_success_at)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'online',now(),now())`,
       [id, input.name.trim(), input.location?.trim() || null, input.edition, baseUrl, encrypted.ciphertext, encrypted.iv, encrypted.tag, input.caCertificatePem?.trim() || null, input.tlsServername?.trim() || null]
     );
     return { device: { id, name: input.name.trim(), location: input.location?.trim() || null, edition: input.edition, enabled: true }, connection: tested };
@@ -121,7 +129,8 @@ export class PfSenseProvider {
     const encrypted = encryptSecret(input.apiKey, this.credentialKey);
     const saved = await this.pool.query(
       `UPDATE managed_devices
-       SET api_key_ciphertext=$1,api_key_iv=$2,api_key_tag=$3,ca_certificate_pem=$4,tls_servername=$5,updated_at=now()
+       SET api_key_ciphertext=$1,api_key_iv=$2,api_key_tag=$3,ca_certificate_pem=$4,tls_servername=$5,
+           connection_status='online',last_checked_at=now(),last_success_at=now(),last_error_class=NULL,updated_at=now()
        WHERE id=$6`,
       [encrypted.ciphertext, encrypted.iv, encrypted.tag, caCertificatePem, tlsServername, deviceId]
     );
@@ -148,6 +157,7 @@ export class PfSenseProvider {
     const results: Record<string, unknown> = {};
     const operations: PfSenseOperation[] = ["system", "gateways", "interfaces", "services", "version", "arpTable", "firewallStates", "firewallStateSize"];
     let failures = 0;
+    const errorClasses: string[] = [];
     try {
       for (const operation of operations) {
         const started = Date.now();
@@ -165,7 +175,7 @@ export class PfSenseProvider {
           else if (operation === "firewallStates") results.firewallStateEntryCount = recordCount(response.data);
           else if (operation === "firewallStateSize") results.firewallStateSize = response.data;
         } catch (error) {
-          outcome = "failure"; failures++; errorClass = classifyError(error);
+          outcome = "failure"; failures++; errorClass = classifyError(error); errorClasses.push(errorClass);
         }
         const duration = Date.now() - started;
         onResult(groups[operation], outcome, errorClass ?? undefined, duration);
@@ -175,7 +185,25 @@ export class PfSenseProvider {
           [pollId, deviceId, groups[operation], outcome, duration, errorClass]
         );
       }
-      return { results, failedOperations: failures };
+      const connectionStatus = failures === 0
+        ? "online"
+        : failures < operations.length
+          ? "degraded"
+          : errorClasses.every(value => value === "authentication") ? "authentication_failed"
+            : errorClasses.every(value => value === "authorization") ? "authorization_failed"
+              : errorClasses.every(value => value === "tls") ? "tls_error"
+                : errorClasses.every(value => value === "unsupported") ? "unsupported"
+                  : errorClasses.every(value => value === "timeout") ? "offline" : "error";
+      const lastErrorClass = failures === 0 ? null : [...new Set(errorClasses)].join(",");
+      await this.pool.query(
+        `UPDATE managed_devices
+         SET connection_status=$1,last_checked_at=now(),
+             last_success_at=CASE WHEN $2 THEN now() ELSE last_success_at END,
+             last_error_class=$3,updated_at=now()
+         WHERE id=$4`,
+        [connectionStatus, failures === 0, lastErrorClass, deviceId]
+      );
+      return { results, failedOperations: failures, connectionStatus };
     } finally {
       if (selected.owned) await client.close();
     }
