@@ -157,3 +157,36 @@
  .ui-table-scroll.alerts-table-scroll{overflow-x:auto}
  .ui-data-table.alerts-table{min-width:720px;table-layout:fixed}
 }
+
+
+/* Shared mobile record cards. Desktop remains a sortable table. */
+.ui-mobile-record-list{display:none}
+.ui-mobile-record{border:1px solid #e5ebf3;border-radius:11px;background:#fff;padding:13px;margin:0 0 9px;min-width:0}
+.ui-mobile-record:last-child{margin-bottom:0}
+.ui-mobile-record-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.ui-mobile-record-title{min-width:0;flex:1}
+.ui-mobile-record-title strong{display:block;color:#102747;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+.ui-mobile-record-title small{display:block;margin-top:4px;color:#718096;font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+.ui-mobile-record-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin-top:12px;padding-top:11px;border-top:1px solid #edf1f6}
+.ui-mobile-record-meta>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ui-mobile-record-meta span{color:#718096;font-size:10px}
+.ui-mobile-record-meta strong{color:#243b5b;font-size:11px;font-weight:650;overflow-wrap:anywhere}
+.ui-mobile-record-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ui-mobile-record-actions .secondary-button,.ui-mobile-record-actions .primary-button{min-height:36px}
+.ui-mobile-record-select{width:18px;height:18px;accent-color:#075df5;flex:none}
+.ui-mobile-record-check{display:flex;align-items:center;gap:8px;color:#52627d;font-size:11px}
+.ui-bulk-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid #dbe6f5;border-radius:10px;background:#f7faff}
+.ui-bulk-actions strong{margin-right:auto;color:#1d385c;font-size:12px}
+.ui-bulk-actions button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:760px){
+ .ui-mobile-record-list{display:block}
+ .ui-table-scroll{display:none}
+ .ui-table-footer{gap:11px}
+ .ui-table-footer>span{font-size:11px}
+ .ui-pagination{gap:6px}
+ .ui-pagination label{width:100%;justify-content:space-between}
+ .ui-pagination .secondary-button{min-height:36px}
+ .ui-pagination>span{font-size:11px}
+ .ui-mobile-record-actions{justify-content:stretch}
+ .ui-mobile-record-actions>*{flex:1}
+}
