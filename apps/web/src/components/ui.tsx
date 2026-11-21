@@ -8,6 +8,7 @@ export type DataColumn<T> = {
   value?: (row: T) => string | number | Date | null | undefined;
   sortable?: boolean;
   className?: string;
+  mobileCard?: (row: T) => ReactNode;
 };
 export type DataTableProps<T> = {
   rows: T[];
@@ -37,7 +38,7 @@ export function DataTable<T>({
   rows, columns, getRowId, searchableText, search = "", emptyTitle = "No records found",
   emptyDescription = "Try changing your search or filters.", loading = false,
   loadingLabel = "Loading records…", error, pageSize = 25, pageSizeOptions = [10, 25, 50, 100],
-  actions, caption, className
+  actions, caption, className, mobileCard
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ id: string; direction: SortDirection } | null>(null);
   const [page, setPage] = useState(0);
@@ -84,6 +85,7 @@ export function DataTable<T>({
             {actions && <td className="ui-row-actions">{actions(row)}</td>}
           </tr>)}</tbody>
         </table></div>
+        {mobileCard && <div className={"ui-mobile-record-list " + (className ? className + "-mobile" : "")}>{visible.map(row=><article className="ui-mobile-record" key={getRowId(row)}>{mobileCard(row)}</article>)}</div>}
         <div className="ui-table-footer">
           <span>Showing {first}–{last} of {filtered.length}</span>
           <div className="ui-pagination">
