@@ -207,6 +207,11 @@ export default function App() {
       });
       setDevices(current => current.map(device => device.id === result.data.id ? result.data : device));
       setEditDevice(null);
+      setCredentialApiKey("");
+      setCredentialCa("");
+      setCredentialTlsServername("");
+      setClearCredentialCa(false);
+      setClearCredentialTls(false);
       notify("Firewall inventory updated.", "success");
     } catch (e) { reportError(e instanceof Error ? e.message : "Unable to update firewall."); }
     finally { setBusy(false); }
@@ -272,6 +277,7 @@ export default function App() {
       }
       setCredentialCa(pem.trim());
       setClearCredentialCa(false);
+      event.target.value = "";
       notify("CA certificate loaded locally. It will be saved only after the connection test succeeds.", "success");
     } catch (e) {
       reportError(e instanceof Error ? e.message : "Unable to read the certificate file.");
