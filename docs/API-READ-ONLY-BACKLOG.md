@@ -1,6 +1,6 @@
 # Read-Only API Expansion Backlog
 
-**Status:** Discovery and prioritization only. No new firewall permissions or manager routes are approved by this document.  
+**Status:** Firewall rules read-only access is live-verified on the first Plus firewall and the manager backend endpoint is implemented. No firewall configuration writes are in scope.  
 **Source:** The committed firewall-generated OpenAPI snapshot at `docs/reference/pfsense-openapi.json`, summarized by `docs/API-MATRIX.generated.md`.  
 **Snapshot:** OpenAPI 3.0, 267 paths, 694 operations, 186 component schemas. The generated inventory contains 243 GET operations. The snapshot metadata version is `unknown`, it is not the installed package version.
 
@@ -48,7 +48,7 @@ The following routes and privileges are transcribed from the generated operation
 
 ## 4. Recommended implementation order
 
-1. **Firewall rules read-only inventory**: first candidate because it is central to firewall management and can be implemented as a bounded, normalized read model. Begin with exact schema review and privilege confirmation, not code or permission changes.
+1. **Firewall rules read-only inventory**: implemented as a bounded, normalized administrator-only read model. Remaining acceptance work is local Windows test/typecheck/build validation and trusted-TLS verification against the private Tailscale address.
 2. **Aliases**: add after rules so referenced aliases can be resolved and presented consistently.
 3. **NAT port forwards**: add with explicit treatment of internal destinations and exposure summaries.
 4. **Interface and routing configuration inventory**: build the underlying topology view.
@@ -73,7 +73,19 @@ The live firewall documentation at `https://pfsense.luxoritpro.com/api/v2/docume
 - Applies immediately: No.
 - Cache: None.
 
-This confirms endpoint availability in the installed firewall's documentation and identifies the narrow privilege. It does **not** yet provide the query parameters or response schema needed for implementation.
+The operator supplied the complete Parameters and 200 Response schema from the installed v2.11.0 documentation. The only required permission granted was the endpoint-specific `api-v2-firewall-rules-get`, not `page-all`.
+
+### Live verification (2026-11-21)
+
+The operator tested the endpoint over Tailscale at `https://172.10.50.1:10443`:
+
+- TCP connectivity to port 10443 succeeded from the Windows workstation over the Tailscale interface.
+- A request without the API key returned HTTP 401, confirming the endpoint was reached.
+- A request with the API key returned HTTP 200, `status: "ok"`, and a rule in the `data` array.
+- The returned example contains nullable fields, so consumers must not treat every documented field as required.
+- The successful curl test used `-k`, so it bypassed certificate validation. It verifies API key and privilege behavior, **not trusted TLS**. The manager must continue to enforce TLS verification using the firewall CA certificate and/or a matching TLS server name.
+
+The first manager implementation is a separate administrator-only route, `GET /api/v1/devices/:deviceId/firewall/rules`. It uses fixed GET routing, page size 100, a 1,000-rule cap, field allowlisting, and no raw-rule persistence. It is not part of routine dashboard polling and does not expand the nine-operation compatibility baseline.
 
 ### Additional public REST API documentation context
 
@@ -89,16 +101,18 @@ References:
 
 These public docs explain the endpoint model and generic plural endpoint behavior. The project's pinned OpenAPI JSON and the live firewall's own Swagger page remain authoritative for the installed package version and exact component fields. The current online documentation is not a substitute for checking the Plus device's installed v2.11.0 package.
 
-Before implementing `GET /api/v2/firewall/rules`:
+Before marking `GET /api/v2/firewall/rules` complete:
 
-- [ ] Inspect the exact OpenAPI operation and all referenced component schemas, including nested references.
-- [ ] Record required package(s), privilege string, query parameters, pagination, sorting, and response size characteristics.
-- [ ] Confirm whether rule descriptions, schedules, source/destination aliases, interface names, and tracker IDs are returned.
-- [ ] Review whether the existing `pfsense_hub` account can be granted only this exact GET privilege without broad `page-all` access.
-- [ ] Obtain explicit approval before changing the firewall account's privileges.
-- [ ] Test the endpoint on the first Plus firewall with verified TLS, then validate and sanitize the response.
-- [ ] Add per-device evidence and contract tests before exposing the data.
-- [ ] Keep rule writes, apply operations, and all configuration mutation methods disabled.
+- [x] Inspect the installed v2.11.0 endpoint parameters and 200 response schema.
+- [x] Record the endpoint-specific privilege and confirm no package dependency.
+- [x] Confirm nullable fields and the presence of rule descriptions, source/destination, interface, and tracker metadata.
+- [x] Grant only `api-v2-firewall-rules-get`; do not grant `page-all`.
+- [x] Test the endpoint on the first Plus firewall and verify HTTP 200 with the API key.
+- [x] Add a fixed GET operation, bounded pagination, response field allowlisting, and administrator-only API route.
+- [ ] Validate the implementation on Windows with API tests, typecheck, and build.
+- [ ] Establish trusted TLS for the private Tailscale endpoint without bypassing certificate verification.
+- [ ] Add the administrator-only frontend inventory and complete manual acceptance.
+- [x] Keep rule writes, apply operations, and all configuration mutation methods disabled.
 
 ## 6. Evidence and limitations
 
