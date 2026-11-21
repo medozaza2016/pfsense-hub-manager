@@ -363,9 +363,9 @@ Latest reported branch state:
 
 The two Vite React Router `use client` warnings are non-fatal. Do not change dependencies solely to silence them without checking compatibility and necessity.
 
-The latest diagnostic showed the API esbuild package's native dependency is correctly represented in the lockfile at `node_modules/esbuild/node_modules/@esbuild/win32-x64`. The repair script had copied an unnecessary duplicate to root `node_modules/@esbuild/win32-x64`, which npm reported as extraneous. Commit `98d3e1c53344b90a1a661024c2a021c703d07c51` changes both installation and verification to use the API esbuild package's own nested `node_modules` directory. This fix has not yet been run locally.
+The latest diagnostic shows all three paths exist. `npm explain` reports the API native package under `node_modules/esbuild/node_modules/@esbuild/win32-x64`, while the lockfile explicitly records `node_modules/@esbuild/win32-x64` as the optional package entry. The root copy is consequently marked extraneous while the nested duplicate satisfies the observed tree. Commit `ec41fda2e3ab9fda991a8c2961d8788d99051343` aligns the API repair target with the lockfile's root-level location and removes the old nested duplicate only after verifying the root package name and exact version. It preserves the Vite nested package. This cleanup fix has not yet been run locally.
 
-**Next user action:** pull the repair-script correction and rerun the installer, then check npm's dependency tree:
+**Next user action:** pull the lockfile-aligned repair correction and rerun the installer, then check npm's dependency tree:
 
 ```powershell
 git pull --ff-only
@@ -393,7 +393,7 @@ After lockfile review, continue Phase 1 with focused automated coverage and a co
 - Non-fatal Vite warnings: React Router module-level `use client` directives were ignored during bundling.
 - Local Git state reported: HEAD `63731d0`, only untracked `package-lock.json`.
 
-**Next action:** pull commit `98d3e1c`, rerun the development installer, and inspect `npm ls esbuild @esbuild/win32-x64 --all` plus `npm ls --depth=0`. The lockfile contains the correct native package entries, but should only be committed after the corrected installer no longer creates the extraneous root-level API package. Then finish remaining Phase 1 automated test coverage and documentation.
+**Next action:** pull commit `ec41fda`, rerun the development installer, and inspect `npm ls esbuild @esbuild/win32-x64 --all` plus `npm ls --depth=0`. Expected layout: API native package at root `node_modules/@esbuild/win32-x64`, Vite native package at `node_modules/vite/node_modules/@esbuild/win32-x64`, with no nested API duplicate under `node_modules/esbuild/node_modules`. The lockfile should only be committed after npm reports no extraneous native package. Then finish remaining Phase 1 automated test coverage and documentation.
 
 **Preserve:** Do not touch production LXC, reset PostgreSQL volumes, regenerate secrets, overwrite local compose/certificate changes, assume the second CE firewall is connected, or enable firewall writes before Phase 5. Keep `package-lock.json` until reviewed. No CI unless explicitly needed and approved.
 
