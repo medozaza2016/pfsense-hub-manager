@@ -202,3 +202,22 @@ This is an approved product scope, not an implemented feature. Implementation an
 6. Update installation, administration, and disaster-recovery documentation.
 
 **Release gate:** Do not call database persistence/recovery complete until automated tests and a documented restore drill demonstrate that application containers can be rebuilt or replaced without losing the database, and that a backup can restore the application state on a replacement host. This work is intentionally deferred to a later development phase; do not interrupt the current frontend validation and real-data integration sequence to implement it now.
+
+
+
+## Manager administration phase, November 2026
+
+- [x] Add migration for account activation state, append-only audit events, and persisted alert lifecycle.
+- [x] Add audit metadata sanitization and centralized audit persistence service.
+- [x] Add administrator-only user listing, creation, role changes, activation/deactivation, password reset API, last-active-admin protection, and session revocation.
+- [x] Reject sessions for disabled accounts.
+- [x] Add audit API and record authentication, access-denied, user administration, Hub settings, and alert lifecycle events.
+- [x] Add deduplicated critical/warning alerts for firewall polling failures and automatic resolution after recovery.
+- [x] Replace User Management, Audit Logs, and Alerts fixture content with API-backed views.
+- [x] Add service-level tests for metadata sanitization and alert deduplication.
+- [ ] Run API tests, typecheck, production build, migration validation, and Compose build in CI.
+- [ ] Verify administrator and regular-user behavior in the Windows Docker environment.
+- [ ] Define audit/alert retention, backup, and restore policy before production release.
+- [ ] Implement and verify an external notification delivery channel only when one is selected and configured.
+
+**Scope note:** This phase does not make the overall dashboard live. Other Hub and Site pages still contain preview data. The alert producer currently uses the existing firewall polling endpoint, which runs when the device overview is requested; it is not a background polling scheduler.
