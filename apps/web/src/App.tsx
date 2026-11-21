@@ -628,7 +628,7 @@ export default function App() {
                 <h3>API credentials and TLS</h3>
                 <p>Replace the API key or update the trust settings for this appliance.</p>
               </div>
-              {editDevice.canDelete === false ? <div className="credential-managed-notice"><strong>Managed by installation</strong><p>The primary firewall credentials and TLS configuration are controlled by the protected installation secrets. This screen cannot rotate them.</p></div> : <>
+              <>
                 <form className="credential-form" onSubmit={updateDeviceCredentials}>
                   <label>New read-only API key<input type="password" value={credentialApiKey} onChange={e => setCredentialApiKey(e.target.value)} autoComplete="new-password" placeholder="Enter replacement API key" required /></label>
                   <p className="field-hint">The replacement key is tested against this firewall before it is encrypted and saved. The current key remains active if the test fails.</p>
