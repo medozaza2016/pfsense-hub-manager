@@ -4,7 +4,19 @@ import { useToast } from "./components/ToastProvider";
 
 type Role = "admin" | "user";
 type User = { id: string; name: string; email: string; role: Role; active?: boolean };
-type Device = { id: string; name: string; location: string | null; edition: string; enabled: boolean; canDelete?: boolean };
+type Device = {
+  id: string; name: string; location: string | null; edition: string; enabled: boolean; canDelete?: boolean;
+  connectionStatus?: "unknown" | "online" | "degraded" | "offline" | "authentication_failed" | "authorization_failed" | "tls_error" | "unsupported" | "error";
+  lastCheckedAt?: string | null; lastSuccessAt?: string | null; lastErrorClass?: string | null;
+};
+function connectionStatusLabel(status: Device["connectionStatus"]): string {
+  const labels: Record<NonNullable<Device["connectionStatus"]>, string> = {
+    unknown: "Not checked", online: "Online", degraded: "Degraded", offline: "Offline",
+    authentication_failed: "Authentication failed", authorization_failed: "Permission denied",
+    tls_error: "TLS error", unsupported: "Unsupported", error: "Error"
+  };
+  return labels[status ?? "unknown"];
+}
 type ApiResponse<T> = { data: T; meta?: { outcome?: string; failedOperations?: number; durationMs?: number }; error?: { message: string } };
 type Page = "dashboard" | "firewalls" | "add-firewall" | "monitoring" | "users" | "audit" | "manager-api" | "settings";
 
@@ -181,7 +193,13 @@ export default function App() {
       const message = e instanceof Error ? e.message : "Read-only check failed.";
       setCheckError(message);
       reportError(message);
-    } finally { setBusy(false); }
+    } finally {
+      try {
+        const latest = await api<Device[]>("/api/v1/devices");
+        setDevices(latest.data);
+      } catch { /* Keep the last known inventory if the refresh itself fails. */ }
+      setBusy(false);
+    }
   }
   async function confirmDeleteDevice() {
     if (!deleteDevice) return;
@@ -406,7 +424,7 @@ export default function App() {
     const matchesFilter = firewallFilter === "all" || (firewallFilter === "enabled" ? device.enabled : !device.enabled);
     return matchesQuery && matchesFilter;
   });
-  const connectedCount = Object.values(deviceChecks).filter(check => check.outcome === "success").length;
+  const connectedCount = devices.filter(device => device.connectionStatus === "online").length;
   const sidebar = <aside className="sidebar">
     <div className="brand">
       <div className="brand-mark">pf</div>
@@ -495,19 +513,24 @@ export default function App() {
             {visibleDevices.length === 0 ? <div className="inventory-empty"><div className="empty-symbol">⌕</div><strong>{devices.length ? "No matching appliances" : "Your fleet is empty"}</strong><p>{devices.length ? "Adjust the search or filter to find an appliance." : "Register a pfSense appliance to begin monitoring its read-only status."}</p>{devices.length === 0 && isAdmin && <button className="primary-button" onClick={() => navigate("add-firewall")}>＋ Add your first firewall</button>}</div> :
             visibleDevices.map(device => {
               const check = deviceChecks[device.id];
-              const checkLabel = !check ? "Not checked" : check.outcome === "success" ? "Reachable" : check.outcome === "partial" ? "Partial response" : "Check failed";
-              const checkClass = !check ? "connectivity-state connectivity-unknown" : check.outcome === "success" ? "connectivity-state connectivity-good" : "connectivity-state connectivity-warning";
+              const checkLabel = connectionStatusLabel(device.connectionStatus);
+              const checkClass = device.connectionStatus === "online" ? "connectivity-state connectivity-good"
+                : !device.connectionStatus || device.connectionStatus === "unknown" ? "connectivity-state connectivity-unknown"
+                  : "connectivity-state connectivity-warning";
               return <article className={"inventory-device" + (selectedDeviceId === device.id ? " inventory-device-selected" : "")} key={device.id}>
                 <div className="inventory-device-main"><div className="inventory-device-icon">◈</div><div className="inventory-device-copy">
                   <div className="inventory-device-title"><strong>{device.name}</strong><span className={device.enabled ? "config-state state-enabled" : "config-state state-disabled"}>{device.enabled ? "Enabled" : "Disabled"}</span></div>
                   <p>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</p>
-                  <div className="inventory-meta"><span><i className="meta-dot dot-configured"/>Configuration {device.enabled ? "enabled" : "disabled"}</span><span className={checkClass}><i className="meta-dot"/> {checkLabel}</span>{check && <span>Last checked {new Date(check.checkedAt).toLocaleString()}</span>}</div>
+                  <div className="inventory-meta"><span><i className="meta-dot dot-configured"/>Configuration {device.enabled ? "enabled" : "disabled"}</span><span className={checkClass}><i className="meta-dot"/> Connection {checkLabel}</span>{device.lastCheckedAt && <span>Last checked {new Date(device.lastCheckedAt).toLocaleString()}</span>}</div>
                 </div></div>
                 <div className="inventory-device-actions">{isAdmin && <button onClick={() => openDeviceEditor(device)}>Edit</button>}{isAdmin && device.canDelete !== false && <button className="danger-button" onClick={() => setDeleteDevice(device)}>Remove</button>}<button onClick={() => setSelectedDeviceId(selectedDeviceId === device.id ? null : device.id)}>{selectedDeviceId === device.id ? "Hide details" : "Details"}</button><button className="primary-button" disabled={busy || !device.enabled} onClick={() => void runCheck(device.id)}>{busy && selectedDeviceId === device.id ? "Checking…" : "Run read-only check"}</button></div>
                 {selectedDeviceId === device.id && <div className="inventory-detail">
                   <div><span>Appliance</span><strong>{device.name}</strong></div><div><span>Site / location</span><strong>{device.location || "Not specified"}</strong></div><div><span>Platform</span><strong>pfSense {device.edition.toUpperCase()}</strong></div><div><span>Configuration</span><strong>{device.enabled ? "Enabled" : "Disabled"}</strong></div>
-                  <div><span>Live connectivity</span><strong>{checkLabel}</strong></div><div><span>Failed operations</span><strong>{check ? check.failedOperations : "Not checked"}</strong></div>
-                  <p>A read-only check queries the supported pfSense API endpoints. This manager does not change firewall configuration.</p>
+                  <div><span>Connection status</span><strong>{checkLabel}</strong></div>
+                  <div><span>Last successful check</span><strong>{device.lastSuccessAt ? new Date(device.lastSuccessAt).toLocaleString() : "Not yet successful"}</strong></div>
+                  <div><span>Last error class</span><strong>{device.lastErrorClass || "None"}</strong></div>
+                  <div><span>Failed operations in latest check</span><strong>{check ? check.failedOperations : "Not available"}</strong></div>
+                  <p>Connection status is stored by the manager and reflects the latest read-only collection. This manager does not change firewall configuration.</p>
                 </div>}
               </article>;
             })}
