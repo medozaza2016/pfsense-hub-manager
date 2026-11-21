@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 export async function migrate(pool: pg.Pool): Promise<void> {
-  const files = ["001_initial.sql", "002_manager_users.sql", "003_device_credentials.sql", "004_device_tls_servername.sql"];
+  const files = ["001_initial.sql", "002_manager_users.sql", "003_device_credentials.sql", "004_device_tls_servername.sql", "005_device_connection_lifecycle.sql"];
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
