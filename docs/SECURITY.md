@@ -56,3 +56,14 @@ If a key or password is exposed, revoke or rotate it, update the protected secre
 ## Manager roles and monitoring authorization (DEC-027)
 
 The initial manager-user model for System Monitoring and Recovery has two roles: `admin` and `user`. Both roles may view authenticated monitoring status and bounded, sanitized service logs. Only `admin` may invoke service or stack operations and Compose validation. The frontend keeps those controls visible but disabled for `user`; this is usability behavior only. Fastify must derive the role from the database-backed authenticated session and enforce authorization on every privileged route. Requests without a valid session return 401; authenticated sessions without `admin` return 403. Never trust a role, user ID, or authorization claim supplied in a request body, query string, or browser storage. The initial administrator must remain an administrator; user provisioning and role changes must be admin-only, and the system must prevent demotion or deletion of the last administrator. Docker execution remains unavailable until the restricted host-side agent and its fixed project/service allowlists are implemented and reviewed.
+
+
+### Manager role implementation status, November 21, 2026
+
+The first API role increment is committed on `feature/linux-production-gui-onboarding`:
+
+- Migration `003_manager_roles_and_sessions.sql` creates the manager account/session tables when absent and adds a constrained `role` column. Existing rows receive the `admin` role by default; no account deletion or password reset is part of the migration.
+- Session lookup reads the role from PostgreSQL. Setup and login responses include the role from the database.
+- A Fastify pre-handler enforces administrator access on the reserved `/api/v1/system/operations` and `/api/v1/users` API namespaces. It returns 403 for authenticated non-admin users. The existing authentication hook returns 401 when there is no valid session.
+- Unit tests cover the role decision outcomes. These tests and the migration have not yet been executed against a local test database or an existing database copy.
+- No Docker operation endpoints, host agent, or container controls have been added. Deployment and database migration are intentionally not performed by these source changes.
