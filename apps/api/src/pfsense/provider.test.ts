@@ -286,7 +286,7 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(lifecycleWrite?.[1]).toEqual(["online", true, null, primaryDeviceId]);
     const capabilityWrite = query.mock.calls.find(([statement]) => String(statement).includes("INSERT INTO device_capabilities"));
     expect(capabilityWrite).toBeDefined();
-    expect(capabilityWrite?.[1]).toMatchObject([primaryDeviceId]);
+    expect((capabilityWrite?.[1] as unknown[])[0]).toBe(primaryDeviceId);
     expect((capabilityWrite?.[1] as unknown[])[1]).toHaveLength(9);
     expect((capabilityWrite?.[1] as unknown[])[3]).toEqual(Array(9).fill("verified"));
     expect(onResult).toHaveBeenCalledTimes(8);
@@ -311,7 +311,7 @@ describe("pfSense provider device registration and credential safety", () => {
     const result = await provider.collect(primaryDeviceId, vi.fn());
 
     expect(result).toMatchObject({ failedOperations: 8, connectionStatus: "offline" });
-    expect(query).toHaveBeenCalledTimes(10); // Device credential lookup, eight poll records, and one lifecycle update.
+    expect(query).toHaveBeenCalledTimes(11); // Device credential lookup, eight poll records, lifecycle update, and capability evidence.
     const lifecycleWrite = query.mock.calls.find(([statement]) => String(statement).includes("UPDATE managed_devices"));
     expect(lifecycleWrite?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
   });
