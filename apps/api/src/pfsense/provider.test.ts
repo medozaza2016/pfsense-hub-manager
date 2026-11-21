@@ -243,6 +243,36 @@ describe("pfSense provider device registration and credential safety", () => {
     expect(metadataWrite?.[1]).toEqual(["26.07.2-RELEASE", "arm64", "2.3.0", primaryDeviceId]);
   });
 
+  it("persists unknown and unsupported capability evidence without treating authorization failures as unsupported", async () => {
+    getMock.mockImplementation(async (operation: string) => {
+      if (operation === "restApiVersion") return { data: { current_version: "2.3.0" } };
+      if (operation === "gateways") throw new PfSenseApiError("Permission denied", "authorization", 403);
+      if (operation === "interfaces") throw new PfSenseApiError("Endpoint unavailable", "unsupported", 404);
+      return { data: { status: "ok" } };
+    });
+
+    await provider.collect(primaryDeviceId, vi.fn());
+
+    const capabilityWrite = query.mock.calls.find(([statement]) => String(statement).includes("INSERT INTO device_capabilities"));
+    expect(capabilityWrite).toBeDefined();
+    const values = capabilityWrite?.[1] as unknown[];
+    const keys = values[1] as string[];
+    const statuses = values[3] as string[];
+    const errors = values[4] as (string | null)[];
+    expect(statuses[keys.indexOf("status.system.read")]).toBe("verified");
+    expect(statuses[keys.indexOf("status.gateways.read")]).toBe("unknown");
+    expect(errors[keys.indexOf("status.gateways.read")]).toBe("authorization");
+    expect(statuses[keys.indexOf("status.interfaces.read")]).toBe("unsupported");
+    expect(statuses[keys.indexOf("system.restApiVersion.read")]).toBe("verified");
+  });
+
+  it("returns unknown capabilities until each operation has device-specific evidence", async () => {
+    query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const capabilities = await provider.capabilities(primaryDeviceId);
+    expect(capabilities).toHaveLength(9);
+    expect(capabilities.every(item => item.verification === "unknown" && item.supported === null)).toBe(true);
+  });
+
   it("persists online status and timestamps after a fully successful read-only collection", async () => {
     getMock.mockResolvedValue({ data: { status: "ok" } });
     const onResult = vi.fn();
@@ -250,11 +280,15 @@ describe("pfSense provider device registration and credential safety", () => {
     const result = await provider.collect(primaryDeviceId, onResult);
 
     expect(result).toMatchObject({ failedOperations: 0, connectionStatus: "online" });
-    expect(query).toHaveBeenCalledTimes(10); // Device credential lookup, eight poll records, and one lifecycle update.
-    const [statement, values] = query.mock.calls.at(-1) as unknown as [string, unknown[]];
-    expect(statement).toContain("UPDATE managed_devices");
-    expect(statement).toContain("last_success_at=CASE WHEN");
-    expect(values).toEqual(["online", true, null, primaryDeviceId]);
+    expect(query).toHaveBeenCalledTimes(11); // Device lookup, eight poll records, lifecycle update, and capability evidence.
+    const lifecycleWrite = query.mock.calls.find(([statement]) => String(statement).includes("UPDATE managed_devices"));
+    expect(lifecycleWrite?.[0]).toContain("last_success_at=CASE WHEN");
+    expect(lifecycleWrite?.[1]).toEqual(["online", true, null, primaryDeviceId]);
+    const capabilityWrite = query.mock.calls.find(([statement]) => String(statement).includes("INSERT INTO device_capabilities"));
+    expect(capabilityWrite).toBeDefined();
+    expect(capabilityWrite?.[1]).toMatchObject([primaryDeviceId]);
+    expect((capabilityWrite?.[1] as unknown[])[1]).toHaveLength(9);
+    expect((capabilityWrite?.[1] as unknown[])[3]).toEqual(Array(9).fill("verified"));
     expect(onResult).toHaveBeenCalledTimes(8);
   });
 
@@ -267,7 +301,8 @@ describe("pfSense provider device registration and credential safety", () => {
 
     expect(result).toMatchObject({ failedOperations: 1, connectionStatus: "degraded" });
     expect(query).toHaveBeenCalledTimes(10); // Device credential lookup, eight poll records, and one lifecycle update.
-    expect(query.mock.calls.at(-1)?.[1]).toEqual(["degraded", false, "timeout", primaryDeviceId]);
+    const lifecycleWrite = query.mock.calls.find(([statement]) => String(statement).includes("UPDATE managed_devices"));
+    expect(lifecycleWrite?.[1]).toEqual(["degraded", false, "timeout", primaryDeviceId]);
   });
 
   it("classifies a fully unreachable firewall as offline", async () => {
@@ -277,7 +312,8 @@ describe("pfSense provider device registration and credential safety", () => {
 
     expect(result).toMatchObject({ failedOperations: 8, connectionStatus: "offline" });
     expect(query).toHaveBeenCalledTimes(10); // Device credential lookup, eight poll records, and one lifecycle update.
-    expect(query.mock.calls.at(-1)?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
+    const lifecycleWrite = query.mock.calls.find(([statement]) => String(statement).includes("UPDATE managed_devices"));
+    expect(lifecycleWrite?.[1]).toEqual(["offline", false, "timeout", primaryDeviceId]);
   });
 
   it("returns lifecycle metadata in the manager API naming convention after inventory edits", async () => {
