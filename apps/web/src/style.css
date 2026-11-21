@@ -1374,3 +1374,50 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .compatibility-link { margin-top: 10px; }
 @media (max-width: 900px) { .compatibility-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .compatibility-metadata { grid-template-columns: 1fr 1fr; gap: 9px; } .compatibility-metadata article { padding: 14px; } .compatibility-row { align-items: flex-start; gap: 10px; } .compatibility-state { font-size: 10px; padding: 5px 8px; } .compatibility-list { padding: 0 14px; } }
+
+
+/* Read-only firewall rule inspection */
+.firewall-rules-page{gap:20px;min-width:0}
+.firewall-rules-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.firewall-rules-summary article{display:grid;gap:6px;min-width:0;padding:16px 18px;border:1px solid var(--border,#e5e7eb);border-radius:13px;background:var(--surface,#fff)}
+.firewall-rules-summary article span{color:var(--muted,#687386);font-size:10px;font-weight:750;letter-spacing:.08em}
+.firewall-rules-summary article strong{color:#26313c;font-size:1.55rem;line-height:1.15;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.firewall-rules-summary article small{color:#89929d;font-size:11px}
+.firewall-rules-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) repeat(3,minmax(145px,190px));gap:11px;align-items:center;padding:15px}
+.firewall-rules-toolbar select{width:100%;min-width:0;min-height:42px;padding:9px 11px;border:1px solid #e2e6eb;border-radius:9px;background:#fff;color:#46515d;font:inherit;font-size:.75rem}
+.firewall-rules-toolbar .inventory-search{min-width:0}
+.firewall-rules-table-card{min-width:0;overflow:hidden}
+.firewall-rules-table-wrap{width:100%;overflow:auto;overscroll-behavior-x:contain}
+.firewall-rules-table{width:100%;min-width:1120px;border-collapse:separate;border-spacing:0;text-align:left}
+.firewall-rules-table th{position:sticky;top:0;z-index:1;padding:12px 13px;border-top:1px solid #edf0f2;border-bottom:1px solid #e8ebef;background:#f8fafb;color:#77828e;font-size:10px;font-weight:750;letter-spacing:.055em;text-transform:uppercase;white-space:nowrap}
+.firewall-rules-table td{padding:13px;border-bottom:1px solid #eff1f3;color:#3e4955;font-size:11px;line-height:1.45;vertical-align:top;overflow-wrap:anywhere}
+.firewall-rules-table tbody tr:last-child td{border-bottom:0}
+.firewall-rules-table tbody tr:hover td{background:#fbfcfd}
+.firewall-rules-table .firewall-rule-id{width:78px;color:#7d8792;font-variant-numeric:tabular-nums;font-weight:700}
+.firewall-rules-table .firewall-rule-description{min-width:190px;color:#283542;font-weight:650}
+.firewall-rule-status,.firewall-rule-action{display:inline-flex;align-items:center;min-height:22px;padding:4px 8px;border-radius:6px;font-size:9px;font-weight:800;letter-spacing:.035em;white-space:nowrap}
+.firewall-rule-status.is-enabled{background:#eaf6ef;color:#26764a}
+.firewall-rule-status.is-disabled{background:#f1f2f4;color:#737d88}
+.firewall-rule-action.action-pass{background:#eaf6ef;color:#26764a}
+.firewall-rule-action.action-block{background:#fff0ed;color:#b84636}
+.firewall-rule-action.action-reject{background:#fff5e7;color:#9a681d}
+.firewall-rule-action:not(.action-pass):not(.action-block):not(.action-reject){background:#eef1f5;color:#56616d}
+.firewall-rule-disabled td{color:#89929d;background:#fbfbfc}
+.firewall-rule-disabled .firewall-rule-description{text-decoration:line-through;color:#8b949e}
+.firewall-rule-subvalue{display:block;margin-top:4px;color:#8a949f;font-size:10px}
+.firewall-rules-warning{border:1px solid #efdfc1;background:#fffbf2;color:#92621e}
+@media(max-width:1050px){
+ .firewall-rules-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .firewall-rules-toolbar .inventory-search{grid-column:1/-1}
+}
+@media(max-width:720px){
+ .firewall-rules-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .firewall-rules-summary article{padding:13px}
+ .firewall-rules-toolbar{grid-template-columns:1fr;padding:13px}
+ .firewall-rules-toolbar .inventory-search{grid-column:auto}
+ .firewall-rules-page .inventory-heading{align-items:flex-start}
+ .firewall-rules-page .inventory-heading-actions{display:flex;flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){
+ .firewall-rules-table tbody tr{transition:none}
+}
