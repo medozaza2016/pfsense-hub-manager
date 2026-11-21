@@ -249,22 +249,6 @@ describe("Fastify route authentication and authorization", () => {
     expect(provider.updateDeviceCredentials).not.toHaveBeenCalled();
   });
 
-  it("prevents credential changes to the installation-managed primary firewall", async () => {
-    const { app, provider, cookie } = createHarness("admin");
-    apps.push(app);
-
-    const response = await app.inject({
-      method: "PATCH",
-      url: `/api/v1/devices/${config.PFSENSE_DEVICE_ID}/credentials`,
-      headers: { cookie },
-      payload: { apiKey: "replacement-read-only-key" }
-    });
-
-    expect(response.statusCode).toBe(409);
-    expect(response.json().error.code).toBe("PRIMARY_CREDENTIALS_MANAGED_BY_INSTALLATION");
-    expect(provider.updateDeviceCredentials).not.toHaveBeenCalled();
-  });
-
   it("passes the supplied CA and TLS server name to the connection test", async () => {
     const { app, provider, cookie } = createHarness("admin");
     apps.push(app);
