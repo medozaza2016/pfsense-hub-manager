@@ -174,7 +174,8 @@ app.put("/api/v1/hub-settings", async (request, reply) => {
   if (value.reachabilityMethod === "hostname" && !["hostname", "ip"].includes(value.addressType ?? "")) {
     return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Choose a hostname or IP address." } });
   }
-  if (["tailscale_ip", "ip"].includes(value.addressType ?? "") && !z.string().ip(value.addressType === "tailscale_ip" ? { version: "v4" } : {}).safeParse(value.address).success) {
+  const ipSchema = value.addressType === "tailscale_ip" ? z.ipv4() : z.union([z.ipv4(), z.ipv6()]);
+  if (["tailscale_ip", "ip"].includes(value.addressType ?? "") && !ipSchema.safeParse(value.address).success) {
     return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid IP address." } });
   }
   if (["magic_dns", "hostname"].includes(value.addressType ?? "")) {
