@@ -51,3 +51,8 @@ Implementation now in this branch:
 
 ## Incident response
 If a key or password is exposed, revoke or rotate it, update the protected secret store, review logs and repository history, assess other affected systems, and record remediation without copying the secret into the incident record.
+
+
+## Manager roles and monitoring authorization (DEC-027)
+
+The initial manager-user model for System Monitoring and Recovery has two roles: `admin` and `user`. Both roles may view authenticated monitoring status and bounded, sanitized service logs. Only `admin` may invoke service or stack operations and Compose validation. The frontend keeps those controls visible but disabled for `user`; this is usability behavior only. Fastify must derive the role from the database-backed authenticated session and enforce authorization on every privileged route. Requests without a valid session return 401; authenticated sessions without `admin` return 403. Never trust a role, user ID, or authorization claim supplied in a request body, query string, or browser storage. The initial administrator must remain an administrator; user provisioning and role changes must be admin-only, and the system must prevent demotion or deletion of the last administrator. Docker execution remains unavailable until the restricted host-side agent and its fixed project/service allowlists are implemented and reviewed.
