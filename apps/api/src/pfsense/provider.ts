@@ -265,7 +265,7 @@ export class PfSenseProvider {
       return response.data.flatMap(item => {
         if (!item || typeof item !== "object" || Array.isArray(item)) return [];
         const source = item as Record<string, unknown>;
-        const id = typeof source.if === "string" ? source.if : typeof source.name === "string" ? source.name : null;
+        const id = typeof source.id === "string" ? source.id : null;
         const description = typeof source.descr === "string" ? source.descr.trim()
           : typeof source.assigned_name === "string" ? source.assigned_name.trim() : "";
         if (!id || !/^(wan|lan|opt[0-9]+)$/i.test(id)) return [];
