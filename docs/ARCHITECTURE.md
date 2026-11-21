@@ -48,7 +48,7 @@ The adapter should:
 
 The application will be deployed on the existing Proxmox LXC named `pfsense-hub-manager`. Docker Compose will manage the application containers. Cloudflare Workers and Cloudflare hosting are not part of this project.
 
-The approved frontend is React with TypeScript and Vite. The backend is a separate Node.js and TypeScript service exposing a REST API. PostgreSQL is approved as the application database and will run as a dedicated Docker Compose service. Fastify is the selected backend HTTP framework. The administrator identity provider and secret storage mechanism remain undecided. See `DECISIONS.md` for the authoritative decision record.
+The frontend uses React, TypeScript, Vite, and React Router for URL-based navigation (DEC-021). The backend is a separate Node.js and TypeScript Fastify service. PostgreSQL is the application database. Manager authentication uses locally managed accounts, scrypt password hashes, and database-backed opaque sessions. The initial firewall API key and the per-device credential-encryption key are mounted as Docker secrets; additional firewall API keys are encrypted in PostgreSQL using AES-256-GCM. External identity providers and a dedicated secret-management platform have not been selected. See `DECISIONS.md` and `AUTHENTICATION.md`.
 
 ## Network architecture
 
@@ -66,7 +66,7 @@ A firewall outage must not make the whole manager unavailable. Poll each device 
 
 ## Open architecture decisions
 
-- Administrator authentication and secret storage.
+- External identity provider and dedicated secret-management platform, if required in a later phase.
 - Firewall-to-hub transport: VPN/overlay, site-to-site tunnel, private connector/agent, or another private path. This decision is explicitly deferred.
 - Whether a private connector/agent is needed for remote sites.
 - Polling frequency and concurrency.
@@ -97,9 +97,13 @@ The initial Compose topology is implemented with separate web, API, and PostgreS
 
 ### Configuration and persistence boundaries
 
-Non-secret runtime configuration (for example, listen addresses and log levels) must be validated at startup. Firewall API keys, passwords, private keys, and session-signing material must be injected only into server-side components through an approved protected mechanism. The mechanism is not selected yet. Do not place secrets in Vite-exposed variables, image layers, source control, browser storage, or logs.
+Non-secret runtime configuration (for example, listen addresses and log levels) must be validated at startup. Firewall API keys, passwords, private keys, and session-signing material must be injected only into server-side components through an approved protected mechanism. The current implementation uses Docker secrets for the initial API key and credential-encryption key, with additional per-device API keys encrypted in PostgreSQL. Do not place secrets in Vite-exposed variables, image layers, source control, browser storage, or logs.
 
 PostgreSQL is the approved application database and will run as a dedicated Docker Compose service with a persistent volume and private Compose networking. The data model should distinguish stable device inventory and configuration metadata from time-series observations and sensitive diagnostic data. ARP entries and firewall state details should not be retained by default. Schema migrations, retention, backup, restore, and encryption requirements must be defined before production use. Database ports must not be published externally by default.
+
+## Frontend navigation architecture
+
+All navigable frontend pages use React Router. Route paths are centralized in the frontend and use lowercase kebab-case segments. The current routes include `/dashboard`, `/firewalls`, `/firewalls/add`, `/monitoring`, `/users`, `/audit-logs`, `/manager-api`, `/settings`, `/login`, and `/setup`. The Nginx frontend configuration falls back to the SPA entry point so direct navigation and refresh on application paths can be handled by the client router. Frontend route guards are for navigation and user experience only; backend authorization remains authoritative. See DEC-021 and the repository `AGENTS.md` routing standard.
 
 ## Firewall integration architecture
 
@@ -205,4 +209,4 @@ The OpenAPI JSON is the upstream contract reference. The application must use a 
 
 ## Initial scaffold implementation status
 
-The repository now includes React/Vite frontend and Fastify API workspaces, PostgreSQL migrations and poll-run persistence, Docker Compose, separate frontend/backend Dockerfiles, a server-side pfSense API client with exactly eight fixed GET routes, runtime envelope validation, strict TLS verification with optional private CA trust, Docker-secret API-key injection, an internal metrics endpoint, health/readiness routes, and a loopback-bound web entry point. The frontend can trigger a read-only overview collection. Manager-user authentication is not implemented; loopback-only exposure is a deliberate temporary security boundary. See DEPLOYMENT.md for setup and limitations.
+The repository now includes manager authentication and Admin/User authorization, multi-firewall registration and inventory, AES-256-GCM encrypted additional-device credentials, per-device CA and TLS server-name settings, certificate discovery for onboarding, fixed read-only firewall API operations, per-device read-only checks, and a React/Vite frontend using React Router. The inventory UI supports editing metadata, enabling/disabling devices, and removing eligible registered devices with confirmation. The read-only diagnostic response is shown in a modal. The primary installation-configured firewall is protected from deletion. Keep the UI loopback-only until production security review is complete. See `AUTHENTICATION.md`, `INSTALLATION.md`, `SECURITY.md`, and `ROADMAP.md` for current status.
