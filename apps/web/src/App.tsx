@@ -42,7 +42,6 @@ export default function App() {
   const [status, setStatus] = useState("Connecting to manager API");
   const [page, setPage] = useState<Page>("dashboard");
   const [firewallsOpen, setFirewallsOpen] = useState(true);
-  const [monitoringOpen, setMonitoringOpen] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [firewallName, setFirewallName] = useState("");
