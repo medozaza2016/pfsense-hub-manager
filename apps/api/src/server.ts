@@ -344,6 +344,7 @@ app.put("/api/v1/hub-settings", async (request, reply) => {
       RETURNING reachability_method AS "reachabilityMethod",address_type AS "addressType",address,https_port AS "httpsPort",updated_at AS "updatedAt"`,
     [value.reachabilityMethod, value.addressType, value.address, value.httpsPort, admin?.id ?? null]
   );
+  await appendAudit(pool, { actorId: admin?.id ?? null, action: "hub.settings.update", outcome: "success", targetType: "hub_settings", targetId: "1", summary: "Updated Hub reachability preferences", requestId: request.id, metadata: { reachabilityMethod: value.reachabilityMethod, addressType: value.addressType, httpsPort: value.httpsPort } });
   return { data: { ...result.rows[0], applyStatus: "not_applied", note: "Saved as a preference only. This does not change Docker host bindings, DNS, Tailscale, or firewall reachability." } };
 });
 
