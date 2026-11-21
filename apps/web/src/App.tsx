@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type RefObject } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "./components/ToastProvider";
 
@@ -716,7 +716,7 @@ export default function App() {
 }
 
 
-function DiagnosticResults({overview,failedOperations,resultsRef}:{overview:DiagnosticRecord;failedOperations:number;resultsRef:React.RefObject<HTMLPreElement | null>}) {
+function DiagnosticResults({overview,failedOperations,resultsRef}:{overview:DiagnosticRecord;failedOperations:number;resultsRef:RefObject<HTMLPreElement | null>}) {
   const system = diagnosticRecord(overview.system);
   const version = diagnosticRecord(overview.version);
   const stateSize = diagnosticRecord(overview.firewallStateSize);
