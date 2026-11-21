@@ -268,7 +268,25 @@ export default function App() {
         {page === "audit" && <PlaceholderPage eyebrow="ADMINISTRATION" title="Audit logs" description="A searchable record of administrative activity will be added here. The audit view is a placeholder until event recording and filtering are implemented." items={["User and role changes","Firewall registration events","Authentication events","Administrative actions"]} />}
         {page === "manager-api" && <div className="page-stack"><div><h2>Manager API</h2><p className="muted">Backend service health and application connectivity.</p></div><section className="content-card api-health-card"><span className="eyebrow">CONNECTION STATUS</span><div className="health-line"><i className="dot online"/><strong>{status}</strong></div><p className="muted">The web application is communicating with its manager API. Firewall-specific connectivity is tested separately from this application status.</p></section><PlaceholderPage eyebrow="SYSTEM" title="API diagnostics" description="Version details, service diagnostics, and background job health will be added here." items={["API version","Database connectivity","Background tasks"]} /></div>}
         {page === "settings" && isAdmin && <PlaceholderPage eyebrow="SYSTEM CONFIGURATION" title="Settings" description="Application-wide configuration options will be organized here. Firewall-specific credentials remain managed securely on the server." items={["General application settings","Session and security policy","Notification preferences","Backup and maintenance"]} />}
-        {page === "users" && !isAdmin && <PlaceholderPage eyebrow="ACCESS CONTROL" title="Restricted section" description="Your account has read-only access. User administration is available to administrators only." items={[]} />}
+        {page === "users" && isAdmin && <div className="page-stack user-management-page">
+          <div className="welcome-row"><div><p className="dashboard-kicker">ACCESS CONTROL</p><h2>User management</h2><p className="muted">Create manager accounts and control their access level.</p></div></div>
+          <div className="user-management-grid">
+            <section className="content-card user-create-card"><div className="dashboard-card-heading"><div><span className="eyebrow">NEW ACCOUNT</span><h2>Create user</h2><p>Add an administrator or read-only user.</p></div></div>
+              <form className="user-form" onSubmit={createUser}>
+                <label>Full name<input value={newName} onChange={e => setNewName(e.target.value)} minLength={2} maxLength={100} autoComplete="name" required /></label>
+                <label>Email address<input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} autoComplete="email" required /></label>
+                <label>Temporary password<input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} minLength={12} maxLength={128} autoComplete="new-password" required /><small>At least 12 characters. Share it securely with the user.</small></label>
+                <label>Access role<select value={newRole} onChange={e => setNewRole(e.target.value as Role)}><option value="user">User, read-only</option><option value="admin">Administrator</option></select></label>
+                <button className="primary-button" type="submit" disabled={busy}>{busy ? "Creating…" : "Create user"}</button>
+              </form>
+            </section>
+            <section className="content-card user-list-card"><div className="dashboard-card-heading"><div><span className="eyebrow">MANAGER ACCESS</span><h2>Accounts ({users.length})</h2><p>Manage roles for existing accounts.</p></div></div>
+              <div className="managed-user-list">{users.map(user => <article className="managed-user-row" key={user.id}><div className="managed-user-avatar">{user.name.trim().charAt(0).toUpperCase()}</div><div className="managed-user-info"><strong>{user.name}</strong><span>{user.email}</span></div><span className={user.active === false ? "config-state state-disabled" : "config-state state-enabled"}>{user.active === false ? "Inactive" : "Active"}</span><select aria-label={"Role for " + user.email} value={user.role} disabled={busy || user.id === currentUser?.id} onChange={e => void changeRole(user,e.target.value as Role)}><option value="user">User</option><option value="admin">Admin</option></select></article>)}</div>
+              <p className="user-list-note">Your own role cannot be changed from this screen.</p>
+            </section>
+          </div>
+        </div>}
+                {page === "users" && !isAdmin && <PlaceholderPage eyebrow="ACCESS CONTROL" title="Restricted section" description="Your account has read-only access. User administration is available to administrators only." items={[]} />}
         <footer className="app-footer">pfSense Hub Manager <span>·</span> {isAdmin ? "Administrator access" : "Read-only access"} <span>·</span> Firewall configuration changes are not enabled in this release</footer>
       </main>
     </div>
