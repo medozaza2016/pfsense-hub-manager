@@ -105,3 +105,14 @@
 .modal-result p{max-width:360px;margin:0 0 22px;color:#5d6f87;font-size:13px;line-height:1.55}
 .modal-result .primary-button{justify-content:center}
 @media(max-width:560px){.user-create-modal{padding:20px}.ui-role-select{min-width:104px}}
+
+
+/* Compact account-status switch used in the user inventory */
+.user-status-toggle{width:42px;height:24px;min-width:42px;padding:3px;border:0;border-radius:20px;background:#aebaca;display:inline-flex;align-items:center;justify-content:flex-start;cursor:pointer;transition:background .18s ease,opacity .18s ease}
+.user-status-toggle i{display:block;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0b1d332e;transform:translateX(0);transition:transform .18s ease}
+.user-status-toggle.on{background:#16834a}
+.user-status-toggle.on i{transform:translateX(18px)}
+.user-status-toggle:focus-visible{outline:3px solid #1764d54a;outline-offset:2px}
+.user-status-toggle:disabled{opacity:.55;cursor:wait}
+.user-status-modal p{color:#5d6f87;font-size:13px;line-height:1.55;margin:8px 0 18px}
+.user-status-modal .settings-message{margin:0 0 14px}
