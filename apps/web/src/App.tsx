@@ -4,7 +4,7 @@ type Role = "admin" | "user";
 type User = { id: string; name: string; email: string; role: Role; active?: boolean };
 type Device = { id: string; name: string; location: string | null; edition: string; enabled: boolean };
 type ApiResponse<T> = { data: T; meta?: { outcome?: string; failedOperations?: number; durationMs?: number }; error?: { message: string } };
-type Page = "dashboard" | "firewalls" | "monitoring" | "users" | "audit" | "manager-api" | "settings";
+type Page = "dashboard" | "firewalls" | "add-firewall" | "monitoring" | "users" | "audit" | "manager-api" | "settings";
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers = new Headers(init.headers);
@@ -16,7 +16,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<ApiResponse
 }
 
 const pageTitles: Record<Page, string> = {
-  dashboard: "Dashboard", firewalls: "Firewall inventory", monitoring: "Monitoring",
+  dashboard: "Dashboard", firewalls: "Firewall inventory", "add-firewall": "Add firewall", monitoring: "Monitoring",
   users: "User management", audit: "Audit logs", "manager-api": "Manager API", settings: "Settings"
 };
 
@@ -44,6 +44,14 @@ export default function App() {
   const [monitoringOpen, setMonitoringOpen] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [firewallName, setFirewallName] = useState("");
+  const [firewallLocation, setFirewallLocation] = useState("");
+  const [firewallEdition, setFirewallEdition] = useState<"plus" | "ce" | "unknown">("plus");
+  const [firewallUrl, setFirewallUrl] = useState("https://");
+  const [firewallApiKey, setFirewallApiKey] = useState("");
+  const [firewallCa, setFirewallCa] = useState("");
+  const [firewallTested, setFirewallTested] = useState(false);
+  const [firewallTestResult, setFirewallTestResult] = useState<string | null>(null);
 
   async function loadAppData(user: User) {
     const deviceResponse = await api<Device[]>("/api/v1/devices");
@@ -112,6 +120,32 @@ export default function App() {
     } catch (e) { setError(e instanceof Error ? e.message : "Collection failed."); }
     finally { setBusy(false); }
   }
+  function firewallPayload() {
+    return { name: firewallName, location: firewallLocation, edition: firewallEdition, apiBaseUrl: firewallUrl, apiKey: firewallApiKey, ...(firewallCa.trim() ? { caCertificatePem: firewallCa } : {}) };
+  }
+  async function testFirewallConnection() {
+    setBusy(true); setError(null); setFirewallTested(false); setFirewallTestResult(null);
+    try {
+      const result = await api<{ reachable: boolean; version: unknown }>("/api/v1/devices/test-connection", { method: "POST", body: JSON.stringify(firewallPayload()) });
+      setFirewallTested(true);
+      setFirewallTestResult("Connection successful. pfSense API version endpoint responded.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Connection test failed.");
+    } finally { setBusy(false); }
+  }
+  async function addFirewall(event: FormEvent) {
+    event.preventDefault();
+    if (!firewallTested) { setError("Test the firewall connection successfully before registering it."); return; }
+    setBusy(true); setError(null);
+    try {
+      await api("/api/v1/devices", { method: "POST", body: JSON.stringify(firewallPayload()) });
+      setFirewallApiKey(""); setFirewallCa(""); setFirewallTested(false); setFirewallTestResult(null);
+      if (currentUser) await loadAppData(currentUser);
+      setPage("firewalls");
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to register firewall."); }
+    finally { setBusy(false); }
+  }
+
   async function createUser(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(null);
     try {
@@ -164,7 +198,7 @@ export default function App() {
         <button className="nav-link group-toggle" aria-expanded={firewallsOpen} onClick={() => setFirewallsOpen(v => !v)}><span className="nav-icon">◈</span><span>Firewalls</span><span className="nav-chevron">{firewallsOpen ? "⌄" : "›"}</span></button>
         {firewallsOpen && <div className="sub-nav">
           <button className={page === "firewalls" ? "sub-link active" : "sub-link"} onClick={() => navigate("firewalls")}>Inventory</button>
-          <button className="sub-link" onClick={() => navigate("firewalls")}>Add firewall <span className="coming-soon">Soon</span></button>
+          <button className={page === "add-firewall" ? "sub-link active" : "sub-link"} onClick={() => navigate("add-firewall")}>Add firewall</button>
           <button className="sub-link" onClick={() => navigate("firewalls")}>Locations & groups</button>
         </div>}
       </div>
@@ -217,7 +251,7 @@ export default function App() {
           <div className="dashboard-main-grid">
             <section className="content-card fleet-panel">
               <div className="dashboard-card-heading"><div><span className="eyebrow">YOUR ENVIRONMENT</span><h2>Managed firewalls</h2><p>Registered appliances and their configuration.</p></div><button className="text-button" onClick={() => navigate("firewalls")}>All firewalls <span>→</span></button></div>
-              {devices.length === 0 ? <div className="dashboard-empty"><div className="empty-symbol">◈</div><strong>No firewalls registered</strong><p>Add your first pfSense appliance to start managing your environment.</p>{isAdmin && <button className="primary-button" disabled title="Firewall onboarding is the next development milestone">Add firewall</button>}</div> : <div className="fleet-list">{devices.map(device => <article className="fleet-device" key={device.id}><div className="fleet-device-icon">◈</div><div className="fleet-device-copy"><strong>{device.name}</strong><span>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</span></div><span className="pill">Configured</span><button className="fleet-check" disabled={busy} onClick={() => void runCheck(device.id)}>{busy ? "Checking…" : "Run check"}</button></article>)}</div>}
+              {devices.length === 0 ? <div className="dashboard-empty"><div className="empty-symbol">◈</div><strong>No firewalls registered</strong><p>Add your first pfSense appliance to start managing your environment.</p>{isAdmin && <button className="primary-button" onClick={() => navigate("add-firewall")}>Add firewall</button>}</div> : <div className="fleet-list">{devices.map(device => <article className="fleet-device" key={device.id}><div className="fleet-device-icon">◈</div><div className="fleet-device-copy"><strong>{device.name}</strong><span>{device.location || "Location not set"} <i>·</i> pfSense {device.edition.toUpperCase()}</span></div><span className="pill">Configured</span><button className="fleet-check" disabled={busy} onClick={() => void runCheck(device.id)}>{busy ? "Checking…" : "Run check"}</button></article>)}</div>}
               <div className="fleet-panel-footer"><span>{devices.length} {devices.length === 1 ? "firewall" : "firewalls"} registered</span><span>Configuration inventory</span></div>
             </section>
             <div className="dashboard-side-stack">
@@ -234,7 +268,7 @@ export default function App() {
         {page === "firewalls" && <div className="page-stack inventory-page">
           <div className="inventory-heading">
             <div><p className="dashboard-kicker">NETWORK OPERATIONS / FLEET</p><h2>Firewall inventory</h2><p className="muted">Manage your registered pfSense appliances and inspect their configuration.</p></div>
-            <div className="inventory-heading-actions"><button onClick={() => void refresh()} disabled={busy}>↻ Refresh</button>{isAdmin && <button className="primary-button" disabled title="The multi-firewall onboarding workflow is the next milestone">＋ Add firewall</button>}</div>
+            <div className="inventory-heading-actions"><button onClick={() => void refresh()} disabled={busy}>↻ Refresh</button>{isAdmin && <button className="primary-button" onClick={() => navigate("add-firewall")}>＋ Add firewall</button>}</div>
           </div>
           <section className="content-card inventory-toolbar">
             <div className="inventory-count"><strong>{devices.length}</strong><span>{devices.length === 1 ? "Registered firewall" : "Registered firewalls"}</span></div>
@@ -263,6 +297,27 @@ export default function App() {
             </article>)}
           </section>
           {overview && <section className="content-card inventory-results"><div className="inventory-section-heading"><div><span className="eyebrow">LIVE API CHECK</span><h2>Read-only check results</h2></div></div><pre>{JSON.stringify(overview,null,2)}</pre><p className="muted">The response above contains the data returned by the firewall read-only endpoints.</p></section>}
+        </div>}
+        {page === "add-firewall" && isAdmin && <div className="page-stack firewall-onboarding">
+          <div className="inventory-heading"><div><p className="dashboard-kicker">FIREWALLS / ONBOARDING</p><h2>Register a pfSense appliance</h2><p className="muted">Add a firewall using a dedicated read-only API key. Credentials are encrypted before storage.</p></div><button onClick={() => navigate("firewalls")}>Cancel</button></div>
+          <section className="content-card onboarding-card">
+            <div className="onboarding-steps"><span className="step-active">1. Connection details</span><span className={firewallTested ? "step-active" : ""}>2. Verify connection</span><span>3. Register appliance</span></div>
+            <form className="firewall-form" onSubmit={addFirewall}>
+              <div className="form-section-title"><h3>Appliance details</h3><p className="muted">Identify the firewall in your inventory.</p></div>
+              <div className="form-grid">
+                <label>Display name<input value={firewallName} onChange={e => {setFirewallName(e.target.value);setFirewallTested(false);}} minLength={2} maxLength={120} placeholder="Branch pfSense CE" required /></label>
+                <label>Location / site<input value={firewallLocation} onChange={e => {setFirewallLocation(e.target.value);setFirewallTested(false);}} maxLength={120} placeholder="Branch office" /></label>
+                <label>pfSense edition<select value={firewallEdition} onChange={e => {setFirewallEdition(e.target.value as "plus" | "ce" | "unknown");setFirewallTested(false);}}><option value="plus">pfSense Plus</option><option value="ce">pfSense CE</option><option value="unknown">Unknown</option></select></label>
+                <label>API base URL<input type="url" value={firewallUrl} onChange={e => {setFirewallUrl(e.target.value);setFirewallTested(false);}} placeholder="https://192.168.1.1:10443" required /></label>
+              </div>
+              <div className="form-section-title"><h3>API authentication</h3><p className="muted">Use a dedicated API key with only the eight required GET permissions.</p></div>
+              <label>Read-only API key<input type="password" value={firewallApiKey} onChange={e => {setFirewallApiKey(e.target.value);setFirewallTested(false);}} autoComplete="off" required /></label>
+              <label>Private CA certificate (PEM), optional<textarea value={firewallCa} onChange={e => {setFirewallCa(e.target.value);setFirewallTested(false);}} rows={5} placeholder="-----BEGIN CERTIFICATE-----" /></label>
+              <p className="security-note">TLS certificate verification is always enabled. Provide the issuing CA certificate when the firewall uses a private certificate authority. Do not disable TLS verification.</p>
+              {firewallTestResult && <div className="success-notice">{firewallTestResult}</div>}
+              <div className="onboarding-actions"><button type="button" onClick={() => void testFirewallConnection()} disabled={busy || !firewallName.trim() || !firewallUrl.startsWith("https://") || !firewallApiKey.trim()}>{busy ? "Testing…" : "Test connection"}</button><button className="primary-button" type="submit" disabled={busy || !firewallTested}>{busy ? "Registering…" : "Register firewall"}</button></div>
+            </form>
+          </section>
         </div>}
         {page === "monitoring" && <PlaceholderPage eyebrow="NETWORK OPERATIONS" title="Monitoring" description="This area will consolidate live firewall health, CPU and memory utilization, interfaces, gateways, services, and system logs." items={["System overview","Interface status and traffic","Gateway health","Service status","System logs"]} />}
         {page === "audit" && <PlaceholderPage eyebrow="ADMINISTRATION" title="Audit logs" description="A searchable record of administrative activity will be added here. The audit view is a placeholder until event recording and filtering are implemented." items={["User and role changes","Firewall registration events","Authentication events","Administrative actions"]} />}
