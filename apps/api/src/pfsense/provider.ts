@@ -119,12 +119,13 @@ export class PfSenseProvider {
       tlsServername: tlsServername ?? undefined
     });
     const encrypted = encryptSecret(input.apiKey, this.credentialKey);
-    await this.pool.query(
+    const saved = await this.pool.query(
       `UPDATE managed_devices
        SET api_key_ciphertext=$1,api_key_iv=$2,api_key_tag=$3,ca_certificate_pem=$4,tls_servername=$5,updated_at=now()
        WHERE id=$6`,
       [encrypted.ciphertext, encrypted.iv, encrypted.tag, caCertificatePem, tlsServername, deviceId]
     );
+    if (saved.rowCount === 0) return null;
     return { deviceId, connection };
   }
 
