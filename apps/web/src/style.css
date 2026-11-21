@@ -474,3 +474,21 @@ pre{background:#172536;color:#dceafa;border-color:#26394e}
  .inventory-detail{margin-left:0;grid-template-columns:repeat(2,minmax(0,1fr))}
  .inventory-meta{gap:7px}
 }
+
+.user-management-grid{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(0,1.4fr);gap:16px;align-items:start}
+.user-create-card,.user-list-card{padding:21px 22px}
+.user-form{display:grid;gap:13px}
+.user-form label{display:grid;gap:6px;font-size:.75rem;font-weight:650;color:#4a5562}
+.user-form input,.user-form select{width:100%;padding:0 11px}
+.user-form label small{font-size:.66rem;font-weight:400;color:#9298a0}
+.user-form>button{justify-self:start;margin-top:3px}
+.managed-user-list{display:grid}
+.managed-user-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto 112px;align-items:center;gap:11px;padding:13px 0;border-top:1px solid #eeeeef}
+.managed-user-avatar{width:35px;height:35px;display:grid;place-items:center;border-radius:50%;background:#edf3fa;color:#315c80;font-weight:750}
+.managed-user-info{display:grid;gap:4px;min-width:0}
+.managed-user-info strong{font-size:.78rem;color:#30363e}
+.managed-user-info span{font-size:.68rem;color:#89909a;overflow-wrap:anywhere}
+.managed-user-row select{min-width:0;min-height:35px;padding:0 8px;font-size:.7rem}
+.user-list-note{margin:13px 0 0;padding-top:11px;border-top:1px solid #eee;color:#9298a0;font-size:.67rem}
+@media(max-width:900px){.user-management-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.managed-user-row{grid-template-columns:34px minmax(0,1fr) auto}.managed-user-row select{grid-column:2/-1;width:100%}}
