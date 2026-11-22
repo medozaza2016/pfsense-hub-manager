@@ -91,7 +91,6 @@ app.addHook("preHandler", async (request, reply) => {
     || path.startsWith("/api/v1/users/")
     || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
     || (path === "/api/v1/hub-settings/access-endpoints" && request.method === "PUT")
-    || (path === "/api/v1/hub-settings/access-endpoints" && request.method === "PUT")
     || path.startsWith("/api/v1/hub-settings/deployments")
     || (path.startsWith("/api/v1/alerts/") && request.method !== "GET")
     || (path === "/api/v1/devices" && request.method !== "GET")
