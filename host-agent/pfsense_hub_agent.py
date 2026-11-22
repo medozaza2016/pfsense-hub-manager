@@ -205,6 +205,8 @@ def resolve_bind_address(endpoint: dict[str, Any], config: dict[str, Any]) -> st
     selected = eligible[0]
     if method == "hostname" and selected.is_loopback:
         raise AgentError("HOST_BIND_LOOPBACK_NOT_ALLOWED")
+    if not selected.is_private and not selected.is_loopback:
+        raise AgentError("HOST_BIND_PUBLIC_ADDRESS_NOT_ALLOWED")
     return str(selected)
 
 
