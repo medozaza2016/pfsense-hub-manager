@@ -219,8 +219,11 @@ export class DeviceRepository {
     });
   }
 
-  async create(input: CreateDeviceInput): Promise<ManagedDeviceProfile> {
+  async create(input: CreateDeviceInput, connectionCheckDurationMs = 0): Promise<ManagedDeviceProfile> {
     const parsed = createDeviceSchema.parse(input);
+    if (!Number.isSafeInteger(connectionCheckDurationMs) || connectionCheckDurationMs < 0 || connectionCheckDurationMs > 120_000) {
+      throw new Error("Connection check duration is invalid.");
+    }
     const id = randomUUID();
     const encrypted = encryptDeviceCredential(parsed.apiKey, this.encryptionKey, id);
     return withTransaction(this.pool, async client => {
@@ -244,6 +247,11 @@ export class DeviceRepository {
           [id, encryptedCa.version, Buffer.from(encryptedCa.nonce, "hex"), Buffer.from(encryptedCa.authTag, "hex"), Buffer.from(encryptedCa.ciphertext, "hex")]
         );
       }
+      await client.query(
+        `INSERT INTO poll_runs(id,device_id,operation_group,outcome,started_at,completed_at,duration_ms,error_class)
+         VALUES($1,$2,'version','success',now()-($3::integer * interval '1 millisecond'),now(),$3,NULL)`,
+        [randomUUID(), id, connectionCheckDurationMs]
+      );
       const row = inserted.rows[0];
       if (!row) throw new Error("Managed device creation returned no profile.");
       return toProfile(row);
