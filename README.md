@@ -2,7 +2,7 @@
 
 A centralized management and monitoring platform for multiple pfSense firewalls, designed to support mixed **pfSense Plus** and **pfSense CE** environments.
 
-> **Project status (November 21, 2026):** The active development branch contains the responsive Hub/Site UI, shared search/filter/table components, API-backed User Management, Audit Logs and Alerts, development-only seed data, and a four-service local Compose environment. The local Windows Docker web container was serving a stale image; rebuilding the web service loaded the current source and restored the expected search/filter and mobile-card UI. The feature branch is synchronized with origin. Merge to `main` is pending documentation closeout and pull-request review.
+> **Project status (November 21, 2026):** The merged `main` branch contains the responsive Hub/Site UI, shared search/filter/table components, API-backed User Management, Audit Logs and Alerts, development-only seed data, and a four-service local Compose environment. The local Windows Docker web container was serving a stale image; rebuilding the web service loaded the current source and restored the expected search/filter and mobile-card UI. PR #5 was merged into `main` as commit `12bf57733aab1f654a2819639b3a16887ac62bb4` on November 21, 2026. Upcoming work should start from an updated local `main` branch.
 
 ## Why this project exists
 
