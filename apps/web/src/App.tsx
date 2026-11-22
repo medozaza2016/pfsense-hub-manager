@@ -511,6 +511,7 @@ const deploymentErrorCopy:Record<string,string> = {
  HOST_BIND_ADDRESS_NOT_ASSIGNED:"The selected address does not resolve to an IP assigned to this Hub host.",
  HOST_BIND_HOSTNAME_RESOLUTION_FAILED:"The selected hostname could not be resolved by the Hub host.",
  HOST_BIND_LOOPBACK_NOT_ALLOWED:"A Custom hostname cannot bind to a loopback address.",
+ HOST_BIND_PUBLIC_ADDRESS_NOT_ALLOWED:"Publicly routable host addresses are blocked. Use a private LAN address.",
  TLS_OR_ENDPOINT_VERIFICATION_FAILED:"The HTTPS certificate or application health check failed. The agent attempted to restore the previous bind.",
  ENV_FILE_PERMISSIONS_INVALID:"The production .env file must be owned by root:root and not be group/world writable.",
  TAILSCALE_NOT_CONNECTED:"Tailscale is not connected on the Hub host.",
