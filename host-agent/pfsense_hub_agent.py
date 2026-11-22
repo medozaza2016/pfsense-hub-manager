@@ -423,7 +423,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
 def handle_client(conn: socket.socket, config: dict[str, Any], lock_path: Path) -> None:
     import fcntl
     try:
-        conn.settimeout(120)
+        conn.settimeout(240)
         data = bytearray()
         while b"\n" not in data and len(data) <= MAX_LINE:
             chunk = conn.recv(4096)
