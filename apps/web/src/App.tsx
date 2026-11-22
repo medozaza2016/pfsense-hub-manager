@@ -521,7 +521,6 @@ const deploymentErrorCopy:Record<string,string> = {
  TAILSCALE_NOT_CONNECTED:"Tailscale is not connected on the Hub host.",
  TAILSCALE_ADDRESS_MISMATCH:"The selected MagicDNS name does not belong to this Hub host.",
  TAILSCALE_FUNNEL_ALREADY_CONFIGURED:"The host already has a Tailscale Funnel configuration. It was left unchanged.",
- TLS_OR_ENDPOINT_VERIFICATION_FAILED:"The new HTTPS endpoint failed certificate or health verification. The agent attempted rollback."
 };
 const defaultHubEndpoints: HubAccessEndpoint[] = [
  {method:"local",addressType:null,address:null,httpsPort:443,enabled:true},
