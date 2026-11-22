@@ -159,3 +159,14 @@
 .secondary-button:disabled{opacity:.55;cursor:not-allowed}
 @media(max-width:900px){.hub-settings-layout{grid-template-columns:1fr}}
 @media(max-width:600px){.hub-endpoint-fields{grid-template-columns:1fr}.hub-endpoint-heading{flex-direction:column}}
+
+
+/* Single-active Hub access tabs */
+.hub-access-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:5px;margin:0 0 13px;border:1px solid #dce5f0;border-radius:10px;background:#f3f6fa}
+.hub-access-tab{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:42px;padding:8px 10px;border:1px solid transparent;border-radius:7px;background:transparent;color:#405775;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.hub-access-tab:hover:not(:disabled){background:#e9eff7}
+.hub-access-tab.active{border-color:#cbdaf0;background:#fff;color:#123b70;box-shadow:0 1px 2px rgba(16,39,71,.07)}
+.hub-access-tab span,.hub-active-indicator{padding:3px 6px;border-radius:999px;background:#e8f1ff;color:#1755a5;font-size:9px;font-weight:750;white-space:nowrap}
+.hub-active-indicator{display:inline-flex;align-items:center}
+.hub-access-tab:disabled{opacity:.6;cursor:not-allowed}
+@media(max-width:520px){.hub-access-tabs{gap:3px;padding:3px}.hub-access-tab{flex-direction:column;gap:3px;padding:7px 4px;font-size:11px}.hub-endpoint-heading{flex-direction:column}}
