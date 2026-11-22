@@ -76,6 +76,21 @@ describe("Undici pinned HTTPS integration",()=>{
   });
  });
 
+ it("supports a TLS server-name override when the firewall URL uses an IP address",async()=>{
+  await withTlsServer(async port=>{
+   const dispatcher=new Agent({connect:{
+    ca:testCertificate,
+    rejectUnauthorized:true,
+    servername:"firewall.test"
+   }});
+   try{
+    const response=await fetch(`https://127.0.0.1:${port}/`,{dispatcher});
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("connected");
+   }finally{await dispatcher.close();}
+  });
+ });
+
  it("rejects a trusted certificate when its hostname does not match the requested host",async()=>{
   await withTlsServer(async port=>{
    const dispatcher=new Agent({connect:{
