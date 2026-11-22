@@ -1,4 +1,5 @@
 import {readFile} from "node:fs/promises";
+import type { LookupFunction } from "node:dns";
 import {Agent,fetch} from "undici";
 import {z} from "zod";
 import type {AppConfig} from "../config.js";
@@ -12,9 +13,7 @@ const routes={
 } as const;
 export type PfSenseOperation=keyof typeof routes;
 
-type PinnedLookup = (hostname: string, options: { all?: boolean }, callback: (error: NodeJS.ErrnoException | null, address: string | Array<{address:string;family:number}>, family?: number) => void) => void;
-
-export function createPinnedLookup(expectedHostname: string, address: { address: string; family: 4 | 6 }): PinnedLookup {
+export function createPinnedLookup(expectedHostname: string, address: { address: string; family: 4 | 6 }): LookupFunction {
  const expected=expectedHostname.toLowerCase();
  return (hostname, options, callback) => {
   if(hostname.toLowerCase()!==expected){
@@ -23,7 +22,7 @@ export function createPinnedLookup(expectedHostname: string, address: { address:
    return;
   }
   const record={address:address.address,family:address.family};
-  if(options?.all) callback(null,[record]);
+  if(options.all) callback(null,[record]);
   else callback(null,record.address,record.family);
  };
 }
@@ -32,15 +31,16 @@ export class PfSenseClient{
  private readonly base:URL;
  private readonly dispatcher:Promise<Agent>;
  constructor(private readonly config:AppConfig,private readonly key:string){
-  this.base=new URL(config.PFSENSE_API_BASE_URL);
+  const base=new URL(config.PFSENSE_API_BASE_URL);
+  this.base=base;
   this.dispatcher=(async()=>{
-   const destination=await resolveSafeDeviceDestination(this.base.hostname);
+   const destination=await resolveSafeDeviceDestination(base.hostname);
    const caPath=process.env.PFSENSE_CA_FILE;
    const ca=caPath?await readFile(caPath):undefined;
    return new Agent({connect:{
     ...(ca?{ca}:{}),
     rejectUnauthorized:true,
-    lookup:createPinnedLookup(this.base.hostname.startsWith("[") ? this.base.hostname.slice(1,-1) : this.base.hostname,destination)
+    lookup:createPinnedLookup(base.hostname.startsWith("[") ? base.hostname.slice(1,-1) : base.hostname,destination)
    }});
   })();
  }
