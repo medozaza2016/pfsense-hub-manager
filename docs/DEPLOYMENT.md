@@ -1,14 +1,11 @@
 # Local and Proxmox Deployment
 
 ## Current deployment shape
-Docker Compose runs the React/Vite web application served by Nginx, the Fastify API, PostgreSQL, and code-server. PostgreSQL is not published to the LXC host. The API has a loopback-only host publication on port 3001 for the local deployment agent; it is not reachable from LAN or public interfaces. The application UI binds to 127.0.0.1 by default. On Linux production, Tailscale Serve can provide tailnet-only HTTPS in front of this loopback service. Do not bind the UI directly to a Tailscale IP or use 0.0.0.0. Code-server remains bound to 127.0.0.1. Do not publish either service directly to the public internet.
-
-The code-server container has a persistent project workspace and persistent editor configuration. It is isolated from the application backend network and does not receive the Docker socket.
+Docker Compose runs the React/Vite web application served by Nginx, the Fastify API, and PostgreSQL. PostgreSQL is not published to the LXC host. The API has a loopback-only host publication on port 3001 for the local deployment agent; it is not reachable from LAN or public interfaces. The application UI binds to 127.0.0.1 by default. On Linux production, Tailscale Serve can provide tailnet-only HTTPS in front of this loopback service. Do not bind the UI directly to a Tailscale IP or use 0.0.0.0, and do not publish the application UI or API directly to the public internet.
 
 ## Prerequisites
 - Docker Engine and Docker Compose plugin.
 - Node.js 22 only if running application development scripts outside containers.
-- A strong, unique code-server password.
 - A secure location outside the server for the application encryption recovery key.
 - A pfSense API key is needed only when you register a firewall through Administration → Add Site.
 
@@ -19,7 +16,7 @@ For Linux production, run the installer from the repository root:
 sudo bash scripts/install-linux.sh
 ```
 
-The installer generates the PostgreSQL password and application encryption key, prompts only for the code-server password, creates the required secret files, validates Compose, and starts the application. It does not request a pfSense address, API key, or certificate. The pfSense API key and optional CA bundle are entered separately for each firewall through Administration → Add Site.
+The installer generates the PostgreSQL password and application encryption key, creates the required secret files, validates Compose, and starts the application. It does not request a pfSense address, API key, or certificate. The pfSense API key and optional CA bundle are entered separately for each firewall through Administration → Add Site.
 
 The installer prints the one-time application encryption recovery key. Save it in a password manager before continuing. Do not paste it into chat, source control, or .env. The runtime key is stored at secrets/runtime/app_encryption_key. The installer refuses to overwrite existing configuration or secret files. If it reports existing files, preserve them and do not regenerate the key.
 
@@ -50,7 +47,7 @@ For Windows local development, the pfSense Hub application UI is available at ht
 The API container reads the application encryption key from /run/secrets/app_encryption_key. Missing or malformed key material prevents API startup. Do not delete or replace the key file while encrypted credentials exist.
 
 ## Updates and backup
-Back up PostgreSQL and the runtime encryption key separately. Protect the recovery copy independently. A database backup without its corresponding encryption key cannot restore firewall credentials. Also back up .env, the code-server password, and any persistent workspace or editor volumes that need preservation. Firewall API credentials and imported CA bundles are encrypted per device in PostgreSQL.
+Back up PostgreSQL and the runtime encryption key separately. Protect the recovery copy independently. A database backup without its corresponding encryption key cannot restore firewall credentials. Also back up .env and any other deployment configuration required for recovery. Firewall API credentials and imported CA bundles are encrypted per device in PostgreSQL.
 
 ## Security and operational status
 
@@ -99,7 +96,7 @@ cd /opt/pfsense-hub
 docker compose up -d --no-deps api
 ```
 
-Check the agent with systemctl status pfsense-hub-deployment-agent and inspect its logs with journalctl -u pfsense-hub-deployment-agent. The agent uses fixed Docker Compose arguments to validate the project and recreate only the web service. It does not build images, restart the API/database/code-server, delete volumes, or accept commands/paths/Compose arguments from the API. Do not expose the API port beyond loopback or mount the Docker socket into the API or web containers.
+Check the agent with systemctl status pfsense-hub-deployment-agent and inspect its logs with journalctl -u pfsense-hub-deployment-agent. The agent uses fixed Docker Compose arguments to validate the project and recreate only the web service. It does not build images, restart the API or database, delete volumes, or accept commands/paths/Compose arguments from the API. Do not expose the API port beyond loopback or mount the Docker socket into the API or web containers.
 
 ### Local development and production boundary
 
@@ -109,7 +106,7 @@ LAN and Custom require an already configured TLS termination layer. Hub Manager 
 
 ## Windows 11 local development workflow, current baseline
 
-The supported current development workstation is Windows 11 with VS Code and Docker Desktop. Run the repository locally from PowerShell. Docker Compose is the reproducible local runtime for the web, API, PostgreSQL, and code-server services. Production remains a Linux deployment target; the existing Proxmox LXC is the intended target unless a later decision changes it.
+The supported current development workstation is Windows 11 with VS Code and Docker Desktop. Run the repository locally from PowerShell. Docker Compose is the reproducible local runtime for the web, API, and PostgreSQL services. Production remains a Linux deployment target; the existing Proxmox LXC is the intended target unless a later decision changes it.
 
 Recommended closeout sequence from the repository root:
 

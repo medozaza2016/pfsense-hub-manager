@@ -43,9 +43,7 @@ The integration must account for differences by pfSense edition, release, API pa
 
 ## Deployment and development environment
 
-Docker Compose runs the React/Vite web application, Fastify API, PostgreSQL, and code-server. code-server provides VS Code in a browser at http://127.0.0.1:8443 on the LXC, with password authentication and persistent workspace, settings, and extension storage. The pfSense Hub application remains at http://127.0.0.1:8080. Both ports are loopback-bound by default, use SSH tunnels for workstation access, and do not expose either service directly to the internet.
-
-The editor workspace is ./workspace. The code-server container is isolated from the application backend network and does not mount the Docker socket. See [Deployment](docs/DEPLOYMENT.md) for setup, SSH forwarding, secrets, and security details.
+Docker Compose runs the React/Vite web application, Fastify API, and PostgreSQL. The pfSense Hub application is available at http://127.0.0.1:8080 on the LXC and binds to loopback by default. Use Tailscale Serve or an SSH tunnel for private workstation access. Do not expose the application directly to the public internet. See [Deployment](docs/DEPLOYMENT.md) for setup, access, secrets, and security details.
 
 ## Repository guide
 

@@ -31,7 +31,6 @@ The target `.env.example` contains only settings required to run Hub infrastruct
 - PostgreSQL password, generated locally and protected as a deployment secret.
 - Hub web bind address, defaulting to `127.0.0.1`.
 - Hub web port.
-- Code-server host port, if code-server remains part of the selected deployment.
 
 It must not contain per-firewall settings such as:
 
@@ -44,7 +43,7 @@ It must not contain per-firewall settings such as:
 - `PFSENSE_CA_FILE`
 - A global `PFSENSE_API_KEY_FILE` secret
 
-Per-site credentials must be encrypted in PostgreSQL by the backend. The application encryption key remains a separate protected runtime secret, never a normal `.env` value. Code-server credentials also remain separate from `.env`.
+Per-site credentials must be encrypted in PostgreSQL by the backend. The application encryption key remains a separate protected runtime secret, never a normal `.env` value.
 
 The final environment variable list must be derived from the actual Compose and application configuration after implementation. Do not remove a variable from the deployed environment until its consumer has been removed or migrated.
 
@@ -55,7 +54,7 @@ The supported local development platform is Windows 11 with VS Code and Docker D
 1. Verify supported Windows, PowerShell, and Docker Desktop prerequisites.
 2. Create required application, secret, runtime-key, certificate/trust, and workspace directories.
 3. Detect existing configuration, database volumes, and key files before writing anything. Never overwrite or silently reinitialize existing state.
-4. Generate the Hub database password and code-server password locally.
+4. Generate the Hub database password locally.
 5. Generate one high-entropy application encryption key using the operating-system cryptographic random generator.
 6. Install a protected runtime copy of the key and present a one-time recovery copy for the administrator's password manager. Do not log it or place it in source control, chat, or `.env`.
 7. Write a Hub-only `.env` file and protect it with Windows ACLs.
@@ -72,7 +71,7 @@ Production deployment targets Linux, initially the existing Proxmox LXC. The fut
 1. Verify Linux, Docker Engine, and Docker Compose prerequisites.
 2. Detect existing application files, Compose resources, database state, and key files before making changes.
 3. Create required directories with restrictive permissions.
-4. Generate database and code-server secrets locally.
+4. Generate the database password locally.
 5. Generate the application encryption key with a cryptographically secure operating-system random generator.
 6. Install the runtime key with permissions limited to the backend runtime identity and provide a one-time recovery value without leaving it in shell history or routine logs.
 7. Write a Hub-only `.env` file with restrictive permissions.
