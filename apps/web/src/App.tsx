@@ -554,7 +554,7 @@ function HubSettingsPage(){
   if(!window.confirm("Confirm that you have applied any required Docker Compose, reverse-proxy, DNS, and network changes for these access methods."))return;
   setConfirming(true);setMessage("");
   try{
-   const response=await fetch("/api/v1/hub-settings/deployment-applied",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({confirmation:"APPLIED"})});
+   const response=await fetch("/api/v1/hub-settings/deployment-applied",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({confirmation:"APPLIED",expectedRevision:deployment.desiredRevision})});
    const result=await response.json();
    if(!response.ok)throw new Error(result.error?.message??"Unable to confirm deployment.");
    setDeployment({status:"applied",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision});
