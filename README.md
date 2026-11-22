@@ -2,7 +2,7 @@
 
 A centralized management and monitoring platform for multiple pfSense firewalls, designed to support mixed **pfSense Plus** and **pfSense CE** environments.
 
-> **Project status (November 21, 2026):** The merged `main` branch contains the responsive Hub/Site UI, shared search/filter/table components, API-backed User Management, Audit Logs and Alerts, development-only seed data, and a four-service local Compose environment. The local Windows Docker web container was serving a stale image; rebuilding the web service loaded the current source and restored the expected search/filter and mobile-card UI. PR #5 was merged into `main` as commit `12bf57733aab1f654a2819639b3a16887ac62bb4` on November 21, 2026. Upcoming work should start from an updated local `main` branch.
+> **Project status (November 21, 2026):** PR #5 and its implementation are merged into `main`. The repository now has a responsive Hub/Site UI, shared search/filter/table components, API-backed User Management, Audit Logs and Alerts, and development-only seed support. This is an intermediate development baseline, not a production-ready multi-firewall manager. The current next milestone is secure multi-site onboarding. See the current baseline and implementation plan below.
 
 ## Why this project exists
 
@@ -56,6 +56,7 @@ The editor workspace is ./workspace. The code-server container is isolated from 
 - [API specification](docs/API-SPECIFICATION.md)
 - [Integration status and verified tests](docs/INTEGRATION-STATUS.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Multi-site onboarding implementation plan](docs/MULTI-SITE-ONBOARDING-PLAN.md)
 - [Decision log](docs/DECISIONS.md)
 - [Deployment guide](docs/DEPLOYMENT.md)
 - [Hub access configuration](docs/HUB-ACCESS-CONFIGURATION.md)
@@ -77,11 +78,16 @@ Not yet selected. Do not assume this project is open source until a license is e
 
 ## Current development baseline, November 21, 2026
 
+- **Repository branch:** `main`.
+- **Verified main commit:** `fa2d524d746213972b1c085f8737d427b134b012`, synchronized with `origin/main` in the user's Windows working copy. The working tree was reported clean.
 - **Development workstation:** Windows 11, VS Code, Docker Desktop, local development.
-- **Branch:** `feature/development-seed-data`, synchronized with `origin/feature/development-seed-data` at commit `06e8d0f49433654d37b7d9c8c8135ab96da17283`. The branch contains 91 commits ahead of `main` at the recorded comparison point.
-- **Frontend:** Shared UI primitives provide searchable data tables, list toolbars, expandable filters, pagination, and responsive mobile record cards. The recent local issue was a stale running Docker web image, not missing source files or a broken Git branch. Rebuilding the web service resolved the visible UI discrepancy.
-- **Administration:** User Management, Audit Logs, and Alerts use backend APIs. Role enforcement is server-side. Development seed data is guarded to development mode and is transactional/idempotent.
-- **Verification:** The recent development session recorded 52 passing API tests. The current local Docker rebuild resolved the stale-frontend symptom. Re-run typecheck, tests, production build, Compose validation, and a clean container rebuild on the final PR head before merge.
-- **Not complete:** The wider Hub/Site dashboard still contains preview data, alert generation is tied to the device overview request rather than a background scheduler, live CE integration is deferred, and production TLS trust, backup/restore, retention, and release hardening remain open.
+- **Production direction:** Linux deployment on the existing Proxmox LXC remains the intended target. Local Windows development and Linux deployment are separate environments.
+- **Merged implementation:** PR #5 is merged. It includes the shared frontend listing components, API-backed User Management, Audit Logs and Alerts, and development-only seed support.
+- **Current data boundary:** Managed-device inventory is returned by the Hub API, but the configured live firewall remains environment-driven. Demo inventory records are not connected devices. Per-device onboarding, credential lifecycle, and independent multi-device collection are not implemented.
+- **Frontend boundary:** Hub Overview, Sites, and Connectivity use the inventory API. Other firewall configuration pages still show explicitly labeled preview fixtures and do not read or write firewall configuration.
+- **Administration boundary:** User Management, Audit Logs, and Alerts are API-backed. Alert production is associated with a requested device overview, not an independent background polling scheduler.
+- **Verification boundary:** Earlier development sessions recorded 52 passing API tests, but that result is not a fresh verification of the current `main` commit. Run the complete local validation sequence before beginning feature implementation.
+- **Next milestone:** Secure multi-site onboarding and per-device connection management. The implementation plan is [Multi-site Onboarding](docs/MULTI-SITE-ONBOARDING-PLAN.md).
+- **Branch workflow:** Complete and review the documentation baseline on `main) first. Create a dedicated development branch only after the documentation pass is complete and the user is ready to begin implementation. Do not create, switch, or delete branches without the user's explicit authorization.
 
-Use `docs/ROADMAP.md` as the authoritative next-step sequence and `docs/FRONTEND-IMPLEMENTATION.md` for UI implementation boundaries.
+Use `docs/ROADMAP.md` for milestone order, `docs/MULTI-SITE-ONBOARDING-PLAN.md` for the next implementation scope, and `docs/INTEGRATION-STATUS.md` for verified integration facts.
