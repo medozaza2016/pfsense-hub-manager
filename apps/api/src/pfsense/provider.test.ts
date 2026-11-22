@@ -16,7 +16,7 @@ const config = {
 
 function makeProvider(client: Partial<PfSenseClient> | null, bootstrapApiKey: string | null = "bootstrap-secret", providerConfig: AppConfig = config) {
   const firewallClient = client === null ? null : {
-    get: vi.fn(async (operation: PfSenseOperation) => ({ data: operation === "system" ? {} : operation === "version" ? { release: "test" } : operation === "firewallStateSize" ? 0 : [] })),
+    get: vi.fn(async (operation: PfSenseOperation) => ({ data: operation === "system" ? { status: "ok" } : operation === "version" ? { release: "test" } : operation === "firewallStateSize" ? 0 : [] })),
     close: vi.fn(async () => undefined),
     ...client
   };
