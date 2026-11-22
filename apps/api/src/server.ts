@@ -10,7 +10,8 @@ import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
 import { appendAudit, upsertAlert } from "./audit.js";
-import { deploymentConfirmationSchema, hubAccessEndpointsSchema } from "./hub-settings.js";
+import { hubAccessEndpointsSchema } from "./hub-settings.js";
+import { dispatchHubDeployment } from "./hub-deployment-service.js";
 
 const config = loadConfig();
 const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
@@ -90,7 +91,8 @@ app.addHook("preHandler", async (request, reply) => {
     || path.startsWith("/api/v1/users/")
     || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
     || (path === "/api/v1/hub-settings/access-endpoints" && request.method === "PUT")
-    || (path === "/api/v1/hub-settings/deployment-applied" && request.method === "POST")
+    || (path === "/api/v1/hub-settings/access-endpoints" && request.method === "PUT")
+    || path.startsWith("/api/v1/hub-settings/deployments")
     || (path.startsWith("/api/v1/alerts/") && request.method !== "GET")
     || (path === "/api/v1/devices" && request.method !== "GET")
     || (path.startsWith("/api/v1/devices/") && (request.method !== "GET" || path.endsWith("/connection-test")));
@@ -321,11 +323,17 @@ app.get("/api/v1/hub-settings", async () => {
     )
   ]);
   const deployment = stateResult.rows[0] ?? { desiredRevision: 1, appliedRevision: 0, updatedAt: null, appliedAt: null };
+  const latest = await pool.query(
+    `SELECT id,state,safe_error_code AS "errorCode",applied_origin AS "appliedOrigin",
+        rollback_succeeded AS "rollbackSucceeded",created_at AS "createdAt",finished_at AS "finishedAt"
+       FROM hub_access_deployments ORDER BY desired_revision DESC LIMIT 1`
+  );
   return { data: {
     endpoints: endpointResult.rows,
     deployment: {
       ...deployment,
-      status: Number(deployment.desiredRevision) === Number(deployment.appliedRevision) ? "applied" : "pending"
+      status: Number(deployment.desiredRevision) === Number(deployment.appliedRevision) ? "applied" : (latest.rows[0]?.state ?? "pending"),
+      latest: latest.rows[0] ?? null
     }
   } };
 });
@@ -337,6 +345,7 @@ app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
   const db = await pool.connect();
   let revision = 1;
   let appliedRevision = 0;
+  let deploymentId = "";
   try {
     await db.query("BEGIN");
     await db.query("DELETE FROM hub_access_endpoints");
@@ -353,6 +362,15 @@ app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
     );
     revision = Number(state.rows[0]?.desiredRevision ?? 1);
     appliedRevision = Number(state.rows[0]?.appliedRevision ?? 0);
+    const selectedMethod = parsed.data.endpoints.find(endpoint => endpoint.enabled)?.method;
+    if (!selectedMethod) throw new Error("No active Hub access method was selected.");
+    const deployment = await db.query<{ id: string }>(
+      `INSERT INTO hub_access_deployments(desired_revision,requested_method,state,actor_id)
+       VALUES($1,$2,'queued',$3) RETURNING id`,
+      [revision, selectedMethod, admin?.id ?? null]
+    );
+    deploymentId = deployment.rows[0]?.id ?? "";
+    if (!deploymentId) throw new Error("Deployment queue record was not created.");
     await db.query("COMMIT");
   } catch (error) {
     try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
@@ -368,33 +386,43 @@ app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
     targetType: "hub_access_endpoints",
     summary: "Updated Hub access endpoints",
     requestId: request.id,
-    metadata: { methods: parsed.data.endpoints.map(endpoint => endpoint.method), enabledCount: parsed.data.endpoints.filter(endpoint => endpoint.enabled).length, desiredRevision: revision }
+    metadata: { methods: parsed.data.endpoints.map(endpoint => endpoint.method), enabledCount: parsed.data.endpoints.filter(endpoint => endpoint.enabled).length, desiredRevision: revision, deploymentId }
   });
-  return { data: { endpoints: parsed.data.endpoints, desiredRevision: revision, appliedRevision, deploymentStatus: revision === appliedRevision ? "applied" : "pending" } };
+  void dispatchHubDeployment(pool, { id: deploymentId, desired_revision: revision }, {
+    socketPath: config.HUB_DEPLOYMENT_AGENT_SOCKET ?? null
+  }).catch(() => undefined);
+  return { data: { endpoints: parsed.data.endpoints, deploymentId, desiredRevision: revision, appliedRevision, deploymentStatus: "queued" } };
 });
 
-app.post("/api/v1/hub-settings/deployment-applied", async (request, reply) => {
-  const parsed = deploymentConfirmationSchema.safeParse(request.body);
-  if (!parsed.success) return reply.code(400).send({ error: { code: "DEPLOYMENT_CONFIRMATION_REQUIRED", message: "Provide the exact configuration revision you have applied." } });
-  const admin = (request as typeof request & { admin?: AdminUser }).admin;
+app.get("/api/v1/hub-settings/deployments", async (request) => {
+  const parsed = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }).safeParse(request.query);
+  const limit = parsed.success ? parsed.data.limit : 20;
   const result = await pool.query(
-    'UPDATE hub_access_deployment_state SET applied_revision=$2,applied_at=now(),applied_by=$1 WHERE id=1 AND desired_revision=$2 RETURNING desired_revision AS "desiredRevision",applied_revision AS "appliedRevision",applied_at AS "appliedAt"',
-    [admin?.id ?? null, parsed.data.expectedRevision]
+    `SELECT id,desired_revision AS "desiredRevision",requested_method AS "requestedMethod",
+        state,safe_error_code AS "errorCode",applied_origin AS "appliedOrigin",
+        rollback_succeeded AS "rollbackSucceeded",created_at AS "createdAt",
+        started_at AS "startedAt",finished_at AS "finishedAt"
+       FROM hub_access_deployments ORDER BY desired_revision DESC LIMIT $1`,
+    [limit]
   );
-  const state = result.rows[0];
-  if (!state) return reply.code(409).send({ error: { code: "DEPLOYMENT_REVISION_CHANGED", message: "Hub access settings changed after this deployment revision was loaded. Reload settings and apply the latest revision." } });
-  await appendAudit(pool, {
-    actorId: admin?.id ?? null,
-    actorUsername: admin?.username ?? null,
-    action: "hub.access_endpoints.deployment_confirmed",
-    outcome: "success",
-    targetType: "hub_access_deployment_state",
-    targetId: "1",
-    summary: "Administrator confirmed Hub access deployment",
-    requestId: request.id,
-    metadata: { appliedRevision: state?.appliedRevision }
-  });
-  return { data: { ...state, status: "applied" } };
+  return { data: result.rows };
+});
+
+app.get("/api/v1/hub-settings/deployments/:deploymentId", async (request, reply) => {
+  const { deploymentId } = request.params as { deploymentId: string };
+  if (!z.string().uuid().safeParse(deploymentId).success) {
+    return reply.code(400).send({ error: { code: "INVALID_DEPLOYMENT_ID", message: "Invalid deployment identifier." } });
+  }
+  const result = await pool.query(
+    `SELECT id,desired_revision AS "desiredRevision",requested_method AS "requestedMethod",
+        state,safe_error_code AS "errorCode",applied_origin AS "appliedOrigin",
+        rollback_succeeded AS "rollbackSucceeded",created_at AS "createdAt",
+        started_at AS "startedAt",finished_at AS "finishedAt"
+       FROM hub_access_deployments WHERE id=$1`,
+    [deploymentId]
+  );
+  if (!result.rowCount) return reply.code(404).send({ error: { code: "DEPLOYMENT_NOT_FOUND", message: "Deployment was not found." } });
+  return { data: result.rows[0] };
 });
 
 app.get("/metrics", async (_request, reply) => {
