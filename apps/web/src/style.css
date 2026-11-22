@@ -48,3 +48,10 @@
 .ui-list-toolbar{margin:14px 0 20px}
 @media(max-width:1100px){.page-content{padding-left:22px;padding-right:22px}}
 @media(max-width:760px){.page-content{padding:9px 13px 18px}.page-heading h1{font-size:21px}.page-heading p{font-size:11px}.panel{padding:11px}.site-row{min-height:58px;padding:7px}.site-main strong{font-size:11px}.site-main span,.site-main small{font-size:9px}}
+
+/* Device onboarding form */
+.site-onboarding-form{max-height:min(68vh,680px);overflow:auto;padding-right:3px}
+.site-onboarding-form input,.site-onboarding-form select,.site-onboarding-form textarea{width:100%;min-height:39px;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#102747;font:inherit;font-size:11px}
+.site-onboarding-form textarea{min-height:92px;resize:vertical;line-height:1.45;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.site-onboarding-form input:focus,.site-onboarding-form select:focus,.site-onboarding-form textarea:focus{outline:none;border-color:#6b9ce8;box-shadow:0 0 0 3px #1764d51a}
+.site-onboarding-form .ui-feedback{margin:10px 0}
