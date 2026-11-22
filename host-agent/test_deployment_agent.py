@@ -153,5 +153,22 @@ class DeploymentAgentTests(unittest.TestCase):
             agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
 
+
+    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, set()))
+    @patch.object(agent, "get_deployment")
+    def test_requires_tailscale_https_certificate_eligibility(self, get_deployment, identity):
+        get_deployment.return_value = {
+            "deploymentId": self.request["deploymentId"],
+            "desiredRevision": 3,
+            "method": "tailscale",
+            "scheme": "https",
+            "addressType": "magic_dns",
+            "address": "hub.example.ts.net",
+            "port": 443,
+        }
+        with self.assertRaises(agent.AgentError) as caught:
+            agent.deploy(self.config, self.request)
+        self.assertEqual(caught.exception.code, "TAILSCALE_HTTPS_NOT_ENABLED")
+
 if __name__ == "__main__":
     unittest.main()
