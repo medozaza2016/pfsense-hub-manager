@@ -191,7 +191,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(address, str) or not isinstance(port, int) or not 1 <= port <= 65535:
         raise AgentError("DEPLOYMENT_ENDPOINT_INVALID")
     host = address.rstrip(".").lower()
-    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\\.ts\\.net", host):
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\.ts\.net", host):
         raise AgentError("TAILSCALE_MAGICDNS_REQUIRED")
 
     binary = config["tailscale_binary"]
