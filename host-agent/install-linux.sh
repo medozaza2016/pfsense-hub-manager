@@ -57,8 +57,8 @@ TAILSCALE_BIN="$(command -v tailscale || true)"
 # Parse and validate secrets inside Python, never place the bearer token in process arguments.
 ENV_OWNER="$(stat -c '%u:%g' "$ENV_FILE")"
 ENV_MODE="$(stat -c '%a' "$ENV_FILE")"
-if [[ "$ENV_OWNER" != "0:0" ]] || (( (8#$ENV_MODE & 0022) != 0 )); then
-  echo ".env must be owned by root:root and not be group/world writable." >&2
+if [[ "$ENV_OWNER" != "0:0" ]] || (( (8#$ENV_MODE & 0077) != 0 )); then
+  echo ".env must be owned by root:root and inaccessible to group/other users (for example, mode 0600)." >&2
   exit 1
 fi
 for required_setting in \
