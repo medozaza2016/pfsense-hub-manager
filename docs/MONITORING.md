@@ -45,7 +45,7 @@ Prometheus is optional, not required in the initial Compose stack. If adopted, s
 8. Record the resolution without credentials or sensitive payloads.
 
 
-## Hub Docker Compose monitoring and recovery (approved, implementation pending)
+## Hub Docker Compose monitoring and recovery (approved scope, implementation pending)
 
 ### Access policy (DEC-027)
 - Application roles for this area are `admin` and `user`.
@@ -80,4 +80,4 @@ Operations must preserve persistent data. Routine stop, restart, and start opera
 If the entire stack is stopped, the GUI cannot restart itself. The operator must use Docker Desktop or a host terminal to start the project again using the documented Compose deployment procedure. This recovery path must be documented and tested before exposing whole-stack stop in the GUI.
 
 ### Implementation status
-Planned only. No Docker management endpoint, host agent, UI controls, or live container monitoring is claimed to exist yet.
+The broader monitoring/Compose-operations scope remains planned. A restricted Linux Host Agent does exist for the separate Hub access deployment workflow only; it does not expose general container control, arbitrary Compose actions, or the monitoring operations described in this document. No generic Docker management endpoint or live container monitoring control is claimed to exist.
