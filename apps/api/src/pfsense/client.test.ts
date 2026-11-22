@@ -1,5 +1,34 @@
+import {readFileSync} from "node:fs";
+import {createServer} from "node:https";
+import type {AddressInfo} from "node:net";
+import {Agent,fetch} from "undici";
 import {describe,expect,it,vi} from "vitest";
 import {createPinnedLookup,pfSenseOperations} from "./client.js";
+
+const testCertificate=readFileSync(new URL("./fixtures/firewall-test-cert.pem",import.meta.url));
+const testPrivateKey=readFileSync(new URL("./fixtures/firewall-test-key.pem",import.meta.url));
+
+async function withTlsServer<T>(work:(port:number)=>Promise<T>):Promise<T>{
+ const server=createServer({cert:testCertificate,key:testPrivateKey},(_request,response)=>{
+  response.writeHead(200,{"content-type":"text/plain"});
+  response.end("connected");
+ });
+ await new Promise<void>((resolve,reject)=>{
+  server.once("error",reject);
+  server.listen(0,"127.0.0.1",()=>resolve());
+ });
+ const address=server.address();
+ if(!address||typeof address==="string"){
+  await new Promise<void>(resolve=>server.close(()=>resolve()));
+  throw new Error("Test TLS server did not bind to a TCP port.");
+ }
+ try{return await work((address as AddressInfo).port);}
+ finally{
+  await new Promise<void>((resolve,reject)=>{
+   server.close(error=>error?reject(error):resolve());
+  });
+ }
+}
 
 describe("pfSense upstream allowlist",()=>{
  it("contains only the eight approved read-only GET operations",()=>{
@@ -28,5 +57,39 @@ describe("pinned upstream DNS lookup",()=>{
   lookup("169.254.169.254",{all:false},callback);
   expect(callback).toHaveBeenCalledOnce();
   expect(callback.mock.calls[0]?.[0]).toMatchObject({code:"ENOTFOUND"});
+ });
+});
+
+describe("Undici pinned HTTPS integration",()=>{
+ it("connects to the pinned address and validates the matching TLS hostname",async()=>{
+  await withTlsServer(async port=>{
+   const dispatcher=new Agent({connect:{
+    ca:testCertificate,
+    rejectUnauthorized:true,
+    lookup:createPinnedLookup("firewall.test",{address:"127.0.0.1",family:4})
+   }});
+   try{
+    const response=await fetch(`https://firewall.test:${port}/`,{dispatcher});
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("connected");
+   }finally{await dispatcher.close();}
+  });
+ });
+
+ it("rejects a trusted certificate when its hostname does not match the requested host",async()=>{
+  await withTlsServer(async port=>{
+   const dispatcher=new Agent({connect:{
+    ca:testCertificate,
+    rejectUnauthorized:true,
+    lookup:createPinnedLookup("wrong-host.test",{address:"127.0.0.1",family:4})
+   }});
+   let failure:unknown;
+   try{
+    await fetch(`https://wrong-host.test:${port}/`,{dispatcher});
+   }catch(error){failure=error;}
+   finally{await dispatcher.close();}
+   expect(failure).toBeInstanceOf(Error);
+   expect((failure as Error&{cause?:{code?:string}}).cause?.code).toBe("ERR_TLS_CERT_ALTNAME_INVALID");
+  });
  });
 });
