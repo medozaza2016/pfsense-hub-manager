@@ -1,7 +1,7 @@
 # Local and Proxmox Deployment
 
 ## Current deployment shape
-Docker Compose runs the React/Vite web application served by Nginx, the Fastify API, PostgreSQL, and code-server. PostgreSQL and the API are not published to the LXC host. The application UI binds to 127.0.0.1 by default. On Linux production, Tailscale Serve can provide tailnet-only HTTPS in front of this loopback service. Do not bind the UI directly to a Tailscale IP or use 0.0.0.0. Code-server remains bound to 127.0.0.1. Do not publish either service directly to the public internet.
+Docker Compose runs the React/Vite web application served by Nginx, the Fastify API, PostgreSQL, and code-server. PostgreSQL is not published to the LXC host. The API has a loopback-only host publication on port 3001 for the local deployment agent; it is not reachable from LAN or public interfaces. The application UI binds to 127.0.0.1 by default. On Linux production, Tailscale Serve can provide tailnet-only HTTPS in front of this loopback service. Do not bind the UI directly to a Tailscale IP or use 0.0.0.0. Code-server remains bound to 127.0.0.1. Do not publish either service directly to the public internet.
 
 The code-server container has a persistent project workspace and persistent editor configuration. It is isolated from the application backend network and does not receive the Docker socket.
 
@@ -66,7 +66,7 @@ Administration → Hub Settings stores Local, Tailscale, and Hostname/IP endpoin
 
 The first Linux agent implementation supports **Tailscale MagicDNS only**. It verifies that the selected MagicDNS name belongs to the connected host, refuses to overwrite any existing Tailscale Serve or Funnel configuration, configures Tailscale Serve to proxy HTTPS to the loopback-only web service, and verifies the endpoint using normal certificate-chain and hostname validation plus the application health endpoint. It never enables Funnel. If verification fails, it removes only the Serve endpoint it just created and reports whether rollback succeeded.
 
-**LAN and Custom endpoints are not yet deployable.** They require an explicitly provisioned certificate and private-key lifecycle, including renewal and rollback. The agent rejects these methods rather than claiming HTTPS success or exposing the web service over plain HTTP. Tailscale IP addresses are also rejected for HTTPS because the automatically provisioned Tailscale certificate is issued for the MagicDNS name, not the IP address.
+**LAN and Custom endpoints are not yet deployable.** They require an explicitly provisioned certificate and private-key lifecycle, including renewal and rollback. The agent rejects these methods rather than claiming HTTPS success or exposing the web service over plain HTTP. Tailscale IP addresses are also rejected for HTTPS because the automatically provisioned Tailscale certificate is issued for the MagicDNS name, not the IP address. Tailscale Serve HTTPS listener ports are restricted to 443, 8443, or 10000.
 
 Tailscale Serve requires HTTPS certificates to be enabled for the tailnet. The first Serve operation can return an interactive consent URL if this is not already enabled. The agent does not follow that URL or change tailnet-wide settings. Complete the Tailscale HTTPS prerequisite administratively before relying on automated deployment. See the [Tailscale Serve documentation](https://tailscale.com/docs/features/tailscale-serve) and [Serve CLI reference](https://tailscale.com/docs/reference/tailscale-cli/serve).
 
