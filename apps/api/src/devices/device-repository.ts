@@ -42,6 +42,8 @@ const apiOriginSchema = z.string().trim().min(1).max(2048).url().transform((valu
     (url.pathname !== "" && url.pathname !== "/") ||
     url.search.length > 0 ||
     url.hash.length > 0 ||
+    value.includes("?") ||
+    value.includes("#") ||
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||
     hostname === "0.0.0.0" ||
@@ -242,6 +244,7 @@ export class DeviceRepository {
     );
     const row = result.rows[0];
     if (!row) return null;
+    if (row.key_version !== 1) throw new Error("Stored device credential uses an unsupported encryption key version.");
     const envelope = {
       version: row.format_version,
       algorithm: "aes-256-gcm" as const,
