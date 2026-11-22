@@ -156,6 +156,54 @@ export class DeviceRepository {
     return row ? toProfile(row) : null;
   }
 
+  /**
+   * Bootstraps the legacy environment-configured firewall without overwriting
+   * an existing profile or replacing a credential rotated through the manager.
+   * A demo profile collision is treated as a hard error.
+   */
+  async ensureBootstrapDevice(input: {
+    id: string;
+    name: string;
+    location: string;
+    edition: "plus" | "ce" | "unknown";
+    apiBaseUrl: string;
+    apiKey: string;
+  }): Promise<void> {
+    const id = deviceIdSchema.parse(input.id);
+    const profile = updateDeviceProfileSchema.parse({
+      name: input.name,
+      location: input.location || null,
+      edition: input.edition,
+      apiBaseUrl: input.apiBaseUrl
+    });
+    if (typeof input.apiKey !== "string" || input.apiKey.length === 0 || input.apiKey.length > 4096) {
+      throw new Error("Bootstrap API credential is invalid.");
+    }
+    const encrypted = encryptDeviceCredential(input.apiKey, this.encryptionKey, id);
+
+    await withTransaction(this.pool, async client => {
+      await client.query(
+        `INSERT INTO managed_devices(id,name,location,edition,api_base_url,enabled,is_demo)
+         VALUES($1,$2,$3,$4,$5,true,false)
+         ON CONFLICT(id) DO NOTHING`,
+        [id, profile.name, profile.location, profile.edition, profile.apiBaseUrl]
+      );
+      const device = await client.query<{ id: string; is_demo: boolean }>(
+        "SELECT id,is_demo FROM managed_devices WHERE id=$1 FOR UPDATE",
+        [id]
+      );
+      if (!device.rows[0] || device.rows[0].is_demo) {
+        throw new Error("The configured bootstrap device conflicts with a demo or missing device.");
+      }
+      await client.query(
+        `INSERT INTO device_credentials(device_id,algorithm,format_version,key_version,nonce,auth_tag,ciphertext)
+         VALUES($1,'aes-256-gcm',$2,1,$3,$4,$5)
+         ON CONFLICT(device_id) DO NOTHING`,
+        [id, encrypted.version, Buffer.from(encrypted.nonce, "hex"), Buffer.from(encrypted.authTag, "hex"), Buffer.from(encrypted.ciphertext, "hex")]
+      );
+    });
+  }
+
   async create(input: CreateDeviceInput): Promise<ManagedDeviceProfile> {
     const parsed = createDeviceSchema.parse(input);
     const id = randomUUID();
