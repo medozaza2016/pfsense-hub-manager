@@ -350,6 +350,25 @@ export async function registerDeviceAdminRoutes(
     if (!parsed.success) return invalidBody(reply, "INVALID_DEVICE_CREDENTIAL", "Provide a non-empty API credential within the supported length.");
 
     const actor = actorFor(request);
+    const profile = await devices.getProfile(deviceId);
+    if (!profile || profile.isDemo) {
+      return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+    }
+    let certificateAuthority: string | null;
+    try {
+      certificateAuthority = await devices.decryptDeviceCaBundle(deviceId);
+      await clientFactory.testConnection({
+        apiBaseUrl: profile.apiBaseUrl,
+        apiKey: parsed.data.apiKey,
+        tlsServername: profile.tlsServername,
+        ...(certificateAuthority ? { certificateAuthority } : {})
+      });
+    } catch (error) {
+      const errorClass = classifyError(error);
+      return reply.code(422).send({
+        error: { code: "CREDENTIAL_TEST_FAILED", message: "The replacement credential or TLS connection test failed. The stored credential was not changed.", errorClass }
+      });
+    }
     const rotated = await devices.rotateCredential(deviceId, parsed.data.apiKey);
     if (!rotated) {
       return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
