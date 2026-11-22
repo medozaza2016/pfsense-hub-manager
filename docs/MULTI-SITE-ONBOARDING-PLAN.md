@@ -27,7 +27,7 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
 - A per-device client factory that selects the device's own HTTPS origin, decrypted API key, explicit system or custom-CA trust mode, and optional TLS server name.
 - Administrator-only TLS certificate discovery that validates the HTTPS origin, applies the same safe-destination policy and pinned DNS lookup, and reports the presented certificate subject, issuer, DNS/IP SANs, SHA-256 fingerprint, and validity dates. Certificate discovery does not send an API key or establish trust.
 - A write-free pre-registration connection test that verifies TLS and authenticates using only the fixed `version` GET operation. The registration endpoint repeats this test server-side and refuses to persist a device when it fails.
-- Atomic registration of the managed-device profile, encrypted API credential, optional encrypted custom CA trust, and TLS server name.
+- Atomic registration of the managed-device profile, encrypted API credential, optional encrypted custom CA trust, TLS server name, and successful `version` connection-check history.
 - Explicit TLS certificate and hostname verification, DNS destination validation and pinned resolution, redirect rejection, bounded response size, request timeout, and classified API errors.
 - A fixed allowlist of eight pfSense GET operations. No write operations are exposed by the client.
 - Multi-device provider collection, with per-operation poll history and isolated failure handling.
@@ -53,7 +53,7 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
 - The capabilities response currently reports the fixed operation list as supported/tested. This is an implementation declaration, not proof that every endpoint has been verified against every pfSense edition or release. Do not interpret it as a live compatibility test.
 - The inventory derives `connectionState` and `lastConnectionCheckAt` from the latest persisted `version` operation in `poll_runs`. Explicit connection tests record success or failure in the existing history table, so status survives refresh without a new migration. Devices with no recorded check remain `unknown`; demo devices remain unverified.
 - The Add Site workflow is connected to the API. It collects the site name, optional location, edition, HTTPS API origin, API credential, optional TLS server name, and optional custom CA bundle. It can discover and display the presented certificate before credentials are submitted. The administrator must confirm the displayed SHA-256 fingerprint against a trusted independent source before the pre-registration test can proceed. Credentials and CA material are cleared after successful registration.
-- The pre-registration connection test uses only the `version` GET operation. The server repeats that test during registration, then persists the profile and encrypted trust material atomically. The post-registration dialog still allows a fresh connection test.
+- The pre-registration connection test uses only the `version` GET operation. The server repeats that test during registration, then persists the profile, encrypted trust material, and successful `poll_runs` entry in one database transaction. The post-registration dialog still allows a fresh connection test.
 - Migrations 008 and 009 and the lifecycle have unit-test coverage, but migration execution against the user's actual PostgreSQL database and live firewall connectivity have not yet been confirmed.
 
 ## 3. Security invariants
