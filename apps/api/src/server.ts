@@ -378,17 +378,25 @@ app.get("/api/v1/hub-settings", async () => {
     )
   ]);
   const deployment = stateResult.rows[0] ?? { desiredRevision: 1, appliedRevision: 0, updatedAt: null, appliedAt: null };
-  const latest = await pool.query(
-    `SELECT id,state,safe_error_code AS "errorCode",applied_origin AS "appliedOrigin",
-        rollback_succeeded AS "rollbackSucceeded",created_at AS "createdAt",finished_at AS "finishedAt"
-       FROM hub_access_deployments ORDER BY desired_revision DESC LIMIT 1`
-  );
+  const [latest, previousSuccess] = await Promise.all([
+    pool.query(
+      `SELECT id,state,safe_error_code AS "errorCode",applied_origin AS "appliedOrigin",
+          rollback_succeeded AS "rollbackSucceeded",created_at AS "createdAt",finished_at AS "finishedAt"
+         FROM hub_access_deployments ORDER BY desired_revision DESC LIMIT 1`
+    ),
+    pool.query<{ appliedOrigin: string }>(
+      `SELECT applied_origin AS "appliedOrigin" FROM hub_access_deployments
+        WHERE state='succeeded' AND applied_origin IS NOT NULL
+        ORDER BY desired_revision DESC LIMIT 1`
+    )
+  ]);
   return { data: {
     endpoints: endpointResult.rows,
     deployment: {
       ...deployment,
       status: Number(deployment.desiredRevision) === Number(deployment.appliedRevision) ? "applied" : (latest.rows[0]?.state ?? "pending"),
-      latest: latest.rows[0] ?? null
+      latest: latest.rows[0] ?? null,
+      previousAppliedOrigin: previousSuccess.rows[0]?.appliedOrigin ?? null
     }
   } };
 });
