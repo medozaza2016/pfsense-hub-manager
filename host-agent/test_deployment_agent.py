@@ -273,6 +273,21 @@ class DeploymentAgentTests(unittest.TestCase):
             agent.resolve_bind_address(endpoint, self.config)
         self.assertEqual(caught.exception.code, "HOST_BIND_PUBLIC_ADDRESS_NOT_ALLOWED")
 
+    def test_refuses_to_read_or_replace_a_symlinked_environment_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "real.env"
+            target.write_text("HUB_BIND_ADDRESS=127.0.0.1\\n", encoding="utf-8")
+            link = Path(directory) / ".env"
+            link.symlink_to(target)
+            config = {**self.config, "env_file": str(link)}
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.read_bind_address(config)
+            self.assertEqual(caught.exception.code, "ENV_FILE_PERMISSIONS_INVALID")
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.write_bind_address(config, "192.168.1.20")
+            self.assertEqual(caught.exception.code, "ENV_FILE_PERMISSIONS_INVALID")
+            self.assertEqual(target.read_text(encoding="utf-8"), "HUB_BIND_ADDRESS=127.0.0.1\\n")
+
     def test_updates_only_hub_bind_address_and_preserves_other_environment(self):
         with tempfile.TemporaryDirectory() as directory:
             env_path = Path(directory) / ".env"
