@@ -88,7 +88,7 @@ describe("DeviceRepository", () => {
       enabled: true,
       isDemo: false
     });
-    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\\s+/)[0])).toEqual([
+    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\s+/)[0])).toEqual([
       "BEGIN", "INSERT", "INSERT", "COMMIT"
     ]);
     const credentialInsert = query.mock.calls[2];
