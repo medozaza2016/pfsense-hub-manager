@@ -78,7 +78,7 @@ describe("Hub deployment dispatcher", () => {
     );
 
     expect(requestHostDeploymentMock).toHaveBeenCalledOnce();
-    expect(dbQuery.mock.calls.at(-1)?.[0]).toBe("COMMIT");
+    expect(dbQuery.mock.calls[dbQuery.mock.calls.length - 1]?.[0]).toBe("COMMIT");
     expect(db.release).toHaveBeenCalledOnce();
   });
 
