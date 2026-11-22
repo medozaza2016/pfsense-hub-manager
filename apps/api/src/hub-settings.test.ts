@@ -47,6 +47,12 @@ describe("Hub access endpoint validation", () => {
     expect(result.success).toBe(true);
   });
 
+  it("requires an assigned hostname or IP for an active LAN method", () => {
+    expect(hubAccessEndpointsSchema.safeParse(allMethods({
+      local: { enabled: true, addressType: null, address: null }
+    })).success).toBe(false);
+  });
+
   it("requires an address for an active Tailscale or Custom method", () => {
     expect(hubAccessEndpointsSchema.safeParse(allMethods({
       local: { enabled: false },
