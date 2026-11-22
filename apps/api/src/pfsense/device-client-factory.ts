@@ -29,11 +29,14 @@ export class DevicePfSenseClientFactory {
     tlsServername?: string | null;
   }): Promise<void> {
     const ca = input.certificateAuthority ? normalizeDeviceCaBundle(input.certificateAuthority) : null;
+    const configuredBootstrapOrigin = this.config.PFSENSE_API_BASE_URL
+      ? new URL(this.config.PFSENSE_API_BASE_URL).origin
+      : null;
     const isLegacyBootstrapOrigin = Boolean(
       this.config.PFSENSE_DEVICE_ID &&
       this.config.PFSENSE_DEVICE_NAME &&
-      this.config.PFSENSE_API_BASE_URL &&
-      input.apiBaseUrl === this.config.PFSENSE_API_BASE_URL
+      configuredBootstrapOrigin !== null &&
+      new URL(input.apiBaseUrl).origin === configuredBootstrapOrigin
     );
     // A caller-supplied CA takes precedence. Legacy global trust is used only
     // for the configured bootstrap origin; all other devices use system trust.
