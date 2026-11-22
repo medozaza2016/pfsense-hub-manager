@@ -30,10 +30,14 @@ services:
       PFSENSE_API_KEY_FILE: /run/secrets/pfsense_api_key
       APP_ENCRYPTION_KEY_FILE: /run/secrets/app_encryption_key
       PFSENSE_API_TIMEOUT_MS: ${PFSENSE_API_TIMEOUT_MS:-10000}
+      HUB_DEPLOYMENT_AGENT_SOCKET: ${HUB_DEPLOYMENT_AGENT_SOCKET:-}
+      HUB_DEPLOYMENT_AGENT_TOKEN: ${HUB_DEPLOYMENT_AGENT_TOKEN:-}
+      HUB_DEPLOYMENT_AGENT_API_PORT: ${HUB_AGENT_API_PORT:-3001}
       PFSENSE_CA_FILE: ${PFSENSE_CA_FILE:-}
     volumes: ["./certs:/run/certs:ro"]
     secrets: [pfsense_api_key, app_encryption_key]
     expose: ["3000"]
+    ports: ["127.0.0.1:${HUB_AGENT_API_PORT:-3001}:3000"]
     networks: [backend]
     extra_hosts:
       - "pfsense-60bd06fe256ce:172.10.50.1"
