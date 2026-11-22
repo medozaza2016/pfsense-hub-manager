@@ -1,9 +1,10 @@
 import Fastify, { type FastifyRequest } from "fastify";
 import { readFileSync } from "node:fs";
 import { X509Certificate } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 const { tlsConnectMock } = vi.hoisted(() => ({ tlsConnectMock: vi.fn() }));
 vi.mock("node:tls", () => ({ connect: tlsConnectMock }));
+beforeEach(() => tlsConnectMock.mockReset());
 import type { Pool } from "pg";
 import type { AdminUser } from "../auth.js";
 import { DeviceRepository, type ManagedDeviceProfile } from "./device-repository.js";
