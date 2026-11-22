@@ -186,6 +186,10 @@ describe("managed-device administrator routes", () => {
     });
     expect(state.client.get).toHaveBeenCalledWith("version");
     expect(state.client.close).toHaveBeenCalledOnce();
+    expect(state.pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO poll_runs"),
+      expect.arrayContaining([deviceId, "success", expect.any(Number), null])
+    );
     await state.app.close();
   });
 
@@ -201,6 +205,10 @@ describe("managed-device administrator routes", () => {
     expect(response.json().data).toMatchObject({ outcome: "unreachable", errorClass: "authentication" });
     expect(response.body).not.toContain("upstream secret detail");
     expect(state.client.close).toHaveBeenCalledOnce();
+    expect(state.pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO poll_runs"),
+      expect.arrayContaining([deviceId, "failure", expect.any(Number), "authentication"])
+    );
     await state.app.close();
   });
 
