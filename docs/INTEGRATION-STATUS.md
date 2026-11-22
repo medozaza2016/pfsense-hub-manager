@@ -1,8 +1,10 @@
 # Integration Status
 
-**Last verified:** 2026-11-19 (America/New_York; command output timestamps were 2026-11-20 UTC)  
-**Status:** First pfSense Plus REST API connection verified, read-only scope  
-**Environment:** Proxmox LXC named pfsense-hub-manager
+**Firewall integration last verified:** 2026-11-19 (America/New_York; command output timestamps were 2026-11-20 UTC)  
+**Application/install verification:** November 22, 2026  
+**Status:** First pfSense Plus REST API connection historically verified; current manager supports per-device profiles and GUI onboarding, but wider device compatibility remains unverified.  
+**Active implementation branch:** `feature/multi-site-onboarding`  
+**Environment:** Prepared Debian 13 Proxmox LXC, plus Windows 11 local development
 
 ## Verified firewall
 
@@ -82,63 +84,69 @@ The existing 172.10.x.x addressing is intentionally being left unchanged for thi
 
 The repository now contains an initial Fastify backend provider wired to exactly the eight GET paths above. The manager API's read-only overview route invokes these operations sequentially, records per-operation outcome and duration in PostgreSQL, and emits bounded Prometheus metrics. ARP and firewall-state response rows are reduced to counts when the upstream data is an array; the raw rows are not returned or stored. System, gateway, interface, and service payloads are not exposed as raw records by the provider; only collection indicators/counts are returned. The state-size and version responses are included for initial inspection.
 
-This is code implementation, not yet a successful live application run. The CI workflow has verified TypeScript, unit tests, and frontend/backend builds on GitHub Actions. Docker Compose image build validation and deployment on the target LXC are still pending. TLS verification is enforced, but the manager's trust of the firewall certificate has not yet been verified.
+This application implementation has since been built and deployed on the Linux LXC. The clean-install and Hub access evidence is recorded below and in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md). This project uses operator-run local checks; no hosted CI workflow is used in the current workflow. This application deployment result does not change the historical firewall TLS limitation above: the first Plus firewall's diagnostic curl test bypassed certificate validation, and a separately recorded trusted-certificate connection test against that firewall remains outstanding.
 
 
-## Local application verification update, November 21, 2026
+## Local application verification update, November 22, 2026
 
-The current development work was performed on Windows 11 using VS Code and Docker Desktop. The feature branch contains the shared UI and administration work described in the frontend and phase documentation.
+The Windows 11 / Docker Desktop local validation run on the active feature branch completed:
 
-A local runtime discrepancy made the search/filter and mobile UI appear absent. Inspection confirmed that the source branch contained `ToastProvider.tsx`, `ui.tsx`, and `ui.css`, and the app referenced the shared components. The running web container was serving an older build. Rebuilding the web service loaded the current source and resolved the discrepancy. This incident was not evidence of missing source code or a divergent local/remote feature branch.
+- `npm ci`: 196 packages installed; npm reported zero vulnerabilities. npm emitted install-script approval warnings for esbuild packages, but the subsequent build completed.
+- `npm test`: 16 test files passed, 1 skipped; 177 tests passed, 4 skipped, 181 total.
+- `npm run typecheck`: API and web TypeScript checks passed.
+- `npm run build`: API TypeScript build and web TypeScript/Vite production build passed.
 
-The development session's recorded API test result was **52 tests passing across 7 test files**. Treat this as a session result, not a substitute for rerunning the checks on the final PR head. The branch was synchronized with origin at commit `06e8d0f49433654d37b7d9c8c8135ab96da17283`.
+The four skipped tests are the Unix-domain-socket client tests, explicitly skipped by the test file on Windows. They are not counted as passed. The user later confirmed the Hub Settings save-progress animation in the browser after rebuilding the web service.
 
-### Remaining verification
-- Re-run API tests, typecheck, and production builds on the final PR head.
-- Run `docker compose config` and rebuild the complete local stack.
-- Verify search, filters, pagination, toasts, and mobile cards in a browser at desktop and phone widths.
-- Verify admin versus user authorization, disabled-account login rejection, last-active-admin protection, and audit outcomes.
-- Validate migrations and development seed idempotency against a disposable local database.
-- Do not treat the local Docker UI fix as evidence that firewall TLS trust, live multi-device collection, or production deployment has been validated.
+The Linux Host Agent suite was run on Linux and reported **23 tests passed**. The installer scripts passed Bash syntax checks, Docker Compose validation passed, and the existing LXC's API, web, and PostgreSQL containers reported healthy.
+
+## Clean Linux installation and Hub access verification, November 22, 2026
+
+A clean Debian 13 prepared Proxmox LXC installation completed using the unified Linux installer. The installer automatically installed/enabled the Host Agent, built the stack, waited for database/API/web health, verified the API supplementary group and Unix socket, and completed the bearer-authenticated API-to-agent request. It then enabled `HUB_ACCESS_DEPLOYMENT_ENABLED=true` and recreated the API container successfully.
+
+The final containers reported healthy, the Host Agent was active/enabled under systemd, and the installer detected the existing Tailscale CLI. No Node.js/npm host installation was required.
+
+The user accessed Hub Settings through an SSH tunnel, saved the host's Tailscale MagicDNS endpoint, and received **Endpoint verified**, configuration revision 2 and applied revision 2. The HTTPS MagicDNS endpoint then opened in the browser. The user also confirmed the updated save-button progress animation.
+
+See [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md) for exact install output summary, commands, skip details, and known gaps.
 
 
-## Manager multi-device implementation status, November 21, 2026
+## Manager multi-device implementation status, November 22, 2026
 
-This section describes the manager application's current integration capability, separately from the historical live test against the first Plus firewall above.
+This section describes code capability separately from the historical live test against the first Plus firewall above.
 
 ### Current manager implementation
 
-- The application has a PostgreSQL `managed_devices` inventory and a separate `device_credentials` table.
-- Migration `006_development_demo_sites.sql` adds an explicit `is_demo` marker for development sample devices.
-- The application includes an AES-256-GCM credential encryption helper and loads a 32-byte application encryption key at API startup.
-- The device inventory endpoint is `GET /api/v1/devices`.
-- Device detail, capability, and overview endpoints exist. Capability and overview collection are currently restricted to the single device ID configured by environment variables.
-- The pfSense client uses a fixed allowlist of eight GET operations and enforces TLS certificate verification, with optional private CA trust.
-- The current provider is not yet a multi-device provider. The presence of inventory rows, a credential table, and encryption primitives does not mean independent per-device connections are implemented.
+- PostgreSQL stores managed-device profiles, encrypted per-device credentials, and encrypted per-device custom TLS trust.
+- The API provisions the application encryption key separately from PostgreSQL and fails closed when the runtime key is missing or malformed.
+- `GET /api/v1/devices` returns the manager inventory. Per-device clients are built from that device's own HTTPS origin, decrypted API key, TLS trust mode, and optional TLS server name.
+- Administrator-only API routes support certificate discovery, pre-registration connection testing, registration, profile updates, enable/disable, credential rotation, custom TLS trust set/remove, connection testing, and archival.
+- Registration generates the device UUID in the backend, performs an authenticated read-only `version` request, and stores credential material encrypted. Secret fields are write-only.
+- The provider iterates enabled, non-demo devices independently and records per-operation results in `poll_runs`. One device's collection failure is handled within that device's collection loop.
+- The pfSense client uses a fixed allowlist of eight GET operations and enforces TLS certificate verification, with optional device-scoped private CA trust and optional TLS server name.
+- The legacy single-firewall environment bootstrap remains optional for existing installations; it is not a requirement for fresh Hub startup.
 
-### Not yet implemented
+### Current limitations
 
-- Authenticated administrator endpoints to create, edit, enable, disable, and delete managed-device profiles.
-- Per-device credential encryption/decryption integrated with the device lifecycle and provider.
-- Per-device HTTPS origin and TLS CA/trust configuration.
-- Connection-test endpoint that targets an arbitrary registered real device using its own credential.
-- Per-device capability and compatibility persistence.
-- Independent collection for multiple real devices.
-- Background polling scheduler, bounded concurrency, retry/backoff, and continuous alert production.
-- A live data contract for the firewall-domain preview pages.
+- No second real firewall has been registered and validated as part of this closeout. The deferred CE firewall remains unconnected.
+- The capability endpoint reports the implementation's fixed operation list; this does not prove compatibility across every Plus/CE release or API package version.
+- The background polling scheduler, bounded concurrency, retry/backoff, and continuous alert production are not implemented as a production scheduler. Some collection and alert generation is request-triggered.
+- Several firewall-domain UI pages still contain preview fixtures rather than live device-specific data.
+- Audit/alert retention, database backup/restore, and disaster recovery require separate policy and drills.
+- Firewall configuration-changing operations remain out of scope. No generic proxy or arbitrary upstream route is exposed.
 
 ### Security and compatibility constraints
 
-- Credentials must be encrypted before persistence using the application encryption key, with authenticated encryption and key-version metadata.
-- Plaintext credentials must never be returned by API responses, logged, placed in browser storage, or embedded in source, images, or environment files committed to Git.
+- Credentials and custom CA trust are encrypted before persistence using AES-256-GCM and the application encryption key, with versioned device-bound additional authenticated data.
+- Plaintext credentials must never be returned by API responses, logged, placed in browser storage, or embedded in source, images, or committed environment files.
 - Device URLs must be validated as HTTPS origins. Do not accept arbitrary paths, query strings, fragments, URL credentials, or non-HTTPS schemes.
 - Continue using explicit provider operations and a fixed upstream route allowlist. Do not create a generic proxy endpoint.
-- TLS certificate and hostname verification remain mandatory. A private CA may be supplied through a protected server-side configuration path. Do not add an insecure certificate bypass.
+- TLS certificate and hostname verification remain mandatory. A private CA is device-scoped and supplied through the protected manager workflow.
 - Demo devices must not be probed, opened as real firewall workspaces, or used as evidence of live integration.
 - Keep configuration-changing firewall operations disabled.
 
-### Verification status
+### Firewall integration verification status
 
-The first Plus firewall has a historical diagnostic record of eight successful GET calls, but that test used a self-signed certificate with temporary curl certificate bypass. The application client itself enforces TLS verification; successful trust validation from the manager remains pending. The installed REST API package version is not yet recorded. The second CE firewall remains intentionally deferred.
+The first Plus firewall has a historical diagnostic record of eight successful GET calls, but that test used a self-signed certificate with temporary curl certificate bypass. The application client enforces TLS verification; a separately recorded trusted-certificate validation against that firewall remains pending. The installed REST API package version is not recorded. The second CE firewall remains intentionally deferred.
 
-No multi-device implementation or multi-device runtime validation is claimed by this document.
+The application and Hub access installation verification is not evidence that two real firewall devices or all supported pfSense editions have been validated.
