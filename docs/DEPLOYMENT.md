@@ -15,6 +15,21 @@ Docker Compose runs the React/Vite web application served by Nginx, the Fastify 
 
 Use this procedure on a **new, empty Linux machine**. The commands below use Debian 13 and the current `feature/multi-site-onboarding` branch for the clean-install acceptance test. Do not use this procedure to overwrite an existing Hub installation. The installer deliberately refuses to replace existing secrets, agent configuration, containers, or the PostgreSQL volume.
 
+### Prepared Proxmox LXC quick start (recommended)
+
+The standard Proxmox template is already prepared with Debian 13, an administrator account, Docker Engine, Docker Compose, Git, OpenSSL, Python, iproute2, systemd, and Tailscale. When the CT is restored from its own clean snapshot, keep its existing Tailscale identity and configuration. The Hub installer does not reinstall or reset Tailscale, and it does not require a second Tailscale enrollment.
+
+From SSH, run only these two commands:
+
+```bash
+sudo git clone --branch feature/multi-site-onboarding --single-branch https://github.com/medozaza2016/pfsense-hub-manager.git /opt/pfsense-hub
+sudo bash /opt/pfsense-hub/scripts/install-linux.sh
+```
+
+The clone is run with `sudo` intentionally, so the repository and privileged Host Agent source files are owned by `root:root`, as required by the installer. The installer then handles application secrets, Host Agent installation and enablement, Compose startup, health checks, and the authenticated agent handshake. Save the one-time application encryption recovery key in your password manager and confirm the prompt. Node.js and npm are not required on the Linux host.
+
+This quick start assumes `/opt/pfsense-hub` does not already exist. If it exists, stop and inspect it. Do not delete an existing checkout or installation to force the clone.
+
 ### 1. Install host prerequisites
 
 Connect over SSH using an account with sudo access:
