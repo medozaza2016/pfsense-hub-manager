@@ -509,7 +509,7 @@ function HubSettingsPage(){
  const {notify}=useToast();
  const [endpoints,setEndpoints]=useState<HubAccessEndpoint[]>(defaultHubEndpoints);
  const [activeMethod,setActiveMethod]=useState<HubAccessMethod>("local");
- const [deployment,setDeployment]=useState<{status:"pending"|"applied";desiredRevision:number;appliedRevision:number}>({status:"pending",desiredRevision:1,appliedRevision:0});
+ const [deployment,setDeployment]=useState<{status:string;desiredRevision:number;appliedRevision:number;deploymentId?:string;appliedOrigin?:string;errorCode?:string}>({status:"pending",desiredRevision:1,appliedRevision:0});
  const [busy,setBusy]=useState(true);
  const [loadFailed,setLoadFailed]=useState(false);
  const [saving,setSaving]=useState(false);
@@ -532,6 +532,34 @@ function HubSettingsPage(){
    .finally(()=>{if(active)setBusy(false);});
   return()=>{active=false;};
  },[]);
+ useEffect(()=>{
+  const deploymentId=deployment.deploymentId;
+  if(!deploymentId||["succeeded","failed","rolled_back"].includes(deployment.status))return;
+  let active=true;
+  const poll=async()=>{
+   try{
+    const response=await fetch(`/api/v1/hub-settings/deployments/${deploymentId}`,{credentials:"same-origin"});
+    if(!response.ok)throw new Error("Unable to retrieve deployment status.");
+    const result=await response.json();
+    if(!active)return;
+    const current=result.data;
+    setDeployment(value=>({...value,status:current.state,appliedOrigin:current.appliedOrigin??undefined,errorCode:current.errorCode??undefined}));
+    if(current.state==="succeeded"&&typeof current.appliedOrigin==="string"){
+     const target=new URL(current.appliedOrigin,window.location.href);
+     if(["http:","https:"].includes(target.protocol))window.location.assign(target.toString());
+    }
+    if(["failed","rolled_back"].includes(current.state)){
+     const failure=current.errorCode??"Deployment did not complete.";
+     setMessage(failure);notify(failure,"error");
+    }
+   }catch(error){
+    if(active)setMessage(error instanceof Error?error.message:"Unable to retrieve deployment status.");
+   }
+  };
+  void poll();
+  const timer=window.setInterval(()=>void poll(),1500);
+  return()=>{active=false;window.clearInterval(timer);};
+ },[deployment.deploymentId,deployment.status,notify]);
  function selectMethod(method:HubAccessMethod){
   setActiveMethod(method);
   setEndpoints(current=>current.map(endpoint=>({...endpoint,enabled:endpoint.method===method})));
@@ -551,28 +579,13 @@ function HubSettingsPage(){
    const response=await fetch("/api/v1/hub-settings/access-endpoints",{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoints:payload})});
    const result=await response.json();
    if(!response.ok)throw new Error(result.error?.message??"Unable to save Hub access settings.");
-   setDeployment({status:"pending",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision});
-   const success="Active access method and saved endpoint settings updated. Deployment confirmation is pending.";
+   setDeployment({status:"queued",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision,deploymentId:result.data.deploymentId});
+   const success="Access settings saved. The host is processing the deployment.";
    setMessage(success);notify(success,"success");
   }catch(error){
    const failure=error instanceof Error?error.message:"Unable to save Hub access settings.";
    setMessage(failure);notify(failure,"error");
   }finally{setSaving(false);}
- }
- async function confirmDeployment(){
-  if(!window.confirm("Confirm that you have applied the required host binding and network changes for the selected access method."))return;
-  setConfirming(true);setMessage("");
-  try{
-   const response=await fetch("/api/v1/hub-settings/deployment-applied",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({confirmation:"APPLIED",expectedRevision:deployment.desiredRevision})});
-   const result=await response.json();
-   if(!response.ok)throw new Error(result.error?.message??"Unable to confirm deployment.");
-   setDeployment({status:"applied",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision});
-   const success="Deployment confirmation recorded. Reachability has not been tested.";
-   setMessage(success);notify(success,"success");
-  }catch(error){
-   const failure=error instanceof Error?error.message:"Unable to confirm deployment.";
-   setMessage(failure);notify(failure,"error");
-  }finally{setConfirming(false);}
  }
  const methodCopy:Record<HubAccessMethod,{title:string;description:string;placeholder:string}> = {
   local:{title:"LAN",description:"Use the Hub host's local network interface. Leave the address blank for the default local binding.",placeholder:"192.168.1.20"},
@@ -602,12 +615,12 @@ function HubSettingsPage(){
     <div className="hub-settings-actions"><button className="primary-button" disabled={busy||saving||loadFailed}>{saving?"Saving…":"Save access method"}</button></div>
    </Panel>
    <Panel title="Deployment status">
-    <div className={deployment.status==="pending"?"hub-deployment-state pending":"hub-deployment-state applied"}>
-     <strong>{deployment.status==="pending"?"Deployment pending":"Deployment confirmed"}</strong>
+    <div className={["failed","rolled_back"].includes(deployment.status)?"hub-deployment-state pending":deployment.status==="succeeded"?"hub-deployment-state applied":"hub-deployment-state pending"}>
+     <strong>{deployment.status==="succeeded"?"Deployment verified":deployment.status==="failed"?"Deployment failed":deployment.status==="rolled_back"?"Previous binding restored":deployment.status==="queued"?"Deployment queued":deployment.status==="applying"?"Applying host configuration":deployment.status==="validating"?"Validating configuration":deployment.status==="verifying"?"Verifying endpoint":deployment.status==="rolling_back"?"Restoring previous binding":"Deployment status"}</strong>
      <span>Configuration revision {deployment.desiredRevision}, applied revision {deployment.appliedRevision}</span>
+     {deployment.errorCode&&<span>Safe error code: {deployment.errorCode}</span>}
     </div>
-    <p className="hub-settings-note">Saving stores the selected method and all three endpoint configurations in PostgreSQL. It does not change Docker port bindings, install Tailscale, configure DNS or a reverse proxy, or test reachability. Apply the required host binding separately, then confirm below. Confirmation records your action, it does not verify connectivity.</p>
-    <button type="button" className="secondary-button" onClick={confirmDeployment} disabled={busy||loadFailed||confirming||saving||deployment.status==="applied"}>{confirming?"Recording…":"Confirm deployment applied"}</button>
+    <p className="hub-settings-note">Saving automatically requests the restricted host agent to apply the selected binding. The status above is updated from the API. The browser redirects only after the host agent verifies the new endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
    </Panel>
   </form>
  </>;
