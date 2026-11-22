@@ -146,8 +146,6 @@ def verify_https(origin: str) -> None:
 
 
 def has_funnel_handler(raw: str, host: str, port: int) -> bool:
-    if not raw.strip():
-        return False
     try:
         value = json.loads(raw)
     except Exception as exc:
