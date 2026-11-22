@@ -115,6 +115,36 @@ describe("DeviceRepository", () => {
     expect(client.release).toHaveBeenCalledOnce();
   });
 
+  it("updates manager-owned profile fields including TLS server identity", async () => {
+    const deviceId = "11111111-1111-4111-8111-111111111111";
+    const row = {
+      id: deviceId,
+      name: "Updated Site",
+      location: "New Jersey",
+      edition: "unknown",
+      api_base_url: "https://192.168.10.9",
+      tls_servername: "firewall.example.test",
+      enabled: true,
+      is_demo: false,
+      created_at: new Date("2026-01-01T00:00:00.000Z"),
+      updated_at: new Date("2026-01-02T00:00:00.000Z")
+    };
+    const query = vi.fn().mockResolvedValueOnce({ rows: [row], rowCount: 1 });
+    const repository = new DeviceRepository({ query } as unknown as Pool, key);
+
+    const updated = await repository.updateProfile(deviceId, {
+      name: row.name,
+      location: row.location,
+      edition: "unknown",
+      apiBaseUrl: row.api_base_url,
+      tlsServername: row.tls_servername
+    });
+
+    expect(updated).toMatchObject({ edition: "unknown", tlsServername: "firewall.example.test" });
+    expect(String(query.mock.calls[0]?.[0])).toContain("tls_servername=$6");
+    expect(query.mock.calls[0]?.[1]).toEqual([deviceId, row.name, row.location, "unknown", row.api_base_url, row.tls_servername]);
+  });
+
   it("persists TLS server identity and encrypted custom CA trust atomically", async () => {
     const certificate = readFileSync(new URL("../pfsense/fixtures/firewall-test-cert.pem", import.meta.url), "utf8");
     const insertedRow = {
