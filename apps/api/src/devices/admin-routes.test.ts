@@ -123,7 +123,7 @@ describe("managed-device administrator routes", () => {
     const certificate = new X509Certificate(readFileSync(new URL("../pfsense/fixtures/firewall-test-cert.pem", import.meta.url)));
     const listeners: Record<string, () => void> = {};
     const socket = {
-      once: vi.fn((event: string, callback: () => void) => { listeners[event] = callback; return socket; }),
+      once: vi.fn((event: string, callback: () => void) => { listeners[event] = callback; }),
       getPeerCertificate: vi.fn(() => ({ raw: certificate.raw })),
       end: vi.fn(),
       destroy: vi.fn()
