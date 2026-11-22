@@ -38,6 +38,7 @@ function setup(actor: AdminUser = admin, overrides: {
     create: vi.fn(async () => profile),
     updateProfile: vi.fn(async () => profile),
     setEnabled: vi.fn(async () => profile),
+    archive: vi.fn(async () => true),
     rotateCredential: vi.fn(async () => true),
     setDeviceCaBundle: vi.fn(async () => true),
     ...(overrides.devices ?? {})
@@ -258,6 +259,54 @@ describe("managed-device administrator routes", () => {
 
     expect(response.statusCode).toBe(400);
     expect(state.devices.updateProfile).not.toHaveBeenCalled();
+    await state.app.close();
+  });
+
+  it("requires an explicit archive confirmation before changing a device", async () => {
+    const state = setup();
+    await state.ready;
+    const response = await state.app.inject({
+      method: "DELETE",
+      url: `/api/v1/devices/${deviceId}`,
+      payload: { confirmation: "delete" }
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("ARCHIVE_CONFIRMATION_REQUIRED");
+    expect(state.devices.archive).not.toHaveBeenCalled();
+    await state.app.close();
+  });
+
+  it("archives devices only for administrators and records retained history", async () => {
+    const state = setup();
+    await state.ready;
+    const response = await state.app.inject({
+      method: "DELETE",
+      url: `/api/v1/devices/${deviceId}`,
+      payload: { confirmation: "ARCHIVE" }
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toEqual({
+      deviceId,
+      archived: true,
+      pollingHistoryRetained: true,
+      alertsRetained: true
+    });
+    expect(state.devices.archive).toHaveBeenCalledWith(deviceId);
+    expect(state.pool.query).toHaveBeenCalledOnce();
+    expect(JSON.stringify(state.pool.query.mock.calls)).not.toContain("apiKey");
+    await state.app.close();
+  });
+
+  it("denies device archival to regular users", async () => {
+    const state = setup(regularUser);
+    await state.ready;
+    const response = await state.app.inject({
+      method: "DELETE",
+      url: `/api/v1/devices/${deviceId}`,
+      payload: { confirmation: "ARCHIVE" }
+    });
+    expect(response.statusCode).toBe(403);
+    expect(state.devices.archive).not.toHaveBeenCalled();
     await state.app.close();
   });
 
