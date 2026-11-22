@@ -10,6 +10,7 @@ import {
   apiOriginSchema,
   createDeviceSchema,
   updateDeviceProfileSchema,
+  tlsServernameSchema,
   DeviceRepository
 } from "./device-repository.js";
 import type { DevicePfSenseClientFactory } from "../pfsense/device-client-factory.js";
@@ -172,7 +173,7 @@ export async function registerDeviceAdminRoutes(
     apiBaseUrl: apiOriginSchema,
     apiKey: z.string().min(1).max(4096),
     certificateAuthority: z.string().max(60 * 1024).optional(),
-    tlsServername: z.string().trim().min(1).max(253).optional()
+    tlsServername: tlsServernameSchema
   }).strict();
 
   app.post("/api/v1/devices/registration-test", { preHandler: requireAdministrator }, async (request, reply) => {
