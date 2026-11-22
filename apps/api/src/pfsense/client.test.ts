@@ -132,7 +132,7 @@ describe("Undici pinned HTTPS integration",()=>{
 
 describe("pfSense operation data validation",()=>{
  const valid:Record<string,unknown>={
-  system:{},
+  system:{status:"ok"},
   gateways:[],
   interfaces:[],
   services:[],
