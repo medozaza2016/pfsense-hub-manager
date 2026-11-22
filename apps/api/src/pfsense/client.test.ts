@@ -181,7 +181,7 @@ describe("per-device TLS trust selection",()=>{
   expect(selectTlsCa({mode:"system"},legacyCa)).toBeUndefined();
  });
 
- it("preserves legacy CA-file behavior only when no device trust mode is supplied",()=>{
+ it("preserves legacy CA-file behavior when no explicit device trust mode is supplied",()=>{
   const legacyCa=Buffer.from("legacy-global-ca");
   expect(selectTlsCa(undefined,legacyCa)).toBe(legacyCa);
  });
