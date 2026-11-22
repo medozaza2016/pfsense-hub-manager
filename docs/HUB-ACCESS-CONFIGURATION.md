@@ -32,11 +32,9 @@ Persist non-secret configuration in PostgreSQL, with an explicit schema version 
 
 The web application and API run inside containers. Docker's published host port is configured by the Docker host/Compose deployment. A setting written to PostgreSQL cannot, by itself, rebind that published port.
 
-A future apply implementation must use one of these reviewed approaches:
-- a narrowly scoped host-side deployment agent that accepts only validated access-binding operations and cannot execute arbitrary commands; or
-- an explicit operator apply step that updates the deployment configuration and recreates only the required service.
+The implemented Linux apply path uses a narrowly scoped host-side deployment agent that accepts only validated access-binding operations and cannot execute arbitrary commands.
 
-Do not mount the Docker socket into the web or API container. Do not provide arbitrary shell execution. The apply mechanism must validate the requested address against an address actually assigned to an eligible host interface, reject wildcard binds, preserve the previous working configuration for rollback, and report applied state back to the application.
+Do not mount the Docker socket into the web or API container. Do not provide arbitrary shell execution. The agent validates the requested address against an address actually assigned to an eligible host interface, rejects wildcard binds, preserves the previous working configuration for rollback, and reports verified applied state back to the application.
 
 ## Administrator authentication
 
@@ -58,14 +56,9 @@ Do not mount the Docker socket into the web or API container. Do not provide arb
 - Public reverse-proxy access requires a separate security design and is not part of the unauthenticated stage.
 - Never report configured, applied, or reachable as interchangeable states.
 
-## Delivery sequence
+## Delivery and platform boundary
 
-1. Implement authenticated administrator setup/login and authorization gates required for administration.
-2. Implement the Hub Settings page in the existing navigation and a validated settings API.
-3. Add a PostgreSQL migration and tests for validation, persistence, default behavior, and state transitions.
-4. Implement and review the restricted host-side apply mechanism, including rollback and Windows Docker Desktop/Linux behavior.
-5. Add reachability verification and integration tests from a tailnet client.
-6. Add optional hostname/reverse-proxy support only after trusted-proxy and TLS requirements are approved.
+The Linux Tailscale path is implemented and verified. Windows Docker Desktop does not include a production-equivalent systemd Host Agent, and a Windows host deployment adapter is not implemented. LAN and Custom are supported only when an operator-managed trusted TLS reverse proxy already exists. Certificate issuance/renewal, DNS, reverse-proxy provisioning, Tailscale installation/authentication, tailnet HTTPS enablement, ACL changes, and Funnel configuration remain outside Hub Manager's responsibility.
 
 ## Acceptance criteria
 
@@ -77,28 +70,45 @@ Do not mount the Docker socket into the web or API container. Do not provide arb
 - A failed apply cannot silently remove the last working local access path.
 - No API or database port is published externally.
 
-## Current implementation status, November 21, 2026
+## Current implementation status, November 22, 2026
 
-The current branch includes the PostgreSQL endpoint schema and deployment-history migration, authenticated Hub Settings API, administrator-only endpoint replacement, desired/applied revision tracking, audit events, a deployment queue, strict API-to-agent protocol, loopback-only API publication for host configuration retrieval, and the Administration → Hub Settings interface.
+The active branch contains the PostgreSQL endpoint schema and deployment-history migration, authenticated Hub Settings API, administrator-only endpoint replacement, desired/applied revision tracking, audit events, a deployment queue, strict API-to-agent protocol, loopback-only API publication for host configuration retrieval, and the Administration → Hub Settings interface.
 
-The Hub Settings interface presents LAN, Tailscale, and Custom tabs. Exactly one method is selected as active, and each tab retains its own address type, address, and port. The API rejects wildcard addresses and rejects an active Tailscale IP endpoint because the verified HTTPS certificate identity is the MagicDNS hostname. LAN and Custom require an existing trusted HTTPS reverse proxy that forwards to the selected host address on port 8080. Tailscale requires an existing private Serve route to 127.0.0.1:8080.
+The Hub Settings interface presents LAN, Tailscale, and Custom tabs. Exactly one method is selected as active, while each tab retains its own address type, address, and port. Tailscale HTTPS uses the local host's MagicDNS hostname; a Tailscale IPv4 endpoint is rejected. LAN and Custom require a trusted HTTPS reverse proxy that forwards to the selected private host address on port 8080.
 
-### Current automatic deployment scope
+### Automatic Linux deployment scope
 
-A restricted Linux systemd host agent now exists under host-agent/. It accepts only a versioned deployment UUID and desired revision over a group-restricted Unix socket. It retrieves the approved configuration from the loopback-only API using a root-owned bearer token. The API container receives only a read-only socket-directory mount, never the Docker socket. The agent runs with all Linux capabilities dropped and systemd filesystem restrictions.
+A restricted Linux systemd Host Agent accepts only a versioned deployment UUID and desired revision over a group-restricted Unix socket. It retrieves the approved configuration from the loopback-only API using a root-owned bearer token. The API container receives only a read-only socket-directory mount, never the Docker socket. The agent runs with all Linux capabilities dropped and systemd filesystem restrictions.
 
-The current agent supports **LAN/Custom host binding with operator-managed TLS termination**, plus **Tailscale MagicDNS verification with an operator-managed private Serve route**. It changes only HUB_BIND_ADDRESS in the fixed project .env file, validates Compose, recreates only web, verifies HTTPS, and rolls back the previous binding on failure. It does not provision DNS, certificates, reverse proxies, or Tailscale configuration. The API and UI feature gate defaults to disabled with HUB_ACCESS_DEPLOYMENT_ENABLED=false and must remain disabled until the supported Linux host integration tests pass. It verifies the selected name matches the connected Hub host and appears in Tailscale CertDomains, verifies that an operator has already configured the exact private Tailscale Serve route to the existing loopback web service, validates the TLS certificate and hostname, and probes the application health endpoint. It does not create, update, or remove Tailscale Serve or Funnel configuration, enable tailnet HTTPS, or change ACLs. For Tailscale it performs verification only; for LAN/Custom it recreates only the web service after a bind-address change.
+The agent supports LAN/Custom host binding with operator-managed TLS termination, plus Tailscale MagicDNS verification and provisioning of the fixed private Serve route to `http://127.0.0.1:8080` when that route is missing. It validates assigned host addresses, validates the local MagicDNS identity and certificate eligibility, checks for Funnel/conflicting handlers, validates HTTPS and application health, and rolls back the previous web binding if verification fails. It does not install or authenticate Tailscale, enable tailnet HTTPS, change ACLs, configure DNS, issue certificates, configure external reverse proxies, or create Funnel.
 
-Tailscale HTTPS certificates must already be enabled administratively for the tailnet. Tailscale publishes certificate names in the public Certificate Transparency ledger. See [Enabling HTTPS](https://tailscale.com/docs/how-to/set-up-https-certificates) and [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve).
+The standard Linux installer keeps `HUB_ACCESS_DEPLOYMENT_ENABLED=false` during setup. It enables the feature only after the Host Agent service, socket permissions, supplementary group, bearer-authenticated API retrieval, and web/API/PostgreSQL health checks pass. A fresh Linux installation therefore finishes with GUI-managed access deployment enabled. Windows local development keeps the feature disabled and does not run the Linux Host Agent.
 
-LAN and Custom host binding is implemented, but the trusted TLS termination/reverse-proxy layer must already exist and be configured to forward to the selected host address on port 8080. Hub Manager does not issue certificates, renew them, configure DNS, or provision reverse proxies. A port value or saved hostname is not evidence that TLS is available.
+### Browser behavior and progress feedback
 
-### Deployment and verification status
+The save action persists the desired endpoint configuration and queues a revision-scoped deployment. The UI displays the deployment state, polls its authenticated status, and redirects only after the backend records a successful HTTPS origin from the Host Agent. It preserves the last verified origin as a recovery link.
 
-The API dispatcher serializes a deployment against the desired-revision row so a concurrent settings update cannot supersede an in-flight host verification. The UI polls deployment state, displays recent history, preserves the last verified origin as a recovery link, and redirects only to an HTTPS origin returned by a successful agent result.
+While the save/deployment operation is active, the Save button shows an animated circular progress indicator and phase-specific text. The access-method tabs and endpoint fields are disabled until a terminal state is returned. Success and failure feedback are shown after the actual deployment result, not merely after the settings API accepts the request. The user manually confirmed this progress treatment in the browser.
 
-The Linux installer is documented in DEPLOYMENT.md and requires the project at /opt/pfsense-hub. Windows 11 / Docker Desktop local development does not run this Linux agent. Keep the agent token and socket empty in local development. A deployment request without an installed agent fails closed with HOST_AGENT_NOT_CONFIGURED.
+### Verification record
 
-Unit tests have been added for endpoint validation, strict protocol parsing, socket-client responses, dispatcher revision locking, host-agent MagicDNS identity, certificate eligibility, existing Serve/Funnel preservation, and Serve rollback. These tests have **not yet been executed in this environment**. API/web typecheck, builds, Docker Compose validation, Linux host installation, live Tailscale TLS verification, and browser reachability from a second tailnet device remain unverified.
+- Windows local API tests: 177 passed, 4 skipped. The skipped tests are Unix-domain-socket client tests explicitly skipped on Windows.
+- Windows API and web typechecks: passed.
+- Windows API and web production builds: passed.
+- Linux Host Agent unit tests: 23 passed.
+- Linux installer Bash syntax checks and Docker Compose validation: passed.
+- Clean Debian 13 installation: completed; PostgreSQL, API, and web containers healthy.
+- Installer Host Agent handshake: passed, including supplementary-group, socket, and bearer-authenticated request validation.
+- Tailscale browser test: Hub Settings reported **Endpoint verified**, desired revision 2 and applied revision 2; the HTTPS MagicDNS endpoint opened from the browser.
 
-The feature is not complete for all three access methods. Do not treat a saved desired setting, a queued deployment, or a host-side probe as proof that the administrator's browser can reach the new endpoint.
+See [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md) for the exact record, commands, commit baselines, skipped checks, and limitations.
+
+### Remaining limits
+
+- LAN and Custom still require an operator-managed trusted TLS reverse proxy. Hub Manager does not issue or renew certificates or configure that proxy.
+- Tailscale host membership and tailnet HTTPS certificate eligibility remain prerequisites. The installer does not enroll or reset a host.
+- No Windows host deployment adapter exists.
+- Failure/rollback has unit-test coverage, but a real-tailnet failure drill has not been performed.
+- A successful host-side HTTPS probe does not guarantee every administrator device has valid DNS, tailnet routing, or browser access. Preserve the previous verified recovery link while changing access methods.
+
+The Linux Tailscale installation and access path has passed the recorded acceptance test. This does not constitute production-readiness approval for every access method or the overall product.
