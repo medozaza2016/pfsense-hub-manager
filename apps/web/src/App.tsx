@@ -513,7 +513,6 @@ function HubSettingsPage(){
  const [busy,setBusy]=useState(true);
  const [loadFailed,setLoadFailed]=useState(false);
  const [saving,setSaving]=useState(false);
- const [confirming,setConfirming]=useState(false);
  const [message,setMessage]=useState("");
  useEffect(()=>{
   let active=true;
@@ -527,7 +526,17 @@ function HubSettingsPage(){
    const selected=merged.find(endpoint=>endpoint.enabled)?.method??"local";
    setActiveMethod(selected);
    setEndpoints(merged.map(endpoint=>({...endpoint,enabled:endpoint.method===selected})));
-   if(result.data?.deployment)setDeployment(result.data.deployment);
+   if(result.data?.deployment){
+    const current=result.data.deployment;
+    setDeployment({
+     status:current.latest?.state??current.status,
+     desiredRevision:Number(current.desiredRevision),
+     appliedRevision:Number(current.appliedRevision),
+     deploymentId:current.latest?.id,
+     appliedOrigin:current.latest?.appliedOrigin??undefined,
+     errorCode:current.latest?.errorCode??undefined
+    });
+   }
   }).catch(error=>{if(active){setLoadFailed(true);setMessage(error instanceof Error?error.message:"Unable to load Hub access settings.");}})
    .finally(()=>{if(active)setBusy(false);});
   return()=>{active=false;};
