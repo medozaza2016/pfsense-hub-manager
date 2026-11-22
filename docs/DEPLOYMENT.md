@@ -19,10 +19,12 @@ Use this procedure on a **new, empty Linux machine**. The commands below use Deb
 
 The standard Proxmox template is already prepared with Debian 13, an administrator account, Docker Engine, Docker Compose, Git, OpenSSL, Python, iproute2, systemd, and Tailscale. This is the operator's normal prepared starting point. When the same CT is restored from its own clean snapshot, retain its existing Tailscale identity and configuration. The Hub installer does not reinstall or reset Tailscale, and it does not require a second Tailscale enrollment. Do not run two concurrently active copies with the same Tailscale state.
 
+**Release branch:** After `feature/multi-site-onboarding` is merged, new installations must clone `main`. The tested installer is currently on the feature branch and is not yet present on `main`; the command below using `main` becomes executable only after that merge. To repeat the current acceptance test before merge, use `--branch feature/multi-site-onboarding` instead.
+
 From SSH, run only these two commands:
 
 ```bash
-sudo git clone --branch feature/multi-site-onboarding --single-branch https://github.com/medozaza2016/pfsense-hub-manager.git /opt/pfsense-hub
+sudo git clone --branch main --single-branch https://github.com/medozaza2016/pfsense-hub-manager.git /opt/pfsense-hub
 sudo bash /opt/pfsense-hub/scripts/install-linux.sh
 ```
 
@@ -90,7 +92,7 @@ sudo git clone --branch feature/multi-site-onboarding --single-branch https://gi
 sudo git -c safe.directory=/opt/pfsense-hub -C /opt/pfsense-hub status --short --branch
 ```
 
-Confirm that the reported branch is `feature/multi-site-onboarding`. Do not clone into a home directory and do not change the project ownership to the SSH user. If `/opt/pfsense-hub` already exists, stop and inspect it instead of deleting it to force the clone.
+Confirm that the reported branch is `main` after the installer has been merged. During the current pre-merge acceptance test, confirm `feature/multi-site-onboarding` instead. Do not clone into a home directory and do not change the project ownership to the SSH user. If `/opt/pfsense-hub` already exists, stop and inspect it instead of deleting it to force the clone.
 
 ### 4. Run the single Hub installer
 
@@ -226,27 +228,82 @@ Windows 11 / Docker Desktop development does not run this Linux systemd Host Age
 
 LAN and Custom require an already configured TLS termination layer. Hub Manager does not provision certificates, DNS, or reverse proxies. For Tailscale, the host agent can configure the single fixed Serve route after the administrator selects Tailscale in Hub Settings. Tailnet HTTPS must be enabled in the Tailscale administration console first.
 
-## Windows 11 local development workflow, current baseline
+## Windows 11 local setup and development workflow
 
-The supported current development workstation is Windows 11 with VS Code and Docker Desktop. Run the repository locally from PowerShell. Docker Compose is the reproducible local runtime for the web, API, and PostgreSQL services. Production remains a Linux deployment target; the existing Proxmox LXC is the intended target unless a later decision changes it.
+Windows 11 with VS Code and Docker Desktop is the supported local development environment. It is not the Linux production installation path.
 
-Recommended closeout sequence from the repository root:
+**PowerShell installer status:** There is currently no full `install-windows.ps1`. The existing `scripts/setup-encryption-key.ps1` is a key-provisioning script only. It creates the protected runtime application encryption key, displays the one-time recovery copy, and refuses to overwrite an existing key. It does not create the complete Windows environment or start the Compose stack.
+
+### 1. Prepare a clean local checkout
+
+Run these commands from PowerShell at the repository root:
 
 ```powershell
-git status --short --branch
-git fetch origin
-npm ci
-npm run typecheck
-npm test
-py -3 -m unittest discover -s host-agent -p "test_*.py"
-npm run build
+Copy-Item .env.example .env
+New-Item -ItemType Directory -Force .\secrets\runtime, .\certs, .\run\host-agent | Out-Null
+if (-not (Test-Path .\secrets\pfsense_api_key)) {
+  New-Item -ItemType File .\secrets\pfsense_api_key | Out-Null
+}
+notepad .env
+```
+
+In `.env`:
+- Set `POSTGRES_PASSWORD` to a strong, unique alphanumeric password.
+- Leave `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, and `PFSENSE_API_BASE_URL` blank for a new Hub that starts without a registered firewall.
+- Keep `HUB_DEPLOYMENT_AGENT_TOKEN` and `HUB_DEPLOYMENT_AGENT_SOCKET` blank.
+- Keep `HUB_ACCESS_DEPLOYMENT_ENABLED=false`. Windows Docker Desktop does not run the production Linux systemd Host Agent.
+
+Create an empty `secrets/pfsense_api_key` file only to satisfy the Compose file-secret mount for a Hub-only local environment. The API does not load that file unless the legacy firewall bootstrap is configured. Do not place a real firewall API key there for the new GUI registration workflow.
+
+### 2. Provision the Windows application encryption key
+
+From the repository root, run the existing PowerShell key script:
+
+```powershell
+.\scripts\setup-encryption-key.ps1
+```
+
+The script:
+- Generates a 32-byte key using the Windows cryptographic random-number generator.
+- Writes the runtime key to `secrets/runtime/app_encryption_key`.
+- Applies a protected Windows ACL to the runtime directory and file.
+- Displays the one-time recovery key and asks you to type `SAVED`.
+
+Save the recovery key in a password manager. Do not run with PowerShell transcription, screen recording, or session capture enabled. The script refuses to overwrite an existing key. If the runtime key already exists, preserve it and do not rerun the provisioning script.
+
+### 3. Validate and start Docker Compose
+
+```powershell
 docker compose config
 docker compose up -d --build
 docker compose ps
 ```
 
-Use the exact scripts available in the current root `package.json`; if a command is not defined, run its workspace equivalent and record that fact. Confirm the application in a browser after the rebuild. A running container can retain an older image even when the local source and Git branch are current. When UI behavior appears inconsistent with source, inspect the running image/container and rebuild the relevant service before changing application code.
+Open `http://127.0.0.1:8080` in the local browser and complete the first administrator setup or sign in. The stack contains web, API, and PostgreSQL. The Windows environment does not install or run the Linux systemd Host Agent and must keep GUI-managed host deployment disabled.
+
+### 4. Run local source validation
+
+Node.js 22 and npm are needed for source tests, typechecks, and local builds. They are not needed on the Linux production host because Docker builds the app images.
+
+```powershell
+npm ci
+npm test
+npm run typecheck
+npm run build
+```
+
+These commands are distinct from Compose startup. Run them from the repository root after dependencies are installed. The Python Host Agent suite should be run on Linux for full socket-related coverage; four Unix-domain-socket tests are intentionally skipped when the test suite runs on Windows.
+
+### 5. Rebuild when source and browser behavior differ
+
+A running Docker container may still serve an older web image even when Git is current. After pulling source changes, rebuild the affected service:
+
+```powershell
+docker compose up -d --build --no-deps web
+```
+
+Refresh the browser and confirm the changed behavior. Do not delete PostgreSQL volumes to resolve a stale frontend image.
 
 Do not run development seed commands against production data. Use only a local development database and the explicit development guard documented in [Phase 01](PHASE-01-USER-MANAGEMENT-AUDIT-ALERTS.md).
 
-For the exact November 22, 2026 verification results, including the Windows test counts, the 23 Linux Host Agent tests, the successful clean install, Tailscale browser verification, and known gaps, see [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
+For the exact November 22, 2026 results, see [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
