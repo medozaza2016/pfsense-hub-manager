@@ -2,6 +2,10 @@
 set -euo pipefail
 
 PROJECT_DIR="${1:-/opt/pfsense-hub}"
+if [[ "$PROJECT_DIR" != "/opt/pfsense-hub" ]]; then
+  echo "The systemd unit is pinned to /opt/pfsense-hub. Install the project there." >&2
+  exit 1
+fi
 ENV_FILE="$PROJECT_DIR/.env"
 AGENT_SOURCE="$PROJECT_DIR/host-agent/pfsense_hub_agent.py"
 CONFIG_DIR="/etc/pfsense-hub"
@@ -17,7 +21,7 @@ for file in "$ENV_FILE" "$AGENT_SOURCE" "$SERVICE_SOURCE"; do
 done
 command -v python3 >/dev/null || { echo "python3 is required." >&2; exit 1; }
 command -v systemctl >/dev/null || { echo "systemd is required." >&2; exit 1; }
-command -v tailscale >/dev/null || { echo "Tailscale CLI is required for the initial agent implementation." >&2; exit 1; }
+TAILSCALE_BIN="$(command -v tailscale)" || { echo "Tailscale CLI is required for the initial agent implementation." >&2; exit 1; }
 
 # Parse only literal KEY=value lines. Never source or execute the .env file.
 TOKEN="$(python3 - "$ENV_FILE" <<'PY'
@@ -54,11 +58,14 @@ if [[ ! "$API_PORT" =~ ^[0-9]{1,5}$ ]] || (( API_PORT < 1 || API_PORT > 65535 ))
 fi
 
 install -d -m 0750 "$CONFIG_DIR" /run/pfsense-hub "$PROJECT_DIR/run/host-agent"
-getent group pfsense-hub-agent >/dev/null || groupadd --gid 2000 pfsense-hub-agent
+if ! getent group pfsense-hub-agent >/dev/null; then
+  if getent group 2000 >/dev/null; then echo "GID 2000 is already assigned. Resolve this before installing." >&2; exit 1; fi
+  groupadd --gid 2000 pfsense-hub-agent
+fi
 install -m 0755 "$AGENT_SOURCE" /usr/local/libexec/pfsense-hub-deployment-agent.py
-python3 - "$CONFIG_FILE" "$TOKEN" "$API_PORT" "$PROJECT_DIR" <<'PY'
+python3 - "$CONFIG_FILE" "$TOKEN" "$API_PORT" "$PROJECT_DIR" "$TAILSCALE_BIN" <<'PY'
 import json, os, sys
-path, token, port, project = sys.argv[1:]
+path, token, port, project, tailscale_binary = sys.argv[1:]
 config = {
     "api_base_url": f"http://127.0.0.1:{port}",
     "api_token": token,
@@ -70,7 +77,7 @@ config = {
 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
 with os.fdopen(fd, "w", encoding="utf-8") as stream:
     json.dump(config, stream)
-    stream.write("\\n")
+    stream.write("\n")
 os.chown(path, 0, 0)
 os.chmod(path, 0o600)
 PY
