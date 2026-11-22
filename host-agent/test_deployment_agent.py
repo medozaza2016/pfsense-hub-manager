@@ -259,6 +259,13 @@ class DeploymentAgentTests(unittest.TestCase):
             agent.resolve_bind_address(endpoint, self.config)
         self.assertEqual(caught.exception.code, "HOST_BIND_ADDRESS_NOT_ASSIGNED")
 
+    @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("127.0.0.1")})
+    def test_rejects_loopback_as_a_lan_or_custom_binding(self, assigned):
+        endpoint = {"method": "local", "addressType": "ip", "address": "127.0.0.1"}
+        with self.assertRaises(agent.AgentError) as caught:
+            agent.resolve_bind_address(endpoint, self.config)
+        self.assertEqual(caught.exception.code, "HOST_BIND_LOOPBACK_NOT_ALLOWED")
+
     @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("8.8.8.8")})
     def test_rejects_publicly_routable_host_bind_addresses(self, assigned):
         endpoint = {"method": "local", "addressType": "ip", "address": "8.8.8.8"}
