@@ -16,6 +16,10 @@ if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run this installer as root." >&2
   exit 1
 fi
+if [[ -e "$PROJECT_DIR/compose.override.yaml" ]]; then
+  echo "A custom compose.override.yaml is not supported by the restricted host agent. Review and remove it before installation." >&2
+  exit 1
+fi
 for file in "$ENV_FILE" "$AGENT_SOURCE" "$SERVICE_SOURCE"; do
   [[ -f "$file" ]] || { echo "Required file not found: $file" >&2; exit 1; }
 done
