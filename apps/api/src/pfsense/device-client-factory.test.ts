@@ -128,7 +128,7 @@ describe("DevicePfSenseClientFactory", () => {
 
   it("retains the legacy CA file during temporary pre-registration when no per-device CA was supplied", async () => {
     const legacyPath = process.env.PFSENSE_CA_FILE;
-    process.env.PFSENSE_CA_FILE = "/run/certs/legacy-ca.pem";
+    vi.stubEnv("PFSENSE_CA_FILE", "/run/certs/legacy-ca.pem");
     try {
       const repository = makeRepository();
       const client = {
@@ -149,8 +149,8 @@ describe("DevicePfSenseClientFactory", () => {
         { mode: "legacy-ca-file", servername: null }
       );
     } finally {
-      if (legacyPath === undefined) delete process.env.PFSENSE_CA_FILE;
-      else process.env.PFSENSE_CA_FILE = legacyPath;
+      if (legacyPath === undefined) vi.unstubAllEnvs();
+      else vi.stubEnv("PFSENSE_CA_FILE", legacyPath);
     }
   });
 
