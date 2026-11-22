@@ -95,7 +95,7 @@ These are real gaps; do not describe them as completed.
 
 - [ ] Perform a real-tailnet failure/rollback drill and verify the previous access address remains usable.
 - [ ] Test LAN and Custom with an existing operator-managed trusted TLS reverse proxy.
-- [ ] A Windows host deployment adapter is not implemented. Windows Docker Desktop continues to exercise the frontend/API without applying production host access settings.
+- [ ] A full Windows `install-windows.ps1` is not implemented. The existing `scripts/setup-encryption-key.ps1` provisions the Windows runtime key only; local startup uses the documented Docker Compose workflow. A Windows host deployment adapter is also not implemented. Windows Docker Desktop exercises the frontend/API without applying production host access settings.
 
 ## 4. Explicit non-goals for the current implementation
 
