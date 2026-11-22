@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Discovery completed. Initial application foundation scaffolded; CI and Docker image builds passed. Live runtime validation on the Proxmox LXC remains pending.**
+**Current baseline, November 21, 2026:** PR #5 is merged into `main`. The responsive UI foundation and manager administration APIs are present. Managed-device inventory is API-backed, but live firewall connectivity is still configured for one device through environment variables. Multi-site onboarding, per-device credential lifecycle, independent device collection, and scheduled polling remain unimplemented. This is a development baseline, not a production release.
 
 ## Frontend design foundation, November 21, 2026
 
@@ -255,3 +255,58 @@ The implementation and documentation closeout were merged through [PR #5](https:
 7. Only after read-only integration is reliable, plan configuration write workflows with capability gating, preview, explicit confirmation, rollback/recovery, and audit verification.
 
 **Do not mark the product production-ready.** A working local UI and passing unit tests do not prove production deployment, multi-device operation, background monitoring, or safe firewall configuration management.
+
+
+## Current main baseline and next milestone, November 21, 2026
+
+This section is authoritative for work starting from the current `main` branch. Earlier implementation records in this file are retained as historical records; where they describe pre-merge branch instructions or earlier status, this section supersedes them.
+
+### Repository and workflow baseline
+
+- [x] Merge PR #5 into `main`.
+- [x] Synchronize the user's Windows working copy with `origin/main`; the user reported a clean working tree at `fa2d524d746213972b1c085f8737d427b134b012`.
+- [x] Confirm Windows 11, VS Code, and Docker Desktop as the local development environment.
+- [x] Retain Linux deployment on the existing Proxmox LXC as the intended production direction.
+- [ ] Complete and review this documentation baseline on `main`.
+- [ ] After documentation completion, obtain the user's authorization and create a dedicated development branch for the multi-site implementation.
+- [ ] Do not create, switch, or delete any branch without explicit user authorization.
+
+### Current implementation truth
+
+- [x] Shared frontend tables, search, filters, pagination, responsive record cards, and toast notifications are merged.
+- [x] User Management, Audit Logs, and Alerts are backed by the manager API and PostgreSQL.
+- [x] Hub inventory screens load managed-device inventory from the manager API.
+- [ ] Replace the single environment-configured live firewall with a database-backed multi-device connection lifecycle.
+- [ ] Integrate encrypted per-device credentials with onboarding and provider selection.
+- [ ] Implement per-device connection tests and compatibility state.
+- [ ] Replace remaining firewall preview fixtures only when matching read-only API contracts and verified device capabilities exist.
+- [ ] Implement independent background polling with bounded concurrency, retries/backoff, and per-device outcomes.
+- [ ] Complete verified TLS trust and record the exact installed REST API package version for the first Plus firewall.
+- [ ] Define and test retention, backup, and restore before production use.
+
+### Next milestone: secure multi-site onboarding
+
+The next implementation milestone is documented in [Multi-site Onboarding Implementation Plan](MULTI-SITE-ONBOARDING-PLAN.md). Its objective is to make a firewall a first-class managed device, rather than a database row that cannot independently connect.
+
+The milestone sequence is:
+
+1. Review the existing device schema, migrations, encryption helper, provider, and API contracts.
+2. Implement authenticated and authorized device registration and lifecycle APIs, with encrypted credentials and strict input validation.
+3. Refactor the provider so each real device has its own connection configuration, API credential, TLS trust configuration, and capability result.
+4. Add administrator GUI workflows for adding a site, editing non-secret connection details, entering or rotating credentials, enabling/disabling a device, and testing connectivity.
+5. Verify that failures on one device do not affect another, that secrets never reach the browser or logs, and that demo records cannot be treated as real devices.
+6. Update integration status and frontend documentation with exact test results and remaining gaps.
+
+### Explicit non-goals for this milestone
+
+- No firewall configuration writes.
+- No arbitrary upstream API proxy or user-supplied API paths.
+- No shell execution or Docker socket access from application containers.
+- No automatic selection of a firewall-to-hub transport. That decision remains deferred.
+- No connection of the second CE firewall until the user is ready.
+- No claim of continuous monitoring until the scheduler is implemented and tested.
+- No production-ready claim.
+
+### Verification gate
+
+Before merging the implementation branch, run API tests, web and API typechecks, production builds, migration tests against a fresh database and an existing-data copy, `docker compose config`, and a full local Compose rebuild. Exercise the onboarding and connection-test flows in the browser. Verify credential encryption/decryption, key failure behavior, authorization, TLS validation, multi-device isolation, audit coverage, and no secret leakage. Record the actual command outputs and do not mark skipped checks as passed.
