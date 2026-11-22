@@ -29,7 +29,29 @@ The four skipped tests are the Unix-domain-socket client tests in `apps/api/src/
 
 The Vite build emitted a non-fatal warning that the `use client` module directive from React Router's development module was ignored by the bundler. The production build completed successfully.
 
-## 3. Linux Host Agent and existing-host checks
+## 3. Windows PowerShell setup boundary
+
+The repository contains `scripts/setup-encryption-key.ps1`, but does **not** contain a complete `install-windows.ps1`. The existing script generates and protects the Windows application encryption key and displays the one-time recovery copy; it does not prepare the full environment or start Docker Compose.
+
+The documented Windows Docker Desktop setup is:
+
+```powershell
+if (Test-Path .env) { throw "Preserve and inspect the existing .env before setup." }
+Copy-Item .env.example .env
+New-Item -ItemType Directory -Force .\secrets\runtime, .\certs, .\run\host-agent | Out-Null
+if (-not (Test-Path .\secrets\pfsense_api_key)) {
+  New-Item -ItemType File .\secrets\pfsense_api_key | Out-Null
+}
+notepad .env
+.\scripts\setup-encryption-key.ps1
+docker compose config
+docker compose up -d --build
+docker compose ps
+```
+
+Set a strong unique alphanumeric `POSTGRES_PASSWORD` in `.env`, leave legacy firewall bootstrap values blank for a zero-site Hub, and keep the deployment-agent token/socket empty with `HUB_ACCESS_DEPLOYMENT_ENABLED=false`. This is the Windows local-development procedure, not an automated production installer. The Windows npm tests/typechecks/build are separate validation commands, listed in Section 2 above.
+
+## 4. Linux Host Agent and existing-host checks
 
 On the existing working Debian 13 LXC, after updating to `a2dc653`, the following checks completed:
 
