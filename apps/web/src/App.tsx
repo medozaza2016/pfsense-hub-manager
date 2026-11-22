@@ -191,7 +191,7 @@ export default function App(){
   <div className="onboarding-grid">
    <label>Site name<input required maxLength={120} value={formName} onChange={e=>setFormName(e.target.value)} placeholder="e.g. Branch Office"/></label>
    <label><span className="field-label-row">Location <span className="field-optional">Optional</span></span><input maxLength={120} value={formLocation} onChange={e=>setFormLocation(e.target.value)} placeholder="City or site description"/></label>
-   <label>pfSense edition<select value={formEdition} onChange={e=>setFormEdition(e.target.value as "plus"|"ce")}><option value="ce">pfSense CE</option><option value="plus">pfSense Plus</option></select></label>
+   <label>pfSense edition<span className="onboarding-select-wrap"><select value={formEdition} onChange={e=>setFormEdition(e.target.value as "plus"|"ce")}><option value="ce">pfSense CE</option><option value="plus">pfSense Plus</option></select><span className="onboarding-select-chevron" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg></span></span></label>
   </div>
  </section>
  <section className="onboarding-section">
