@@ -1,10 +1,13 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, X509Certificate } from "node:crypto";
+import { connect as tlsConnect } from "node:tls";
+import { isIP } from "node:net";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Pool } from "pg";
 import { authorizationFailure, type AdminUser } from "../auth.js";
 import { appendAudit } from "../audit.js";
 import {
+  apiOriginSchema,
   createDeviceSchema,
   updateDeviceProfileSchema,
   DeviceRepository
@@ -12,6 +15,8 @@ import {
 import type { DevicePfSenseClientFactory } from "../pfsense/device-client-factory.js";
 import { classifyError } from "../pfsense/errors.js";
 import { normalizeDeviceCaBundle } from "../pfsense/tls-trust.js";
+import { resolveSafeDeviceDestination } from "./network-destination.js";
+import { createPinnedLookup } from "../pfsense/client.js";
 
 interface AuthenticatedRequest extends FastifyRequest {
   admin?: AdminUser;
@@ -68,11 +73,142 @@ function invalidBody(reply: FastifyReply, code: string, message: string) {
   return reply.code(400).send({ error: { code, message } });
 }
 
+
+type DiscoveredFirewallCertificate = {
+  subject: string;
+  issuer: string;
+  subjectAltName: string;
+  dnsNames: string[];
+  ipAddresses: string[];
+  suggestedServername: string | null;
+  fingerprint256: string;
+  validFrom: string;
+  validTo: string;
+  selfSigned: boolean;
+};
+
+async function discoverFirewallCertificate(apiBaseUrl: string): Promise<DiscoveredFirewallCertificate> {
+  const url = new URL(apiBaseUrl);
+  const hostname = url.hostname.replace(/^\\[|\\]$/g, "");
+  const destination = await resolveSafeDeviceDestination(hostname);
+  const port = Number(url.port || 443);
+
+  return new Promise((resolve, reject) => {
+    const socket = tlsConnect({
+      host: hostname,
+      port,
+      ...(isIP(hostname) === 0 ? { servername: hostname } : {}),
+      rejectUnauthorized: false,
+      lookup: createPinnedLookup(hostname, destination),
+      timeout: 5000
+    });
+
+    let settled = false;
+    const fail = (message: string) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      reject(new Error(message));
+    };
+
+    socket.once("error", () => fail("Unable to retrieve the firewall TLS certificate."));
+    socket.once("timeout", () => fail("Firewall TLS certificate discovery timed out."));
+    socket.once("secureConnect", () => {
+      if (settled) return;
+      try {
+        const peer = socket.getPeerCertificate();
+        if (!peer.raw) throw new Error("Certificate unavailable");
+        const certificate = new X509Certificate(peer.raw);
+        const subjectAltName = certificate.subjectAltName ?? "";
+        const dnsNames = [...subjectAltName.matchAll(/(?:^|,\\s*)DNS:([^,]+)/g)]
+          .map(match => match[1]?.trim()).filter((value): value is string => Boolean(value));
+        const ipAddresses = [...subjectAltName.matchAll(/(?:^|,\\s*)IP Address:([^,]+)/g)]
+          .map(match => match[1]?.trim()).filter((value): value is string => Boolean(value));
+        settled = true;
+        resolve({
+          subject: certificate.subject,
+          issuer: certificate.issuer,
+          subjectAltName,
+          dnsNames,
+          ipAddresses,
+          suggestedServername: dnsNames.length === 1 ? dnsNames[0] ?? null : null,
+          fingerprint256: certificate.fingerprint256,
+          validFrom: certificate.validFrom,
+          validTo: certificate.validTo,
+          selfSigned: certificate.subject === certificate.issuer
+        });
+      } catch {
+        fail("The firewall presented a certificate that could not be inspected.");
+      } finally {
+        socket.end();
+      }
+    });
+  });
+}
+
 export async function registerDeviceAdminRoutes(
   app: FastifyInstance,
   dependencies: DeviceAdminRouteDependencies
 ): Promise<void> {
   const { devices, clientFactory, pool } = dependencies;
+
+
+  app.post("/api/v1/devices/discover-certificate", { preHandler: requireAdministrator }, async (request, reply) => {
+    const parsed = z.object({ apiBaseUrl: apiOriginSchema }).strict().safeParse(request.body);
+    if (!parsed.success) return invalidBody(reply, "INVALID_FIREWALL_URL", "Enter a valid HTTPS firewall origin.");
+    try {
+      return { data: await discoverFirewallCertificate(parsed.data.apiBaseUrl) };
+    } catch (error) {
+      return reply.code(422).send({
+        error: {
+          code: "CERTIFICATE_DISCOVERY_FAILED",
+          message: error instanceof Error ? error.message : "Firewall certificate discovery failed."
+        }
+      });
+    }
+  });
+
+  const registrationTestSchema = z.object({
+    apiBaseUrl: apiOriginSchema,
+    apiKey: z.string().min(1).max(4096),
+    certificateAuthority: z.string().max(60 * 1024).optional(),
+    tlsServername: z.string().trim().min(1).max(253).optional()
+  }).strict();
+
+  app.post("/api/v1/devices/registration-test", { preHandler: requireAdministrator }, async (request, reply) => {
+    const parsed = registrationTestSchema.safeParse(request.body);
+    if (!parsed.success) return invalidBody(reply, "INVALID_CONNECTION_TEST", "Provide a valid HTTPS origin, API credential, and optional TLS trust settings.");
+    const actor = actorFor(request);
+    try {
+      await clientFactory.testConnection(parsed.data);
+      await appendAudit(pool, {
+        actorId: actor.id,
+        actorUsername: actor.username,
+        action: "device.registration_test",
+        outcome: "success",
+        targetType: "device",
+        summary: "Pre-registration firewall connection test succeeded",
+        metadata: { operation: "version" },
+        requestId: request.id
+      });
+      return { data: { outcome: "reachable", operation: "version", testedAt: new Date().toISOString() } };
+    } catch (error) {
+      const errorClass = classifyError(error);
+      await appendAudit(pool, {
+        actorId: actor.id,
+        actorUsername: actor.username,
+        action: "device.registration_test",
+        outcome: "failure",
+        targetType: "device",
+        summary: "Pre-registration firewall connection test failed",
+        metadata: { operation: "version", errorClass },
+        requestId: request.id
+      });
+      return reply.code(422).send({
+        error: { code: "CONNECTION_TEST_FAILED", message: "Firewall connection test failed.", errorClass }
+      });
+    }
+  });
 
   app.post("/api/v1/devices", { preHandler: requireAdministrator }, async (request, reply) => {
     const parsed = createDeviceSchema.safeParse(request.body);
@@ -81,6 +217,14 @@ export async function registerDeviceAdminRoutes(
     }
 
     const actor = actorFor(request);
+    try {
+      await clientFactory.testConnection(parsed.data);
+    } catch (error) {
+      const errorClass = classifyError(error);
+      return reply.code(422).send({
+        error: { code: "CONNECTION_TEST_FAILED", message: "Firewall connection test failed. Registration was not saved.", errorClass }
+      });
+    }
     const profile = await devices.create(parsed.data);
     await appendAudit(pool, {
       actorId: actor.id,
