@@ -130,7 +130,7 @@ class DeploymentAgentTests(unittest.TestCase):
             "rollbackSucceeded": True,
         })
         self.assertEqual(run_fixed.call_args_list[2].args[0], [
-            "/usr/bin/tailscale", "serve", "--https=443", "off"
+            "/usr/bin/tailscale", "serve", "--https=443", "--set-path=/", "off"
         ])
 
 
