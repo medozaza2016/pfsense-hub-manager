@@ -43,7 +43,17 @@ The integration must account for differences by pfSense edition, release, API pa
 
 ## Deployment and development environment
 
-Docker Compose runs the React/Vite web application, Fastify API, and PostgreSQL. The pfSense Hub application is available at http://127.0.0.1:8080 on the LXC and binds to loopback by default. Use Tailscale Serve or an SSH tunnel for private workstation access. Do not expose the application directly to the public internet. See [Deployment](docs/DEPLOYMENT.md) for setup, access, secrets, and security details.
+Docker Compose runs the React/Vite web application, Fastify API, and PostgreSQL. The pfSense Hub application binds to `127.0.0.1:8080) by default. Use Tailscale Serve or an SSH tunnel for private workstation access. Do not expose the application directly to the public internet.
+
+### New Linux machine installation
+
+For a clean Debian 13 host, follow the [Fresh Linux Host Setup](docs/DEPLOYMENT.md#fresh-linux-host-setup) procedure. It covers host prerequisites, Docker Engine and Compose installation, cloning the required branch into `/opt/pfsense-hub`, and running the one-command Linux installer:
+
+```bash
+sudo bash /opt/pfsense-hub/scripts/install-linux.sh
+```
+
+The Linux host does not need Node.js or npm. The installer provisions the Hub and its standard Host Agent, validates their connection, and enables GUI-managed access deployment after health checks pass. Read the full [Deployment guide](docs/DEPLOYMENT.md) before installing on a new machine or updating an existing installation.
 
 ## Repository guide
 
