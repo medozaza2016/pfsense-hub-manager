@@ -33,7 +33,7 @@ The current web container's Nginx configuration listens on plain HTTP at contain
 
 TLS is mode-specific:
 
-- **Tailscale:** use an already-installed and authenticated Tailscale client on the Linux host. The agent configures one Tailscale Serve HTTPS proxy to the Hub's loopback-only HTTP listener. It checks that the selected MagicDNS name is the local node and is listed in `CertDomains` before making changes. Tailscale Serve terminates TLS using its automatically provisioned certificate. The agent does not install or authenticate Tailscale, enable tailnet HTTPS, change ACLs, or enable Funnel. It refuses any pre-existing Serve or Funnel configuration to avoid overwriting another service.
+- **Tailscale:** use an already-installed and authenticated Tailscale client on the Linux host. The agent verifies an operator-configured Tailscale Serve HTTPS proxy to the Hub's loopback-only HTTP listener. It checks that the selected MagicDNS name is the local node and is listed in `CertDomains` before making changes. Tailscale Serve terminates TLS using its automatically provisioned certificate. The agent does not install or authenticate Tailscale, configure Serve or Funnel, enable tailnet HTTPS, change ACLs, or enable Funnel. It refuses a Funnel-enabled route and fails if the exact private Serve route is absent.
 - **LAN and Custom:** these modes still require an explicitly configured TLS termination layer with a valid certificate and hostname/IP identity appropriate to the endpoint. Certificate provisioning, renewal, and rollback are not implemented. These methods are disabled in the current UI and are not deployable.
 
 The API-to-agent contract requires an `https://` success origin and rejects plaintext success responses. For Tailscale mode, this origin is verified through Tailscale Serve. For LAN and Custom, it must be verified through their separately configured TLS termination layer. No mode may silently fall back to remote plaintext HTTP.
@@ -46,7 +46,7 @@ The agent must control only a fixed, documented configuration surface. It must n
 - The agent is a separate host process, not a container with `/var/run/docker.sock` mounted. It does not invoke Docker or Compose.
 - Expose a local Unix-domain socket with a dedicated group, set-group-ID socket directory, and mode 0660. The API container receives that directory read-only and joins only the dedicated supplementary group. It never receives the Docker socket.
 - The agent accepts a strict, versioned JSON request containing only a deployment UUID and desired revision. It retrieves approved configuration from the loopback-only API endpoint using a root-owned bearer token. Unknown properties and stale revisions are rejected.
-- The only host command operations are fixed Tailscale status, Serve status, Funnel status, Serve configuration, and rollback invocations. The binary path and local web target come from root-owned configuration, never API input. No arbitrary shell, path, Docker argument, environment variable, or service name is accepted.
+- The only host command operations are fixed Tailscale status, Serve status, and Funnel status queries. No Tailscale configuration mutation is performed. The binary path and local web target come from root-owned configuration, never API input. No arbitrary shell, path, Docker argument, environment variable, or service name is accepted.
 - Validate every bind address against host interface assignments immediately before applying. Reject wildcard, multicast, unspecified, loopback for remote modes, and addresses not assigned to an eligible interface.
 - Use a process lock and compare-and-swap revision check to prevent overlapping or stale deployments.
 - Bound command duration, probe duration, retries, output size, and log retention. Redact environment values and never return secrets.
@@ -58,7 +58,7 @@ The agent must control only a fixed, documented configuration surface. It must n
 
 The Linux agent is installed with `host-agent/install-linux.sh` on a host with the project checked out at `/opt/pfsense-hub`. The installer provisions a root-only JSON configuration, a dedicated GID 2000 socket group, a restrictive socket directory, and a systemd service. The service drops all Linux capabilities and is filesystem-hardened. The API container receives only the socket directory as a read-only mount.
 
-The current agent does not invoke Docker or Compose. It configures only Tailscale Serve for the Hub's existing loopback HTTP service. The installer requires the exact loopback and socket settings documented in DEPLOYMENT.md and fails if those settings or the group ID do not match.
+The current agent does not invoke Docker or Compose and does not mutate Tailscale configuration. It verifies an operator-configured private Serve route for the Hub's existing loopback HTTP service. The installer requires the exact loopback and socket settings documented in DEPLOYMENT.md and fails if those settings or the group ID do not match.
 
 ### Windows Docker Desktop development
 
