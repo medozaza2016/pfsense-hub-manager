@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { Pool, PoolClient } from "pg";
-import { encryptDeviceCredential } from "../security/credential-encryption.js";
+import { encryptDeviceCredential, encryptDeviceTlsTrust } from "../security/credential-encryption.js";
 import {
   createDeviceSchema,
   DeviceRepository,
@@ -146,5 +147,88 @@ describe("DeviceRepository", () => {
     const repository = new DeviceRepository(pool, key);
 
     await expect(repository.decryptApiKeyForConnection("11111111-1111-4111-8111-111111111111")).resolves.toBeNull();
+  });
+});
+
+
+describe("DeviceRepository per-device TLS trust", () => {
+  const deviceId = "11111111-1111-4111-8111-111111111111";
+  const certificate = readFileSync(new URL("../pfsense/fixtures/firewall-test-cert.pem", import.meta.url), "utf8");
+
+  it("stores custom trust material encrypted and bound to the device", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [{ id: deviceId }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+    const client = makePoolClient(query);
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.setDeviceCaBundle(deviceId, certificate)).resolves.toBe(true);
+    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\s+/)[0])).toEqual([
+      "BEGIN", "SELECT", "INSERT", "COMMIT"
+    ]);
+    const params = query.mock.calls[2]?.[1] as unknown[];
+    expect(params).not.toContain(certificate);
+    expect(params?.[1]).toBe(3);
+    expect(params?.[2]).toBeInstanceOf(Buffer);
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it("removes custom trust to restore system certificate trust", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [{ id: deviceId }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+    const client = makePoolClient(query);
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.setDeviceCaBundle(deviceId, null)).resolves.toBe(true);
+    expect(String(query.mock.calls[2]?.[0])).toContain("DELETE FROM device_tls_trust");
+  });
+
+  it("does not modify trust for missing or demo devices", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+    const client = makePoolClient(query);
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.setDeviceCaBundle(deviceId, certificate)).resolves.toBe(false);
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(String(query.mock.calls[2]?.[0])).toBe("COMMIT");
+  });
+
+  it("decrypts custom trust only for an enabled real device", async () => {
+    const encrypted = encryptDeviceTlsTrust(certificate, key, deviceId);
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [{
+        format_version: 3,
+        key_version: 1,
+        nonce: Buffer.from(encrypted.nonce, "hex"),
+        auth_tag: Buffer.from(encrypted.authTag, "hex"),
+        ciphertext: Buffer.from(encrypted.ciphertext, "hex")
+      }],
+      rowCount: 1
+    });
+    const pool = { query } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    const result = await repository.decryptDeviceCaBundle(deviceId);
+    expect(result).toContain("-----BEGIN CERTIFICATE-----");
+    expect(String(query.mock.calls[0]?.[0])).toContain("d.is_demo=false AND d.enabled=true");
+  });
+
+  it("returns null when no custom trust is configured or the device is disabled", async () => {
+    const query = vi.fn().mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const pool = { query } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.decryptDeviceCaBundle(deviceId)).resolves.toBeNull();
   });
 });
