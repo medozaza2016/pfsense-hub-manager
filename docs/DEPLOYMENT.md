@@ -1,7 +1,7 @@
 # Local and Proxmox Deployment
 
 ## Current deployment shape
-Docker Compose runs the React/Vite web application served by Nginx, the Fastify API, PostgreSQL, and code-server. PostgreSQL and the API are not published to the LXC host. The application UI binds to 127.0.0.1 by default. You can instead bind it to the host's Tailscale IPv4 address by setting HUB_BIND_ADDRESS in .env. This publishes the UI only on that selected interface, not on the host's LAN or public interfaces. Do not use 0.0.0.0. Code-server remains bound to 127.0.0.1. Do not publish either service directly to the public internet.
+Docker Compose runs the React/Vite web application served by Nginx, the Fastify API, PostgreSQL, and code-server. PostgreSQL and the API are not published to the LXC host. The application UI binds to 127.0.0.1 by default. On Linux production, Tailscale Serve can provide tailnet-only HTTPS in front of this loopback service. Do not bind the UI directly to a Tailscale IP or use 0.0.0.0. Code-server remains bound to 127.0.0.1. Do not publish either service directly to the public internet.
 
 The code-server container has a persistent project workspace and persistent editor configuration. It is isolated from the application backend network and does not receive the Docker socket.
 
@@ -22,7 +22,7 @@ On Windows 11, run the provisioning script from the repository root in PowerShel
 
 Save the one-time recovery value in a password manager. Do not copy it into chat, source control, .env, or a terminal transcript. The runtime file is created at secrets/runtime/app_encryption_key. The script refuses to overwrite an existing key. If the script reports that a key already exists, preserve it and do not regenerate it.
 
-On Linux, create the runtime key once using a cryptographically secure random generator, then store the recovery copy in an approved password manager without printing it into shell history or logs. The Linux installer/provisioning workflow still requires a dedicated implementation and review.
+On Linux, create the runtime key once using a cryptographically secure random generator, then store the recovery copy in an approved password manager without printing it into shell history or logs. The Linux application-key provisioning workflow still requires a dedicated implementation and review.
 
 For the existing Compose secrets, create the pfSense API key and code-server password files as described below. Do not commit any secret files.
 
@@ -44,7 +44,7 @@ docker compose ps
 docker compose logs -f api
 ```
 
-The pfSense Hub application UI is available at http://127.0.0.1:8080 when HUB_BIND_ADDRESS is left at its default. For Tailscale access, set HUB_BIND_ADDRESS to the Tailscale IPv4 address assigned to the machine running Docker, then access http://TAILSCALE-IP:8080 from an authorized tailnet device. The browser-based VS Code editor remains available at http://127.0.0.1:8443 and requires a local connection or SSH forwarding. Do not expose code-server or the application directly to the public internet.
+For Windows local development, the pfSense Hub application UI is available at http://127.0.0.1:8080. On Linux production, use the Tailscale MagicDNS HTTPS endpoint configured through the restricted host agent. Do not use direct HTTP access over the tailnet. The browser-based VS Code editor remains available at http://127.0.0.1:8443 and requires a local connection or SSH forwarding. Do not expose code-server or the application directly to the public internet.
 
 The API container reads the application encryption key from /run/secrets/app_encryption_key. Missing or malformed key material prevents API startup. Do not delete or replace the key file while encrypted credentials exist.
 
