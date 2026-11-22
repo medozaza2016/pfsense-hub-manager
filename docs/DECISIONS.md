@@ -134,3 +134,8 @@ This document records confirmed architectural decisions. Proposals and open ques
 ### DEC-028, Manager user administration, audit events, and operational alerts
 **Status:** Accepted
 **Decision:** Preserve the existing database-backed session authentication and the existing `admin` and `user` roles. Add administrator-only user management, append-only audit records, and persisted operational alerts. Disabled accounts must not authenticate; role, activation, and password changes revoke the affected user's sessions. The last active administrator cannot be demoted or disabled. Audit data must exclude credentials and secret material. Alert lifecycle mutations require administrator authorization and must be audited. Initial automatic alerting is limited to the existing read-only firewall polling health signal. This decision does not authorize firewall configuration writes, arbitrary host operations, or an unreviewed notification channel.
+
+
+### DEC-029, Main-branch development workflow after feature closeout
+**Status:** Accepted by the current development instruction  
+**Decision:** Complete and review the current implementation on `feature/development-seed-data` through a pull request into `main`. After a successful merge, use the updated `main` branch as the sole working branch for upcoming development. Do not continue feature development on the merged branch. Preserve a PR-based merge and verify the local Windows working tree is clean and tracks `origin/main` before starting the next task.
