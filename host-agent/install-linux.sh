@@ -52,13 +52,79 @@ fi
 for required_setting in \
   'HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock' \
   'HUB_AGENT_GID=2000' \
-  'HUB_BIND_ADDRESS=127.0.0.1' \
   'WEB_PORT=8080'; do
   grep -Fxq "$required_setting" "$ENV_FILE" || {
     echo "Set $required_setting in .env before installing the host agent." >&2
     exit 1
   }
 done
+grep -Eq '^HUB_BIND_ADDRESS=.+ /run/pfsense-hub "$PROJECT_DIR/run/host-agent"
+install -d -m 0755 /usr/local/libexec
+if ! getent group pfsense-hub-agent >/dev/null; then
+  if getent group 2000 >/dev/null; then echo "GID 2000 is already assigned. Resolve this before installing." >&2; exit 1; fi
+  groupadd --gid 2000 pfsense-hub-agent
+else
+  EXISTING_GID="$(getent group pfsense-hub-agent | cut -d: -f3)"
+  if [[ "$EXISTING_GID" != "2000" ]]; then
+    echo "The pfsense-hub-agent group must use GID 2000." >&2
+    exit 1
+  fi
+fi
+install -m 0755 "$AGENT_SOURCE" /usr/local/libexec/pfsense-hub-deployment-agent.py
+/usr/bin/python3 - "$CONFIG_FILE" "$ENV_FILE" "$PROJECT_DIR" "$TAILSCALE_BIN" "$DOCKER_BIN" "$IP_BIN" <<'PY'
+import json, os, re, sys
+path, env_file, project, tailscale_binary, docker_binary, ip_binary = sys.argv[1:]
+values = {}
+with open(env_file, encoding="utf-8") as source:
+    for line in source:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key in values:
+            raise SystemExit(f"Duplicate environment setting: {key}")
+        values[key] = value.strip().strip('"').strip("'")
+token = values.get("HUB_DEPLOYMENT_AGENT_TOKEN", "")
+if not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", token):
+    raise SystemExit("Set HUB_DEPLOYMENT_AGENT_TOKEN to a 32 to 256 character URL-safe random token in .env.")
+port = values.get("HUB_AGENT_API_PORT", "3001")
+if not re.fullmatch(r"[0-9]{1,5}", port) or not 1 <= int(port) <= 65535:
+    raise SystemExit("HUB_AGENT_API_PORT must be a valid TCP port.")
+config = {
+    "api_base_url": f"http://127.0.0.1:{port}",
+    "api_token": token,
+    "socket_path": os.path.join(project, "run/host-agent/agent.sock"),
+    "tailscale_binary": tailscale_binary,
+    "docker_binary": docker_binary,
+    "ip_binary": ip_binary,
+    "project_dir": project,
+    "compose_file": os.path.join(project, "compose.yaml"),
+    "env_file": os.path.join(project, ".env"),
+    "web_local_url": "http://127.0.0.1:8080"
+}
+fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w", encoding="utf-8") as stream:
+    json.dump(config, stream)
+    stream.write("\n")
+os.chown(path, 0, 0)
+os.chmod(path, 0o600)
+PY
+install -m 0644 "$SERVICE_SOURCE" /etc/systemd/system/pfsense-hub-deployment-agent.service
+chown root:pfsense-hub-agent "$PROJECT_DIR/run/host-agent"
+chmod 2750 "$PROJECT_DIR/run/host-agent"
+systemctl daemon-reload
+systemctl enable --now pfsense-hub-deployment-agent.service
+
+echo "Host agent installed. Ensure .env contains:"
+echo "HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock"
+echo "HUB_DEPLOYMENT_AGENT_TOKEN=<same token used by the agent>"
+echo "HUB_AGENT_GID=2000"
+echo "Then recreate only the API container so its socket mount and group are active."
+ "$ENV_FILE" || {
+  echo "Set HUB_BIND_ADDRESS to the current private or loopback host address in .env." >&2
+  exit 1
+}
 install -d -m 0750 "$CONFIG_DIR" /run/pfsense-hub "$PROJECT_DIR/run/host-agent"
 install -d -m 0755 /usr/local/libexec
 if ! getent group pfsense-hub-agent >/dev/null; then
