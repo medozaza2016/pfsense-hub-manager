@@ -502,12 +502,13 @@ type HubAccessEndpoint = {
 };
 const defaultHubEndpoints: HubAccessEndpoint[] = [
  {method:"local",addressType:null,address:null,httpsPort:443,enabled:true},
- {method:"tailscale",addressType:"magic_dns",address:null,httpsPort:443,enabled:false},
- {method:"hostname",addressType:"hostname",address:null,httpsPort:443,enabled:false}
+ {method:"tailscale",addressType:null,address:null,httpsPort:443,enabled:false},
+ {method:"hostname",addressType:null,address:null,httpsPort:443,enabled:false}
 ];
 function HubSettingsPage(){
  const {notify}=useToast();
  const [endpoints,setEndpoints]=useState<HubAccessEndpoint[]>(defaultHubEndpoints);
+ const [activeMethod,setActiveMethod]=useState<HubAccessMethod>("local");
  const [deployment,setDeployment]=useState<{status:"pending"|"applied";desiredRevision:number;appliedRevision:number}>({status:"pending",desiredRevision:1,appliedRevision:0});
  const [busy,setBusy]=useState(true);
  const [loadFailed,setLoadFailed]=useState(false);
@@ -522,29 +523,36 @@ function HubSettingsPage(){
   }).then(result=>{
    if(!active)return;
    const saved:HubAccessEndpoint[] = result.data?.endpoints ?? [];
-   setEndpoints(defaultHubEndpoints.map(fallback=>saved.find(item=>item.method===fallback.method)??fallback));
+   const merged=defaultHubEndpoints.map(fallback=>saved.find(item=>item.method===fallback.method)??fallback);
+   const selected=merged.find(endpoint=>endpoint.enabled)?.method??"local";
+   setActiveMethod(selected);
+   setEndpoints(merged.map(endpoint=>({...endpoint,enabled:endpoint.method===selected})));
    if(result.data?.deployment)setDeployment(result.data.deployment);
   }).catch(error=>{if(active){setLoadFailed(true);setMessage(error instanceof Error?error.message:"Unable to load Hub access settings.");}})
    .finally(()=>{if(active)setBusy(false);});
   return()=>{active=false;};
  },[]);
+ function selectMethod(method:HubAccessMethod){
+  setActiveMethod(method);
+  setEndpoints(current=>current.map(endpoint=>({...endpoint,enabled:endpoint.method===method})));
+ }
  function updateEndpoint(method:HubAccessMethod,patch:Partial<HubAccessEndpoint>){
   setEndpoints(current=>current.map(endpoint=>endpoint.method===method?{...endpoint,...patch}:endpoint));
  }
  function addressTypeOptions(method:HubAccessMethod){
   if(method==="local")return <><option value="">Default local binding</option><option value="hostname">LAN hostname</option><option value="ip">LAN IP address</option></>;
-  if(method==="tailscale")return <><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip">Tailscale IPv4 address</option></>;
-  return <><option value="hostname">Hostname</option><option value="ip">IP address</option></>;
+  if(method==="tailscale")return <><option value="">Select address type</option><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip">Tailscale IPv4 address</option></>;
+  return <><option value="">Select address type</option><option value="hostname">Hostname</option><option value="ip">IP address</option></>;
  }
  async function save(event:React.FormEvent){
   event.preventDefault();setSaving(true);setMessage("");
   try{
-   const payload=endpoints.map(({method,addressType,address,httpsPort,enabled})=>({method,addressType:address?.trim()?addressType:null,address:address?.trim()||null,httpsPort,enabled}));
+   const payload=endpoints.map(({method,addressType,address,httpsPort,enabled})=>({method,addressType:address?.trim()?addressType:null,address:address?.trim()||null,httpsPort,enabled:method===activeMethod}));
    const response=await fetch("/api/v1/hub-settings/access-endpoints",{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoints:payload})});
    const result=await response.json();
    if(!response.ok)throw new Error(result.error?.message??"Unable to save Hub access settings.");
    setDeployment({status:"pending",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision});
-   const success="Access methods saved. Deployment confirmation is now pending.";
+   const success="Active access method and saved endpoint settings updated. Deployment confirmation is pending.";
    setMessage(success);notify(success,"success");
   }catch(error){
    const failure=error instanceof Error?error.message:"Unable to save Hub access settings.";
@@ -552,7 +560,7 @@ function HubSettingsPage(){
   }finally{setSaving(false);}
  }
  async function confirmDeployment(){
-  if(!window.confirm("Confirm that you have applied any required Docker Compose, reverse-proxy, DNS, and network changes for these access methods."))return;
+  if(!window.confirm("Confirm that you have applied the required host binding and network changes for the selected access method."))return;
   setConfirming(true);setMessage("");
   try{
    const response=await fetch("/api/v1/hub-settings/deployment-applied",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({confirmation:"APPLIED",expectedRevision:deployment.desiredRevision})});
@@ -567,42 +575,40 @@ function HubSettingsPage(){
   }finally{setConfirming(false);}
  }
  const methodCopy:Record<HubAccessMethod,{title:string;description:string;placeholder:string}> = {
-  local:{title:"Local network",description:"Use the local machine or a LAN address. Leave the address blank to use the default local binding.",placeholder:"192.168.1.20"},
-  tailscale:{title:"Tailscale",description:"Use an address already available on your tailnet. Hub Manager does not install or configure Tailscale.",placeholder:"hub.example-tailnet.ts.net"},
-  hostname:{title:"Hostname or IP",description:"Use a DNS hostname or network IP managed outside Hub Manager.",placeholder:"hub.example.com"}
+  local:{title:"LAN",description:"Use the Hub host's local network interface. Leave the address blank for the default local binding.",placeholder:"192.168.1.20"},
+  tailscale:{title:"Tailscale",description:"Use the Tailscale address assigned to the machine running Hub Manager. Tailscale is managed outside this application.",placeholder:"hub.example-tailnet.ts.net"},
+  hostname:{title:"Custom",description:"Use a specific hostname or IP address managed by your network. This does not configure DNS or a proxy.",placeholder:"hub.example.com"}
  };
- return <><div className="page-heading"><div><h1>Hub Settings</h1><p>Configure the access addresses administrators use to reach this Hub installation.</p></div></div>
+ const endpoint=endpoints.find(item=>item.method===activeMethod)??defaultHubEndpoints[0];
+ const addressLabel=endpoint.addressType==="magic_dns"?"Tailscale MagicDNS hostname":endpoint.addressType==="tailscale_ip"?"Tailscale IPv4 address":endpoint.addressType==="ip"?"IP address":activeMethod==="local"?"LAN hostname":"Hostname";
+ return <><div className="page-heading"><div><h1>Hub Settings</h1><p>Choose one access method for administrators to reach this Hub installation.</p></div></div>
   <form onSubmit={save} className="hub-settings-layout">
-   <Panel title="Access methods">
-    <p className="hub-settings-intro">Enable more than one access method. Each method has its own address and HTTPS port, and can be configured independently.</p>
-    <div className="hub-endpoint-list">{endpoints.map(endpoint=>{
-     const copy=methodCopy[endpoint.method];
-     const label=endpoint.addressType==="magic_dns"?"MagicDNS hostname":endpoint.addressType==="tailscale_ip"?"Tailscale IPv4 address":endpoint.addressType==="ip"?"IP address":endpoint.method==="local"?"LAN hostname":"Hostname";
-     return <section className="hub-endpoint-card" key={endpoint.method}>
-      <div className="hub-endpoint-heading"><div><strong>{copy.title}</strong><small>{copy.description}</small></div>
-       <label className="hub-endpoint-toggle"><input type="checkbox" checked={endpoint.enabled} onChange={event=>updateEndpoint(endpoint.method,{enabled:event.target.checked})}/><span>{endpoint.enabled?"Enabled":"Disabled"}</span></label>
-      </div>
-      <div className="hub-endpoint-fields">
-       <label>Address type<select value={endpoint.addressType??""} onChange={event=>updateEndpoint(endpoint.method,{addressType:event.target.value?event.target.value as HubAccessEndpoint["addressType"]:null,address:null})} disabled={busy}>
-        {addressTypeOptions(endpoint.method)}
-       </select></label>
-       <label>{label}<input value={endpoint.address??""} onChange={event=>updateEndpoint(endpoint.method,{address:event.target.value||null})} placeholder={copy.placeholder} disabled={busy||!endpoint.addressType}/></label>
-       <label>HTTPS port<input type="number" min="1" max="65535" value={endpoint.httpsPort} onChange={event=>updateEndpoint(endpoint.method,{httpsPort:Number(event.target.value)})} disabled={busy}/></label>
-      </div>
-     </section>;
-    })}</div>
+   <Panel title="Hub access">
+    <p className="hub-settings-intro">Select one active access method. Each tab keeps its own address type, address, and port when you switch between tabs.</p>
+    <div className="hub-access-tabs" role="tablist" aria-label="Hub access method">
+     {(["local","tailscale","hostname"] as HubAccessMethod[]).map(method=><button key={method} type="button" role="tab" aria-selected={activeMethod===method} className={activeMethod===method?"hub-access-tab active":"hub-access-tab"} onClick={()=>selectMethod(method)} disabled={busy}>{methodCopy[method].title}{activeMethod===method&&<span>Active</span>}</button>)}
+    </div>
+    <section className="hub-endpoint-card" role="tabpanel">
+     <div className="hub-endpoint-heading"><div><strong>{methodCopy[activeMethod].title} access</strong><small>{methodCopy[activeMethod].description}</small></div><span className="hub-active-indicator">Selected method</span></div>
+     <div className="hub-endpoint-fields">
+      <label>Address type<select value={endpoint.addressType??""} onChange={event=>updateEndpoint(activeMethod,{addressType:event.target.value?event.target.value as HubAccessEndpoint["addressType"]:null,address:null})} disabled={busy}>
+       {addressTypeOptions(activeMethod)}
+      </select></label>
+      <label>{addressLabel}<input value={endpoint.address??""} onChange={event=>updateEndpoint(activeMethod,{address:event.target.value||null})} placeholder={methodCopy[activeMethod].placeholder} disabled={busy||!endpoint.addressType}/></label>
+      <label>Port<input type="number" min="1" max="65535" value={endpoint.httpsPort} onChange={event=>updateEndpoint(activeMethod,{httpsPort:Number(event.target.value)})} disabled={busy}/></label>
+     </div>
+    </section>
     {message&&<div className="settings-message" role="status">{message}</div>}
-    <div className="hub-settings-actions"><button className="primary-button" disabled={busy||saving||loadFailed}>{saving?"Saving…":"Save access methods"}</button></div>
+    <div className="hub-settings-actions"><button className="primary-button" disabled={busy||saving||loadFailed}>{saving?"Saving…":"Save access method"}</button></div>
    </Panel>
    <Panel title="Deployment status">
     <div className={deployment.status==="pending"?"hub-deployment-state pending":"hub-deployment-state applied"}>
      <strong>{deployment.status==="pending"?"Deployment pending":"Deployment confirmed"}</strong>
      <span>Configuration revision {deployment.desiredRevision}, applied revision {deployment.appliedRevision}</span>
     </div>
-    <p className="hub-settings-note">Saving stores these addresses in PostgreSQL. It does not change Docker port bindings, install Tailscale, configure DNS or a reverse proxy, or test reachability. Apply any required infrastructure changes separately, then confirm below. Confirmation records your action, it does not verify connectivity.</p>
+    <p className="hub-settings-note">Saving stores the selected method and all three endpoint configurations in PostgreSQL. It does not change Docker port bindings, install Tailscale, configure DNS or a reverse proxy, or test reachability. Apply the required host binding separately, then confirm below. Confirmation records your action, it does not verify connectivity.</p>
     <button type="button" className="secondary-button" onClick={confirmDeployment} disabled={busy||loadFailed||confirming||saving||deployment.status==="applied"}>{confirming?"Recording…":"Confirm deployment applied"}</button>
    </Panel>
   </form>
  </>;
 }
-
