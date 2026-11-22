@@ -2,7 +2,7 @@ import { X509Certificate } from "node:crypto";
 
 const MAX_CA_BUNDLE_BYTES = 64 * 1024;
 const MAX_CA_CERTIFICATES = 8;
-const CERTIFICATE_BLOCK = /-----BEGIN CERTIFICATE-----[\\s\\S]+?-----END CERTIFICATE-----/g;
+const CERTIFICATE_BLOCK = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g;
 
 /**
  * Validates administrator-supplied trust anchors before they are persisted.
@@ -43,5 +43,5 @@ export function normalizeDeviceCaBundle(input: string): string {
     return certificate.toString();
   });
 
-  return normalized.join("\\n");
+  return normalized.join("\n");
 }
