@@ -38,7 +38,7 @@ function setup(actor: AdminUser = admin, overrides: {
     create: vi.fn(async () => profile),
     updateProfile: vi.fn(async () => profile),
     setEnabled: vi.fn(async () => profile),
-    archive: vi.fn(async () => true),
+    archive: vi.fn(async () => ({ resolvedAlertCount: 1 })),
     rotateCredential: vi.fn(async () => true),
     setDeviceCaBundle: vi.fn(async () => true),
     decryptDeviceCaBundle: vi.fn(async () => null),
@@ -312,7 +312,7 @@ describe("managed-device administrator routes", () => {
       alertsRetained: true,
       resolvedAlertCount: 1
     });
-    expect(state.devices.archive).toHaveBeenCalledWith(deviceId);
+    expect(state.devices.archive).toHaveBeenCalledWith(deviceId, admin.id);
     expect(state.pool.query).toHaveBeenCalledTimes(2);
     expect(state.pool.query.mock.calls[0]?.[0]).toContain("UPDATE alerts");
     expect(JSON.stringify(state.pool.query.mock.calls)).not.toContain("apiKey");
