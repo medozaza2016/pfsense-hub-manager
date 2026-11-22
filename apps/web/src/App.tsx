@@ -589,7 +589,7 @@ function HubSettingsPage(){
  }
  function addressTypeOptions(method:HubAccessMethod){
   if(method==="local")return <><option value="">Default local binding</option><option value="hostname">LAN hostname</option><option value="ip">LAN IP address</option></>;
-  if(method==="tailscale")return <><option value="">Select address type</option><option value="magic_dns">Tailscale MagicDNS hostname</option></>;
+  if(method==="tailscale")return <><option value="">Select address type</option><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip" disabled>Tailscale IPv4, not valid for HTTPS</option></>;
   return <><option value="">Select address type</option><option value="hostname">Hostname</option><option value="ip">IP address</option></>;
  }
  async function save(event:React.FormEvent){
