@@ -136,13 +136,61 @@ class DeploymentAgentTests(unittest.TestCase):
             ["/usr/bin/tailscale", "funnel", "status", "--json"], timeout=10
         )
 
-    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=192.168.1.20\n", "192.168.1.20"))
-    @patch.object(agent, "get_deployment")
-    def test_requires_loopback_binding_for_operator_managed_tailscale_serve(self, get_deployment, read_bind):
-        get_deployment.return_value = self.endpoint
-        with self.assertRaises(agent.AgentError) as caught:
-            agent.deploy(self.config, self.request)
-        self.assertEqual(caught.exception.code, "TAILSCALE_LOOPBACK_BINDING_REQUIRED")
+    def test_switches_lan_binding_to_loopback_for_tailscale_serve(self):
+        endpoint = {
+            **self.endpoint,
+            "previousAppliedOrigin": "https://old.example.com",
+        }
+        with (
+            patch.object(agent, "get_deployment", return_value=endpoint),
+            patch.object(agent, "read_bind_address", side_effect=[
+                ("HUB_BIND_ADDRESS=192.168.1.20\\n", "192.168.1.20"),
+                ("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"),
+            ]),
+            patch.object(agent, "write_bind_address") as write_bind,
+            patch.object(agent, "compose_web_recreate") as recreate,
+            patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"})),
+            patch.object(agent, "serve_status", return_value=self.serve_status),
+            patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{}}'),
+            patch.object(agent, "verify_https_with_retries") as verify,
+        ):
+            result = agent.deploy(self.config, self.request)
+        self.assertEqual(result, {"state": "succeeded", "appliedOrigin": "https://hub.example.ts.net"})
+        write_bind.assert_called_once_with(self.config, "127.0.0.1")
+        recreate.assert_called_once_with(self.config)
+        verify.assert_called_once_with("https://hub.example.ts.net")
+
+    def test_rolls_back_lan_binding_when_tailscale_verification_fails(self):
+        endpoint = {
+            **self.endpoint,
+            "previousAppliedOrigin": "https://old.example.com",
+        }
+        with (
+            patch.object(agent, "get_deployment", return_value=endpoint),
+            patch.object(agent, "read_bind_address", side_effect=[
+                ("HUB_BIND_ADDRESS=192.168.1.20\\n", "192.168.1.20"),
+                ("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"),
+            ]),
+            patch.object(agent, "write_bind_address") as write_bind,
+            patch.object(agent, "compose_web_recreate") as recreate,
+            patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"})),
+            patch.object(agent, "serve_status", return_value=self.serve_status),
+            patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{}}'),
+            patch.object(agent, "verify_https_with_retries", side_effect=[
+                agent.AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED"), None
+            ]) as verify,
+        ):
+            result = agent.deploy(self.config, self.request)
+        self.assertEqual(result, {
+            "state": "rolled_back",
+            "errorCode": "TLS_OR_ENDPOINT_VERIFICATION_FAILED",
+            "rollbackSucceeded": True,
+        })
+        self.assertEqual(write_bind.call_args_list[0].args, (self.config, "127.0.0.1"))
+        self.assertEqual(write_bind.call_args_list[1].args, (self.config, "192.168.1.20"))
+        self.assertEqual(recreate.call_count, 2)
+        verify.assert_any_call("https://hub.example.ts.net")
+        verify.assert_any_call("https://old.example.com")
 
     @patch.object(agent, "verify_https_with_retries")
     @patch.object(agent, "compose_web_recreate")
