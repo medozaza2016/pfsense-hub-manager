@@ -18,14 +18,14 @@ The existing endpoint settings and desired/applied revision model remain the sou
 
 1. The authenticated administrator submits the complete three-endpoint configuration.
 2. The API validates the complete configuration, persists it transactionally, increments the desired revision, and creates a deployment record for that revision.
-3. The API submits only the deployment identifier and validated desired revision to the restricted host agent. The agent must independently retrieve the approved configuration from a narrowly authenticated API endpoint or another explicitly provisioned read-only source, then validate it. The API retrieval route is implemented with a dedicated bearer token and checks the deployment state and current desired revision. The Linux agent client for this route is not yet implemented. The agent must not be given unrestricted database or Docker access merely to obtain settings. It never accepts arbitrary shell commands, Compose arguments, file paths, service names, ports, or environment variable names.
+3. The API submits only the deployment identifier and validated desired revision to the restricted host agent. The agent must independently retrieve the approved configuration from a narrowly authenticated API endpoint or another explicitly provisioned read-only source, then validate it. The API retrieval route is implemented with a dedicated bearer token and checks the deployment state and current desired revision. The Linux agent client for this route is implemented. The agent must not be given unrestricted database or Docker access merely to obtain settings. It never accepts arbitrary shell commands, Compose arguments, file paths, service names, ports, or environment variable names.
 4. The Linux agent serializes requests over one Unix-socket worker and a host lock. The API also holds a PostgreSQL desired-revision row lock for the duration of host verification, so a concurrent settings save cannot supersede an in-flight deployment.
-5. For Tailscale, the agent verifies the requested MagicDNS name exactly matches the connected host's DNSName and appears in the host's CertDomains. It refuses Tailscale IP addresses and refuses to overwrite existing Serve or Funnel configuration.
-6. The agent configures only `tailscale serve --bg --https=<port> http://127.0.0.1:8080`. It does not change Docker Compose bindings, restart containers, enable HTTPS for the tailnet, change ACLs, or enable Funnel.
+5. For Tailscale, the agent verifies the requested MagicDNS name exactly matches the connected host's DNSName and appears in the host's CertDomains. It refuses Tailscale IP addresses and requires the exact private Serve route to already exist.
+6. The agent does not configure or modify Tailscale Serve, Funnel, DNS, Docker Compose bindings, or host interfaces. It verifies the existing private Serve route only. Tailnet HTTPS and Serve setup remain operator-managed.
 7. The agent probes the exact HTTPS origin and `/health` endpoint with normal certificate-chain and hostname verification. A port label in Hub Settings is not proof that TLS is configured.
 8. Only after the HTTPS probe succeeds does the agent return a verified origin. The API records the applied revision and exposes deployment status/history to the browser.
 9. The browser redirects only to an HTTPS origin returned by a successful deployment status response. The Hub Settings page shows the last verified origin as a recovery link. Host-side verification does not prove that the administrator's current client has working DNS or a route to the tailnet.
-10. If verification fails after the agent creates its Serve endpoint, it removes only that newly-created endpoint and verifies that Serve no longer reports it. It reports rollback success only after that check. Existing Serve/Funnel configuration is never reset or overwritten.
+10. If verification fails, the agent reports a safe failure code and leaves the operator-managed Serve/Funnel configuration unchanged. There is no host-side rollback because the current agent does not mutate host or Tailscale configuration.
 
 ## TLS and Tailscale deployment model
 
@@ -33,7 +33,7 @@ The current web container's Nginx configuration listens on plain HTTP at contain
 
 TLS is mode-specific:
 
-- **Tailscale:** use an already-installed and authenticated Tailscale client on the Linux host. The agent verifies an operator-configured Tailscale Serve HTTPS proxy to the Hub's loopback-only HTTP listener. It checks that the selected MagicDNS name is the local node and is listed in `CertDomains` before making changes. Tailscale Serve terminates TLS using its automatically provisioned certificate. The agent does not install or authenticate Tailscale, configure Serve or Funnel, enable tailnet HTTPS, change ACLs, or enable Funnel. It refuses a Funnel-enabled route and fails if the exact private Serve route is absent.
+- **Tailscale:** use an already-installed and authenticated Tailscale client on the Linux host. The agent verifies an operator-configured Tailscale Serve HTTPS proxy to the Hub's loopback-only HTTP listener. It checks that the selected MagicDNS name is the local node and is listed in `CertDomains` before probing. Tailscale Serve terminates TLS using its automatically provisioned certificate. The agent does not install or authenticate Tailscale, configure Serve or Funnel, enable tailnet HTTPS, change ACLs, or enable Funnel. It refuses a Funnel-enabled route and fails if the exact private Serve route is absent.
 - **LAN and Custom:** these modes still require an explicitly configured TLS termination layer with a valid certificate and hostname/IP identity appropriate to the endpoint. Certificate provisioning, renewal, and rollback are not implemented. These methods are disabled in the current UI and are not deployable.
 
 The API-to-agent contract requires an `https://` success origin and rejects plaintext success responses. For Tailscale mode, this origin is verified through Tailscale Serve. For LAN and Custom, it must be verified through their separately configured TLS termination layer. No mode may silently fall back to remote plaintext HTTP.
@@ -42,15 +42,15 @@ The agent must control only a fixed, documented configuration surface. It must n
 
 ## Host agent security boundary
 
-- Run the Linux agent as a root-owned systemd service because it controls the local Tailscale daemon. The service drops all Linux capabilities, uses systemd filesystem hardening, and is writable only to its socket and runtime-lock directories.
+- Run the Linux agent as a root-owned systemd service for predictable access to the local Tailscale CLI and daemon status interface. The agent does not change Tailscale configuration. The service drops all Linux capabilities, uses systemd filesystem hardening, and is writable only to its socket and runtime-lock directories.
 - The agent is a separate host process, not a container with `/var/run/docker.sock` mounted. It does not invoke Docker or Compose.
 - Expose a local Unix-domain socket with a dedicated group, set-group-ID socket directory, and mode 0660. The API container receives that directory read-only and joins only the dedicated supplementary group. It never receives the Docker socket.
 - The agent accepts a strict, versioned JSON request containing only a deployment UUID and desired revision. It retrieves approved configuration from the loopback-only API endpoint using a root-owned bearer token. Unknown properties and stale revisions are rejected.
 - The only host command operations are fixed Tailscale status, Serve status, and Funnel status queries. No Tailscale configuration mutation is performed. The binary path and local web target come from root-owned configuration, never API input. No arbitrary shell, path, Docker argument, environment variable, or service name is accepted.
-- Validate every bind address against host interface assignments immediately before applying. Reject wildcard, multicast, unspecified, loopback for remote modes, and addresses not assigned to an eligible interface.
+- Validate the selected Tailscale MagicDNS identity against the connected host's DNSName and CertDomains. Reject IP-address endpoints and any Serve route that does not proxy to the fixed loopback web target.
 - Use a process lock and compare-and-swap revision check to prevent overlapping or stale deployments.
 - Bound command duration, probe duration, retries, output size, and log retention. Redact environment values and never return secrets.
-- Audit request, actor, target mode, revision, timestamps, result, and rollback result. Do not log credentials or full environment files.
+- The API audit event records the administrator and desired revision. Deployment history stores safe result codes and timestamps only. Do not log credentials, bearer tokens, or private key material.
 
 ## Platform behavior
 
@@ -68,7 +68,7 @@ The production Linux agent does not run on Windows. Leave the agent token and so
 
 Migration `014_hub_access_deployments.sql` adds deployment history keyed by generated deployment ID, desired revision, requested mode, state, safe error code, timestamps, applied origin, rollback outcome, and actor. States are queued, validating, applying, verifying, succeeded, rolling_back, rolled_back, and failed. No secrets or arbitrary command output are stored.
 
-The API exposes current desired endpoint settings and applied revision, a save operation that persists settings and queues deployment, status lookup by deployment ID, and bounded deployment history for administrators. The dispatcher holds a PostgreSQL row lock on the desired revision while the host agent verifies the endpoint. This serializes concurrent settings changes against an in-flight apply. The agent transport remains fail-closed when the Linux host agent is not installed or configured.
+The API exposes current desired endpoint settings and applied revision, a save operation that persists settings and queues deployment, status lookup by deployment ID, and bounded deployment history for administrators. The dispatcher holds a PostgreSQL row lock on the desired revision while the host agent verifies the endpoint. This serializes concurrent settings changes against an in-flight verification. The agent transport remains fail-closed when the Linux host agent is not installed or configured.
 
 All mutation routes require an administrator session and server-side authorization. Reject stale desired revisions with HTTP 409. Deployment requests are idempotent per desired revision. Do not accept a browser-supplied applied status, host path, arbitrary bind address, or arbitrary origin.
 
