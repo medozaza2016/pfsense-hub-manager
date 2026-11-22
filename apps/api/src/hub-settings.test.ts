@@ -3,8 +3,8 @@ import { hubAccessEndpointsSchema } from "./hub-settings.js";
 
 const endpoint = (method: "local" | "tailscale" | "hostname", overrides: Record<string, unknown> = {}) => ({
   method,
-  addressType: null,
-  address: null,
+  addressType: method === "local" ? "ip" : null,
+  address: method === "local" ? "192.168.1.20" : null,
   httpsPort: 443,
   enabled: method === "local",
   ...overrides
