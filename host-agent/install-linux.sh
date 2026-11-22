@@ -48,6 +48,16 @@ for line in open(sys.argv[1], encoding="utf-8"):
 print(values.get("HUB_AGENT_API_PORT", "3001"))
 PY
 )"
+for required_setting in \
+  'HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock' \
+  'HUB_AGENT_GID=2000' \
+  'HUB_BIND_ADDRESS=127.0.0.1' \
+  'WEB_PORT=8080'; do
+  grep -Fxq "$required_setting" "$ENV_FILE" || {
+    echo "Set $required_setting in .env before installing the host agent." >&2
+    exit 1
+  }
+done
 if [[ "${#TOKEN}" -lt 32 ]]; then
   echo "Set HUB_DEPLOYMENT_AGENT_TOKEN to a random value of at least 32 characters in .env first." >&2
   exit 1
