@@ -96,7 +96,7 @@ describe("DevicePfSenseClientFactory", () => {
     await factory.create(deviceId);
 
     expect(buildClient).toHaveBeenCalledWith(
-      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
+      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://legacy-firewall.example" }),
       apiKey,
       { mode: "custom-ca", certificateAuthority: Buffer.from(certificate, "utf8"), servername: null }
     );
@@ -117,7 +117,7 @@ describe("DevicePfSenseClientFactory", () => {
     await factory.create(deviceId);
 
     expect(buildClient).toHaveBeenCalledWith(
-      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
+      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://legacy-firewall.example" }),
       apiKey,
       { mode: "system", servername: null }
     );
