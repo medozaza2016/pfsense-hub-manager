@@ -207,4 +207,18 @@ Frontend implementation follows the backend contract in [Multi-site Onboarding I
 7. Desktop and mobile layouts are checked against the approved visual reference and existing design system.
 8. Loading, empty, validation, permission-denied, network-error, and partial-failure states are handled explicitly.
 
+### Manager-side site lifecycle increment, November 21, 2026
+
+The feature branch now extends the existing Sites workspace and Site Settings rather than introducing a new design. The implemented controls are backed by administrator-only manager API routes:
+
+- [x] Edit a site's name, location, edition, and HTTPS API origin.
+- [x] Enable or disable manager-side site polling.
+- [x] Rotate an API credential only after a successful read-only authenticated version check. The credential is never returned to the browser.
+- [x] Set or clear encrypted custom TLS CA trust.
+- [x] Archive a site through a typed `ARCHIVE` confirmation. The API enforces the same literal confirmation, purges encrypted connection secrets, resolves active device alerts, and retains polling history, alert records, and audit history.
+- [x] Keep demo records non-actionable for edit and archive operations.
+- [x] Keep firewall configuration operations outside this lifecycle. No pfSense configuration write method was added.
+
+The API and UI changes are committed to `feature/multi-site-onboarding`. Local typecheck, test, production build, Docker Compose build, and browser validation remain outstanding and must be completed before treating this increment as verified.
+
 The frontend milestone is not complete merely because the Add Site dialog renders. It is complete only when the GUI uses the real backend lifecycle and the acceptance criteria above pass.
