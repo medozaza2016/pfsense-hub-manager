@@ -30,9 +30,6 @@ class DeploymentAgentTests(unittest.TestCase):
             "deploymentId": "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1",
             "desiredRevision": 3,
         }
-        self.read_bind_patcher = patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"))
-        self.read_bind_patcher.start()
-        self.addCleanup(self.read_bind_patcher.stop)
         self.endpoint = {
             "deploymentId": self.request["deploymentId"],
             "desiredRevision": 3,
@@ -47,6 +44,12 @@ class DeploymentAgentTests(unittest.TestCase):
             '{"Proxy":"http://127.0.0.1:8080"}}}}}'
         )
 
+    def loopback_bind(self):
+        return patch.object(
+            agent, "read_bind_address",
+            return_value=("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1")
+        )
+
     def test_rejects_unknown_request_fields(self):
         with self.assertRaises(agent.AgentError) as caught:
             agent.deploy(self.config, {**self.request, "command": "id"})
@@ -54,7 +57,9 @@ class DeploymentAgentTests(unittest.TestCase):
 
     @patch.object(agent, "get_deployment")
     def test_rejects_local_without_an_explicit_bind_address(self, get_deployment):
-        get_deployment.return_value = {**self.endpoint, "method": "local", "addressType": None, "address": None}
+        get_deployment.return_value = {
+            **self.endpoint, "method": "local", "addressType": None, "address": None
+        }
         with self.assertRaises(agent.AgentError) as caught:
             agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "DEPLOYMENT_ENDPOINT_INVALID")
@@ -63,16 +68,18 @@ class DeploymentAgentTests(unittest.TestCase):
     @patch.object(agent, "get_deployment")
     def test_requires_exact_magicdns_identity(self, get_deployment, identity):
         get_deployment.return_value = {**self.endpoint, "address": "other-device.example.ts.net"}
-        with self.assertRaises(agent.AgentError) as caught:
-            agent.deploy(self.config, self.request)
+        with self.loopback_bind():
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_ADDRESS_MISMATCH")
 
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, set()))
     @patch.object(agent, "get_deployment")
     def test_requires_tailscale_https_certificate_eligibility(self, get_deployment, identity):
         get_deployment.return_value = self.endpoint
-        with self.assertRaises(agent.AgentError) as caught:
-            agent.deploy(self.config, self.request)
+        with self.loopback_bind():
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_HTTPS_NOT_ENABLED")
 
     @patch.object(agent, "serve_status", return_value="")
@@ -80,8 +87,9 @@ class DeploymentAgentTests(unittest.TestCase):
     @patch.object(agent, "get_deployment")
     def test_requires_an_operator_configured_serve_route(self, get_deployment, identity, serve_status):
         get_deployment.return_value = self.endpoint
-        with self.assertRaises(agent.AgentError) as caught:
-            agent.deploy(self.config, self.request)
+        with self.loopback_bind():
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_SERVE_NOT_CONFIGURED")
 
     @patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{"443":true}}')
@@ -90,8 +98,9 @@ class DeploymentAgentTests(unittest.TestCase):
     @patch.object(agent, "get_deployment")
     def test_refuses_a_public_funnel_route(self, get_deployment, identity, serve_status, run_fixed):
         get_deployment.return_value = self.endpoint
-        with self.assertRaises(agent.AgentError) as caught:
-            agent.deploy(self.config, self.request)
+        with self.loopback_bind():
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
 
     @patch.object(agent, "verify_https_with_retries")
@@ -102,7 +111,8 @@ class DeploymentAgentTests(unittest.TestCase):
     def test_verifies_preconfigured_private_serve_route(self, get_deployment, identity, serve_status, run_fixed, verify_https):
         get_deployment.return_value = self.endpoint
         serve_status.return_value = self.serve_status
-        result = agent.deploy(self.config, self.request)
+        with self.loopback_bind():
+            result = agent.deploy(self.config, self.request)
         self.assertEqual(result, {"state": "succeeded", "appliedOrigin": "https://hub.example.ts.net"})
         verify_https.assert_called_once_with("https://hub.example.ts.net")
         run_fixed.assert_called_once_with(
@@ -118,14 +128,21 @@ class DeploymentAgentTests(unittest.TestCase):
     def test_probe_failure_does_not_mutate_operator_managed_serve(self, get_deployment, identity, serve_status, run_fixed, verify_https):
         get_deployment.return_value = self.endpoint
         serve_status.return_value = self.serve_status
-        with self.assertRaises(agent.AgentError) as caught:
-            agent.deploy(self.config, self.request)
+        with self.loopback_bind():
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TLS_OR_ENDPOINT_VERIFICATION_FAILED")
         run_fixed.assert_called_once_with(
             ["/usr/bin/tailscale", "funnel", "status", "--json"], timeout=10
         )
 
-
+    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=192.168.1.20\\n", "192.168.1.20"))
+    @patch.object(agent, "get_deployment")
+    def test_requires_loopback_binding_for_operator_managed_tailscale_serve(self, get_deployment, read_bind):
+        get_deployment.return_value = self.endpoint
+        with self.assertRaises(agent.AgentError) as caught:
+            agent.deploy(self.config, self.request)
+        self.assertEqual(caught.exception.code, "TAILSCALE_LOOPBACK_BINDING_REQUIRED")
 
     @patch.object(agent, "verify_https_with_retries")
     @patch.object(agent, "compose_web_recreate")
@@ -183,25 +200,23 @@ class DeploymentAgentTests(unittest.TestCase):
     @patch.object(agent, "socket.getaddrinfo", return_value=[(2, 1, 6, "", ("192.168.1.20", 0))])
     @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("192.168.1.20")})
     def test_resolves_hostname_only_to_an_address_assigned_to_this_host(self, assigned, getaddrinfo):
-        endpoint = {
-            "method": "hostname",
-            "addressType": "hostname",
-            "address": "hub.example.com",
-        }
+        endpoint = {"method": "hostname", "addressType": "hostname", "address": "hub.example.com"}
         self.assertEqual(agent.resolve_bind_address(endpoint, self.config), "192.168.1.20")
 
     @patch.object(agent, "socket.getaddrinfo", return_value=[(2, 1, 6, "", ("192.168.1.30", 0))])
     @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("192.168.1.20")})
     def test_rejects_hostname_that_does_not_resolve_to_a_local_interface(self, assigned, getaddrinfo):
-        endpoint = {
-            "method": "hostname",
-            "addressType": "hostname",
-            "address": "other.example.com",
-        }
+        endpoint = {"method": "hostname", "addressType": "hostname", "address": "other.example.com"}
         with self.assertRaises(agent.AgentError) as caught:
             agent.resolve_bind_address(endpoint, self.config)
         self.assertEqual(caught.exception.code, "HOST_BIND_ADDRESS_NOT_ASSIGNED")
 
+    @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("8.8.8.8")})
+    def test_rejects_publicly_routable_host_bind_addresses(self, assigned):
+        endpoint = {"method": "local", "addressType": "ip", "address": "8.8.8.8"}
+        with self.assertRaises(agent.AgentError) as caught:
+            agent.resolve_bind_address(endpoint, self.config)
+        self.assertEqual(caught.exception.code, "HOST_BIND_PUBLIC_ADDRESS_NOT_ALLOWED")
 
     def test_updates_only_hub_bind_address_and_preserves_other_environment(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -214,7 +229,6 @@ class DeploymentAgentTests(unittest.TestCase):
                 "POSTGRES_PASSWORD=keep-this\\nHUB_BIND_ADDRESS=192.168.1.20\\nWEB_PORT=8080\\n"
             )
 
-
     @patch.object(agent, "run_fixed")
     def test_compose_recreation_targets_only_web_without_build_or_dependencies(self, run_fixed):
         agent.compose_web_recreate(self.config)
@@ -226,26 +240,6 @@ class DeploymentAgentTests(unittest.TestCase):
         )
         self.assertEqual(run_fixed.call_args_list[1].kwargs, {"timeout": 45})
 
-
-    @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("8.8.8.8")})
-    def test_rejects_publicly_routable_host_bind_addresses(self, assigned):
-        endpoint = {
-            "method": "local",
-            "addressType": "ip",
-            "address": "8.8.8.8",
-        }
-        with self.assertRaises(agent.AgentError) as caught:
-            agent.resolve_bind_address(endpoint, self.config)
-        self.assertEqual(caught.exception.code, "HOST_BIND_PUBLIC_ADDRESS_NOT_ALLOWED")
-
-
-    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=192.168.1.20\\n", "192.168.1.20"))
-    @patch.object(agent, "get_deployment")
-    def test_requires_loopback_binding_for_operator_managed_tailscale_serve(self, get_deployment, read_bind):
-        get_deployment.return_value = self.endpoint
-        with self.assertRaises(agent.AgentError) as caught:
-            agent.deploy(self.config, self.request)
-        self.assertEqual(caught.exception.code, "TAILSCALE_LOOPBACK_BINDING_REQUIRED")
 
 if __name__ == "__main__":
     unittest.main()
