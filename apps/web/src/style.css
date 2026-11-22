@@ -180,3 +180,11 @@
 .hub-active-indicator{font-size:12px;font-weight:650;color:var(--accent-strong,#1d4ed8);white-space:nowrap}
 .hub-access-tab:disabled{opacity:.6;cursor:not-allowed}
 @media(max-width:640px){.hub-access-tabs{gap:6px}.hub-access-tab{padding:10px 6px;gap:5px;flex-direction:column;font-size:13px}}
+/* Recent Hub access deployment history */
+.hub-deployment-history{display:grid;gap:8px}
+.hub-deployment-history-row{display:grid;grid-template-columns:1fr auto auto;gap:5px 12px;align-items:center;padding:10px 0;border-bottom:1px solid #e5ebf3;font-size:11px;color:#526783}
+.hub-deployment-history-row:last-child{border-bottom:0}
+.hub-deployment-history-row strong{color:#173453;font-size:12px}
+.hub-deployment-history-row time{grid-column:1 / -1;color:#718198;font-size:10px}
+.hub-deployment-history-row small{grid-column:1 / -1;color:#a14b35;font-size:10px}
+@media(max-width:600px){.hub-deployment-history-row{grid-template-columns:1fr auto}.hub-deployment-history-row span:nth-of-type(2){grid-column:1 / -1}}
