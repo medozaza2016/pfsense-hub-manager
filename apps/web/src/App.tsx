@@ -508,6 +508,7 @@ const deploymentErrorCopy:Record<string,string> = {
  TLS_METHOD_NOT_SUPPORTED_YET:"This access method still needs a trusted TLS certificate and deployment configuration.",
  TAILSCALE_HTTPS_NOT_ENABLED:"Enable HTTPS certificates for this tailnet before using Tailscale Serve.",
  TAILSCALE_SERVE_NOT_CONFIGURED:"Configure a private Tailscale Serve route to the Hub loopback service before saving this method.",
+ TAILSCALE_LOOPBACK_BINDING_REQUIRED:"Tailscale Serve requires the Hub web service to remain bound to 127.0.0.1. Restore the loopback bind before using this method.",
  HOST_BIND_ADDRESS_NOT_ASSIGNED:"The selected address does not resolve to an IP assigned to this Hub host.",
  HOST_BIND_HOSTNAME_RESOLUTION_FAILED:"The selected hostname could not be resolved by the Hub host.",
  HOST_BIND_LOOPBACK_NOT_ALLOWED:"A Custom hostname cannot bind to a loopback address.",
