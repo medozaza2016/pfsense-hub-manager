@@ -58,6 +58,11 @@ describe("managed device profile validation", () => {
     expect(createDeviceSchema.safeParse({ ...validInput, apiBaseUrl: "https://100.64.0.1" }).success).toBe(true);
   });
 
+  it("rejects malformed TLS server names", () => {
+    expect(createDeviceSchema.safeParse({ ...validInput, tlsServername: "bad host name" }).success).toBe(false);
+    expect(createDeviceSchema.safeParse({ ...validInput, tlsServername: "firewall.example.test" }).success).toBe(true);
+  });
+
   it("keeps credentials out of profile update input", () => {
     expect(updateDeviceProfileSchema.safeParse({ ...validInput, apiKey: "should-not-be-accepted" }).success).toBe(false);
   });
@@ -71,6 +76,7 @@ describe("DeviceRepository", () => {
       location: "New Jersey",
       edition: "ce",
       api_base_url: "https://192.168.10.1",
+      tls_servername: null,
       enabled: true,
       is_demo: false,
       created_at: new Date("2026-01-01T00:00:00.000Z"),
@@ -104,6 +110,43 @@ describe("DeviceRepository", () => {
     expect(parameters?.[1]).toBe(2);
     expect(parameters?.[2]).toBeInstanceOf(Buffer);
     expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it("persists TLS server identity and encrypted custom CA trust atomically", async () => {
+    const certificate = readFileSync(new URL("../pfsense/fixtures/firewall-test-cert.pem", import.meta.url), "utf8");
+    const insertedRow = {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Main Office",
+      location: "New Jersey",
+      edition: "ce",
+      api_base_url: "https://192.168.10.1",
+      tls_servername: "firewall.example.test",
+      enabled: true,
+      is_demo: false,
+      created_at: new Date("2026-01-01T00:00:00.000Z"),
+      updated_at: new Date("2026-01-01T00:00:00.000Z")
+    };
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [insertedRow], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+    const client = makePoolClient(query);
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    const result = await repository.create({
+      ...validInput,
+      tlsServername: "firewall.example.test",
+      certificateAuthority: certificate
+    });
+    expect(result.tlsServername).toBe("firewall.example.test");
+    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\\s+/)[0])).toEqual([
+      "BEGIN", "INSERT", "INSERT", "INSERT", "COMMIT"
+    ]);
+    expect(String(query.mock.calls[3]?.[0])).toContain("device_tls_trust");
+    expect(query.mock.calls[3]?.[1]).not.toContain(certificate);
   });
 
   it("rolls back profile creation if credential persistence fails", async () => {
