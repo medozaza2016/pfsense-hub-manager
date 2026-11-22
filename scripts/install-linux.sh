@@ -13,19 +13,12 @@ if [[ "$(git branch --show-current)" != "feature/multi-site-onboarding" ]]; then
   echo "Unexpected Git branch. Check out feature/multi-site-onboarding first." >&2
   exit 1
 fi
-if [[ -e .env || -e secrets/pfsense_api_key || -e secrets/code_server_password || -e secrets/runtime/app_encryption_key ]]; then
+if [[ -e .env || -e secrets/pfsense_api_key || -e secrets/runtime/app_encryption_key ]]; then
   echo "Existing configuration or secret files detected. Refusing to overwrite them." >&2
   exit 1
 fi
 command -v docker >/dev/null
 docker compose version >/dev/null
-
-read -r -s -p "Choose a code-server password (minimum 16 characters): " CODE_PASSWORD </dev/tty
-echo
-if [[ ${#CODE_PASSWORD} -lt 16 ]]; then
-  echo "Password must contain at least 16 characters." >&2
-  exit 1
-fi
 
 mkdir -p secrets/runtime certs
 chmod 700 secrets secrets/runtime
@@ -33,13 +26,10 @@ DB_PASSWORD=$(openssl rand -hex 32)
 APP_KEY=$(openssl rand -hex 32)
 
 : > secrets/pfsense_api_key
-printf '%s\n' "$CODE_PASSWORD" > secrets/code_server_password
 printf '%s\n' "$APP_KEY" > secrets/runtime/app_encryption_key
-unset CODE_PASSWORD
 
 chown 1000:1000 secrets/pfsense_api_key secrets/runtime/app_encryption_key
 chmod 400 secrets/pfsense_api_key secrets/runtime/app_encryption_key
-chmod 444 secrets/code_server_password
 
 cat > .env <<EOF
 POSTGRES_DB=pfsense_hub
@@ -58,7 +48,6 @@ HUB_AGENT_GID=2000
 HUB_ACCESS_DEPLOYMENT_ENABLED=false
 HUB_BIND_ADDRESS=127.0.0.1
 WEB_PORT=8080
-CODE_SERVER_PORT=8443
 PFSENSE_CA_FILE=
 EOF
 unset DB_PASSWORD
