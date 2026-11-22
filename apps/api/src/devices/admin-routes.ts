@@ -14,7 +14,7 @@ import {
   DeviceRepository
 } from "./device-repository.js";
 import type { DevicePfSenseClientFactory } from "../pfsense/device-client-factory.js";
-import { classifyError } from "../pfsense/errors.js";
+import { classifyError, PfSenseApiError } from "../pfsense/errors.js";
 import { normalizeDeviceCaBundle } from "../pfsense/tls-trust.js";
 import { resolveSafeDeviceDestination } from "./network-destination.js";
 import { createPinnedLookup } from "../pfsense/client.js";
@@ -197,6 +197,11 @@ export async function registerDeviceAdminRoutes(
       return { data: { outcome: "reachable", operation: "version", testedAt: new Date().toISOString() } };
     } catch (error) {
       const errorClass = classifyError(error);
+      const diagnosticCode = error instanceof PfSenseApiError ? error.diagnosticCode : undefined;
+      request.log.warn({
+        errorClass,
+        ...(diagnosticCode ? { diagnosticCode } : {})
+      }, "Firewall registration connection test failed");
       await appendAudit(pool, {
         actorId: actor.id,
         actorUsername: actor.username,
@@ -208,7 +213,7 @@ export async function registerDeviceAdminRoutes(
         requestId: request.id
       });
       return reply.code(422).send({
-        error: { code: "CONNECTION_TEST_FAILED", message: "Firewall connection test failed.", errorClass }
+        error: { code: "CONNECTION_TEST_FAILED", message: "Firewall connection test failed.", errorClass, ...(diagnosticCode ? { diagnosticCode } : {}) }
       });
     }
   });
