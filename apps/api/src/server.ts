@@ -3,8 +3,9 @@ import { z } from "zod";
 import { loadConfig, loadApiKey, loadEncryptionKey } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { migrate } from "./db/migrate.js";
-import { PfSenseClient } from "./pfsense/client.js";
+import { DevicePfSenseClientFactory } from "./pfsense/device-client-factory.js";
 import { PfSenseProvider } from "./pfsense/provider.js";
+import { DeviceRepository } from "./devices/device-repository.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
 import { appendAudit, upsertAlert } from "./audit.js";
@@ -12,11 +13,11 @@ import { appendAudit, upsertAlert } from "./audit.js";
 const config = loadConfig();
 const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
 const encryptionKey = await loadEncryptionKey(config.APP_ENCRYPTION_KEY_FILE);
-void encryptionKey;
 const pool = createPool(config);
 await migrate(pool);
-const client = new PfSenseClient(config, apiKey);
-const provider = new PfSenseProvider(client, config, pool);
+const devices = new DeviceRepository(pool, encryptionKey);
+const clientFactory = new DevicePfSenseClientFactory(config, devices);
+const provider = new PfSenseProvider(clientFactory, devices, config, apiKey, pool);
 await provider.ensureDevice();
 const app = Fastify({
   logger: { level: config.NODE_ENV === "production" ? "info" : "debug", redact: ["req.headers.x-api-key", "req.headers.authorization", "req.headers.cookie"] },
@@ -369,12 +370,15 @@ app.get("/api/v1/devices/:deviceId", async (request, reply) => {
 });
 app.get("/api/v1/devices/:deviceId/capabilities", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
-  if (deviceId !== config.PFSENSE_DEVICE_ID) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  const device = (await provider.listDevices()).find(item => item.id === deviceId);
+  if (!device || device.isDemo) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
   return { data: await provider.capabilities() };
 });
 app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
-  if (deviceId !== config.PFSENSE_DEVICE_ID) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  const device = (await provider.listDevices()).find(item => item.id === deviceId);
+  if (!device || device.isDemo) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  if (!device.enabled) return reply.code(409).send({ error: { code: "DEVICE_DISABLED", message: "Enable this firewall before requesting live status." } });
   const started = Date.now();
   const result = await provider.collect(deviceId, (group, outcome, errorClass, durationMs) => {
     polls.inc({ device_id: deviceId, operation_group: group, result: outcome });
@@ -382,7 +386,8 @@ app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
     if (outcome === "failure") pollErrors.inc({ device_id: deviceId, operation_group: group, error_class: errorClass ?? "unknown" });
     else lastSuccess.set({ device_id: deviceId }, Date.now() / 1000);
   });
-  const failures = result?.failedOperations ?? 8;
+  if (!result) return reply.code(409).send({ error: { code: "DEVICE_UNAVAILABLE", message: "The firewall is no longer available for polling." } });
+  const failures = result.failedOperations;
   if (failures > 0) {
     await upsertAlert(pool, {
       deduplicationKey: "device-poll:" + deviceId,
@@ -417,6 +422,6 @@ app.setErrorHandler((error, request, reply) => {
 });
 await app.listen({ host: config.HOST, port: config.PORT });
 app.log.info("pfSense Hub Manager API started");
-const shutdown = async () => { await app.close(); await client.close(); await pool.end(); };
+const shutdown = async () => { await app.close(); await pool.end(); };
 process.on("SIGINT", () => void shutdown().then(() => process.exit(0)));
 process.on("SIGTERM", () => void shutdown().then(() => process.exit(0)));
