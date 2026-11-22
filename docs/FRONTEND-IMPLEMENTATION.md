@@ -222,3 +222,17 @@ The feature branch now extends the existing Sites workspace and Site Settings ra
 The API and UI changes are committed to `feature/multi-site-onboarding`. Local typecheck, test, production build, Docker Compose build, and browser validation remain outstanding and must be completed before treating this increment as verified.
 
 The frontend milestone is not complete merely because the Add Site dialog renders. It is complete only when the GUI uses the real backend lifecycle and the acceptance criteria above pass.
+
+
+## Hub access settings integration, November 21, 2026
+
+Hub Settings now uses a normalized endpoint collection instead of the legacy single-method preference:
+
+- Local, Tailscale, and Hostname/IP can be enabled together.
+- Each method stores its own address type, address, HTTPS port, and enabled state.
+- The API validates endpoint types and values, enforces one record per method, saves the full collection in a database transaction, and audits administrator changes.
+- Migration `012_hub_access_endpoints.sql` copies the legacy `hub_settings` value into the new table. Earlier migrations remain immutable.
+- Desired and administrator-confirmed deployment revisions are tracked separately. The confirmation action records an administrator attestation only.
+- The UI explicitly states that saving does not edit Docker Compose, change host port bindings, configure Tailscale/DNS/reverse proxy, or verify reachability.
+
+Local automated checks and browser acceptance for this increment remain pending.

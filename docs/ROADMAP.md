@@ -1,5 +1,20 @@
 # Roadmap
 
+## Hub access settings increment, November 21, 2026
+
+**Implementation branch:** `feature/multi-site-onboarding`
+
+- [x] Add migration `012_hub_access_endpoints.sql` without modifying previously applied migrations.
+- [x] Preserve the existing single reachability preference by migrating it into the new endpoint table.
+- [x] Support independently enabled Local, Tailscale, and Hostname/IP endpoint records, each with its own address and HTTPS port.
+- [x] Keep endpoint updates administrator-only, transactional, validated, and audited.
+- [x] Track desired and administrator-confirmed deployment revisions separately from the saved endpoint configuration.
+- [x] Reorganize Hub Settings to configure multiple methods simultaneously and clearly distinguish saved configuration from deployment confirmation.
+- [ ] Run API tests, API typecheck, web typecheck, production builds, and migration verification in the local Windows Docker environment.
+- [ ] Verify the layout and the full save/confirmation workflow in a browser.
+
+**Boundary:** Endpoint records are Hub Manager metadata. Saving them does not modify Docker Compose, host port bindings, Tailscale, DNS, reverse-proxy configuration, or prove reachability. Deployment confirmation is an administrator attestation, not an automated network test.
+
 ## Current status
 
 **Current baseline, November 21, 2026:** PR #5 is merged into `main`. The responsive UI foundation and manager administration APIs are present. Managed-device inventory is API-backed, but live firewall connectivity is still configured for one device through environment variables. Multi-site onboarding, per-device credential lifecycle, independent device collection, and scheduled polling remain unimplemented. This is a development baseline, not a production release.

@@ -149,3 +149,12 @@ The onboarding milestone is complete only when:
 ## 7. Branch and delivery workflow
 
 Continue on `feature/multi-site-onboarding`. Do not switch to, commit to, or merge into `main` without explicit user approval. Keep changes incremental, inspect the current code before editing, run the relevant tests, and report exact verification results. A pull request or merge requires separate user approval.
+
+
+## 8. Hub access endpoint settings
+
+Migration `012_hub_access_endpoints.sql` introduces `hub_access_endpoints`, with at most one record for each of Local, Tailscale, and Hostname/IP. Existing `hub_settings` data is copied forward and the old table is retained for compatibility. Each endpoint has its own enabled state, address type, address, HTTPS port, and audit attribution.
+
+The singleton `hub_access_deployment_state` tracks the desired configuration revision and the revision an administrator has explicitly confirmed as applied. The confirmation is an attestation only. It does not invoke Docker, edit Compose files, configure DNS/Tailscale/reverse proxy, or test connectivity.
+
+The API exposes authenticated read access and administrator-only endpoint replacement and deployment-confirmation operations. Endpoint updates are validated, transactional, and audited. No firewall configuration writes, Docker socket access, or arbitrary command execution are introduced.

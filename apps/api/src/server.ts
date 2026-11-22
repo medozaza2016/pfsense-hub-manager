@@ -10,6 +10,7 @@ import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
 import { appendAudit, upsertAlert } from "./audit.js";
+import { hubAccessEndpointsSchema } from "./hub-settings.js";
 
 const config = loadConfig();
 const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
@@ -33,13 +34,6 @@ const userCreateSchema = z.object({ username: usernameSchema, password: password
 const userUpdateSchema = z.object({ role: z.enum(["admin", "user"]).optional(), isActive: z.boolean().optional(), password: passwordSchema.optional() }).strict().refine(v => Object.keys(v).length > 0);
 const setupSchema = z.object({ username: usernameSchema, password: passwordSchema }).strict();
 const loginSchema = z.object({ username: usernameSchema, password: z.string().min(1).max(128) }).strict();
-const hubSettingsSchema = z.object({
-  reachabilityMethod: z.enum(["local", "tailscale", "hostname"]),
-  addressType: z.enum(["magic_dns", "tailscale_ip", "hostname", "ip"]).nullable(),
-  address: z.string().trim().max(253).nullable(),
-  httpsPort: z.number().int().min(1).max(65535)
-}).strict();
-
 const loginAttempts = new Map<string, { count: number; windowStartedAt: number }>();
 function getCookie(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -95,7 +89,8 @@ app.addHook("preHandler", async (request, reply) => {
     || path === "/api/v1/users"
     || path.startsWith("/api/v1/users/")
     || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
-    || (path === "/api/v1/hub-settings" && request.method === "PUT")
+    || (path === "/api/v1/hub-settings/access-endpoints" && request.method === "PUT")
+    || (path === "/api/v1/hub-settings/deployment-applied" && request.method === "POST")
     || (path.startsWith("/api/v1/alerts/") && request.method !== "GET")
     || (path === "/api/v1/devices" && request.method !== "GET")
     || (path.startsWith("/api/v1/devices/") && (request.method !== "GET" || path.endsWith("/connection-test")));
@@ -317,46 +312,86 @@ app.post("/api/v1/alerts/:alertId/resolve", async (request, reply) => {
 });
 
 app.get("/api/v1/hub-settings", async () => {
-  const result = await pool.query(
-    "SELECT reachability_method AS \"reachabilityMethod\", address_type AS \"addressType\", address, https_port AS \"httpsPort\", updated_at AS \"updatedAt\" FROM hub_settings WHERE id=1"
-  );
-  return { data: result.rows[0] ?? { reachabilityMethod: "local", addressType: null, address: null, httpsPort: 443 } };
-});
-app.put("/api/v1/hub-settings", async (request, reply) => {
-  const parsed = hubSettingsSchema.safeParse(request.body);
-  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Check the reachability method, address type, address, and HTTPS port." } });
-  const value = parsed.data;
-  if (value.reachabilityMethod === "local" && (value.addressType !== null || value.address !== null)) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Local access uses the default local binding and does not need an address." } });
-  }
-  if (value.reachabilityMethod !== "local" && (!value.addressType || !value.address)) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "An address is required for the selected optional reachability method." } });
-  }
-  if (value.reachabilityMethod === "tailscale" && !["magic_dns", "tailscale_ip"].includes(value.addressType ?? "")) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Choose a Tailscale MagicDNS hostname or Tailscale IPv4 address." } });
-  }
-  if (value.reachabilityMethod === "hostname" && !["hostname", "ip"].includes(value.addressType ?? "")) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Choose a hostname or IP address." } });
-  }
-  const ipSchema = value.addressType === "tailscale_ip" ? z.ipv4() : z.union([z.ipv4(), z.ipv6()]);
-  if (["tailscale_ip", "ip"].includes(value.addressType ?? "") && !ipSchema.safeParse(value.address).success) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid IP address." } });
-  }
-  if (["magic_dns", "hostname"].includes(value.addressType ?? "")) {
-    const hostname = z.string().min(1).max(253).regex(/^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/);
-    if (!hostname.safeParse(value.address).success) {
-      return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid fully qualified hostname." } });
+  const [endpointResult, stateResult] = await Promise.all([
+    pool.query(
+      'SELECT method, address_type AS "addressType", address, https_port AS "httpsPort", enabled, updated_at AS "updatedAt" FROM hub_access_endpoints ORDER BY CASE method WHEN \'local\' THEN 1 WHEN \'tailscale\' THEN 2 ELSE 3 END'
+    ),
+    pool.query(
+      'SELECT desired_revision AS "desiredRevision", applied_revision AS "appliedRevision", updated_at AS "updatedAt", applied_at AS "appliedAt" FROM hub_access_deployment_state WHERE id=1'
+    )
+  ]);
+  const deployment = stateResult.rows[0] ?? { desiredRevision: 1, appliedRevision: 0, updatedAt: null, appliedAt: null };
+  return { data: {
+    endpoints: endpointResult.rows,
+    deployment: {
+      ...deployment,
+      status: Number(deployment.desiredRevision) === Number(deployment.appliedRevision) ? "applied" : "pending"
     }
+  } };
+});
+
+app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
+  const parsed = hubAccessEndpointsSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_HUB_ACCESS_ENDPOINTS", message: parsed.error.issues[0]?.message ?? "Check each access method, address, and HTTPS port." } });
+  const admin = (request as typeof request & { admin?: AdminUser }).admin;
+  const db = await pool.connect();
+  let revision = 1;
+  try {
+    await db.query("BEGIN");
+    await db.query("DELETE FROM hub_access_endpoints");
+    for (const endpoint of parsed.data.endpoints) {
+      await db.query(
+        `INSERT INTO hub_access_endpoints(method,address_type,address,https_port,enabled,updated_at,updated_by)
+         VALUES($1,$2,$3,$4,$5,now(),$6)`,
+        [endpoint.method, endpoint.addressType, endpoint.address, endpoint.httpsPort, endpoint.enabled, admin?.id ?? null]
+      );
+    }
+    const state = await db.query<{ desiredRevision: number }>(
+      'UPDATE hub_access_deployment_state SET desired_revision=desired_revision+1,updated_at=now(),updated_by=$1 WHERE id=1 RETURNING desired_revision AS "desiredRevision"',
+      [admin?.id ?? null]
+    );
+    revision = Number(state.rows[0]?.desiredRevision ?? 1);
+    await db.query("COMMIT");
+  } catch (error) {
+    try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
+    throw error;
+  } finally {
+    db.release();
   }
-  const admin = (request as typeof request & { admin?: { id: string } }).admin;
+  await appendAudit(pool, {
+    actorId: admin?.id ?? null,
+    actorUsername: admin?.username ?? null,
+    action: "hub.access_endpoints.update",
+    outcome: "success",
+    targetType: "hub_access_endpoints",
+    summary: "Updated Hub access endpoints",
+    requestId: request.id,
+    metadata: { methods: parsed.data.endpoints.map(endpoint => endpoint.method), enabledCount: parsed.data.endpoints.filter(endpoint => endpoint.enabled).length, desiredRevision: revision }
+  });
+  return { data: { endpoints: parsed.data.endpoints, desiredRevision: revision, appliedRevision: revision - 1, deploymentStatus: "pending" } };
+});
+
+app.post("/api/v1/hub-settings/deployment-applied", async (request, reply) => {
+  const parsed = z.object({ confirmation: z.literal("APPLIED") }).strict().safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "DEPLOYMENT_CONFIRMATION_REQUIRED", message: "Confirm that the required deployment and network changes have been applied." } });
+  const admin = (request as typeof request & { admin?: AdminUser }).admin;
   const result = await pool.query(
-    `UPDATE hub_settings SET reachability_method=$1,address_type=$2,address=$3,https_port=$4,updated_at=now(),updated_by=$5
-      WHERE id=1
-      RETURNING reachability_method AS "reachabilityMethod",address_type AS "addressType",address,https_port AS "httpsPort",updated_at AS "updatedAt"`,
-    [value.reachabilityMethod, value.addressType, value.address, value.httpsPort, admin?.id ?? null]
+    'UPDATE hub_access_deployment_state SET applied_revision=desired_revision,applied_at=now(),applied_by=$1 WHERE id=1 RETURNING desired_revision AS "desiredRevision",applied_revision AS "appliedRevision",applied_at AS "appliedAt"',
+    [admin?.id ?? null]
   );
-  await appendAudit(pool, { actorId: admin?.id ?? null, action: "hub.settings.update", outcome: "success", targetType: "hub_settings", targetId: "1", summary: "Updated Hub reachability preferences", requestId: request.id, metadata: { reachabilityMethod: value.reachabilityMethod, addressType: value.addressType, httpsPort: value.httpsPort } });
-  return { data: { ...result.rows[0], applyStatus: "not_applied", note: "Saved as a preference only. This does not change Docker host bindings, DNS, Tailscale, or firewall reachability." } };
+  const state = result.rows[0];
+  await appendAudit(pool, {
+    actorId: admin?.id ?? null,
+    actorUsername: admin?.username ?? null,
+    action: "hub.access_endpoints.deployment_confirmed",
+    outcome: "success",
+    targetType: "hub_access_deployment_state",
+    targetId: "1",
+    summary: "Administrator confirmed Hub access deployment",
+    requestId: request.id,
+    metadata: { appliedRevision: state?.appliedRevision }
+  });
+  return { data: { ...state, status: "applied" } };
 });
 
 app.get("/metrics", async (_request, reply) => {

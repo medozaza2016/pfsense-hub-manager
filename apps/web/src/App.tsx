@@ -492,10 +492,116 @@ function AuthScreen({mode,onAuthenticated}:{mode:"loading"|"setup"|"login";onAut
  async function submit(e:React.FormEvent){e.preventDefault();setError("");if(mode==="setup"&&password!==confirm){setError("The passwords do not match.");return;}setBusy(true);try{const response=await fetch(mode==="setup"?"/api/v1/auth/setup":"/api/v1/auth/login",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})});const result=await response.json();if(!response.ok)throw new Error(result.error?.message??"Authentication failed.");onAuthenticated(result.data?.username??username);}catch(err){setError(err instanceof Error?err.message:"Unable to connect to the Hub API.");}finally{setBusy(false);}}
  return <main className="auth-screen"><section className="auth-card"><div className="brand auth-brand"><div className="brand-mark">PF</div><div className="brand-name"><strong>pfSense Hub</strong><span>Manager</span></div></div>{mode==="loading"?<><h1>Checking administrator session</h1><p>Connecting to the local Hub service.</p></>:<><span className="eyebrow">{mode==="setup"?"FIRST-RUN SETUP":"SECURE ACCESS"}</span><h1>{mode==="setup"?"Create administrator":"Sign in to Hub Manager"}</h1><p>{mode==="setup"?"Create the first administrator account. There are no default credentials.":"Use your Hub Manager administrator credentials to continue."}</p><form onSubmit={submit}><label>Username<input autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} minLength={3} maxLength={64} required/></label><label>Password<input type="password" autoComplete={mode==="setup"?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)} minLength={mode==="setup"?14:1} maxLength={128} required/></label>{mode==="setup"&&<><label>Confirm password<input type="password" autoComplete="new-password" value={confirm} onChange={e=>setConfirm(e.target.value)} minLength={14} maxLength={128} required/></label><small className="auth-hint">Use at least 14 characters. Keep this password in a secure password manager.</small></>}{error&&<div className="auth-error" role="alert">{error}</div>}<button className="primary-button full-width" disabled={busy}>{busy?(mode==="setup"?"Creating account…":"Signing in…"):(mode==="setup"?"Create administrator":"Sign in")}</button></form></>}</section></main>;
 }
+type HubAccessMethod = "local" | "tailscale" | "hostname";
+type HubAccessEndpoint = {
+ method: HubAccessMethod;
+ addressType: "magic_dns" | "tailscale_ip" | "hostname" | "ip" | null;
+ address: string | null;
+ httpsPort: number;
+ enabled: boolean;
+};
+const defaultHubEndpoints: HubAccessEndpoint[] = [
+ {method:"local",addressType:null,address:null,httpsPort:443,enabled:true},
+ {method:"tailscale",addressType:"magic_dns",address:null,httpsPort:443,enabled:false},
+ {method:"hostname",addressType:"hostname",address:null,httpsPort:443,enabled:false}
+];
 function HubSettingsPage(){
  const {notify}=useToast();
- const [method,setMethod]=useState<"local"|"tailscale"|"hostname">("local");const [addressType,setAddressType]=useState<"magic_dns"|"tailscale_ip"|"hostname"|"ip">("magic_dns");const [address,setAddress]=useState("");const [port,setPort]=useState("443");const [busy,setBusy]=useState(true);const [saving,setSaving]=useState(false);const [message,setMessage]=useState("");
- useEffect(()=>{let active=true;fetch("/api/v1/hub-settings",{credentials:"same-origin"}).then(async r=>{if(!r.ok)throw new Error("Unable to load Hub settings.");return r.json();}).then(result=>{if(!active)return;const d=result.data??{};setMethod(d.reachabilityMethod??"local");setAddressType(d.addressType??"magic_dns");setAddress(d.address??"");setPort(String(d.httpsPort??443));}).catch(e=>{if(active)setMessage(e.message);}).finally(()=>{if(active)setBusy(false);});return()=>{active=false;}},[]);
- async function save(e:React.FormEvent){e.preventDefault();setSaving(true);setMessage("");try{const response=await fetch("/api/v1/hub-settings",{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({reachabilityMethod:method,addressType:method==="local"?null:addressType,address:method==="local"?null:address.trim(),httpsPort:Number(port)})});const result=await response.json();if(!response.ok)throw new Error(result.error?.message??"Unable to save settings.");const success=result.data?.note??"Preferences saved.";setMessage(success);notify(success,"success");}catch(err){const message=err instanceof Error?err.message:"Unable to save settings.";setMessage(message);notify(message,"error");}finally{setSaving(false);}}
- return <><div className="page-heading"><div><h1>Hub Settings</h1><p>Configure how administrators may reach this Hub installation.</p></div></div><form onSubmit={save} className="settings-grid"><Panel title="Reachability"><div className="reachability-options"><label className="reachability-option"><input type="radio" name="reachability" checked={method==="local"} onChange={()=>setMethod("local")}/><span><strong>Local network (default)</strong><small>Use the local machine or network address. No additional networking service is required.</small></span></label><label className="reachability-option"><input type="radio" name="reachability" checked={method==="tailscale"} onChange={()=>{setMethod("tailscale");if(!["magic_dns","tailscale_ip"].includes(addressType))setAddressType("magic_dns");}}/><span><strong>Tailscale (optional)</strong><small>Use your existing tailnet when you need to reach this Hub remotely. Tailscale is not required for normal local use.</small></span></label><label className="reachability-option"><input type="radio" name="reachability" checked={method==="hostname"} onChange={()=>{setMethod("hostname");if(!["hostname","ip"].includes(addressType))setAddressType("hostname");}}/><span><strong>Other hostname or IP</strong><small>For an existing DNS name or network address managed outside Hub Manager.</small></span></label></div>{method!=="local"&&<><label>Address type<select value={addressType} onChange={e=>setAddressType(e.target.value as typeof addressType)}>{method==="tailscale"?<><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip">Tailscale IP address</option></>:<><option value="hostname">Hostname</option><option value="ip">IP address</option></>}</select></label><label>{addressType==="magic_dns"?"MagicDNS hostname":addressType==="tailscale_ip"?"Tailscale IPv4 address":addressType==="hostname"?"Hostname":"IP address"}<input value={address} onChange={e=>setAddress(e.target.value)} placeholder={addressType==="magic_dns"?"main-firewall.example-tailnet.ts.net":addressType==="tailscale_ip"?"100.90.12.34":addressType==="hostname"?"hub.example.com":"192.168.1.20"}/><small>{addressType==="magic_dns"?"Example: main-firewall.example-tailnet.ts.net. MagicDNS resolves a device name to its Tailscale address.":addressType==="tailscale_ip"?"Example: 100.90.12.34. This is the numerical address assigned to the device on your tailnet.":"Enter an address already configured in your network or DNS."}</small></label></>}<label>HTTPS port<input type="number" min="1" max="65535" value={port} onChange={e=>setPort(e.target.value)}/></label></Panel><Panel title="Configuration status"><div className="info-strip"><Icon name="alert"/><span>These are saved preferences only. Saving does not install Tailscale, change Docker port bindings, configure DNS, or verify remote reachability.</span></div><p className="subtle">Local access remains the default. Optional networking fields can be left untouched until you need them.</p>{message&&<div className="settings-message" role="status">{message}</div>}<button className="primary-button" disabled={busy||saving}>{saving?"Saving…":"Save preferences"}</button></Panel></form></>;
+ const [endpoints,setEndpoints]=useState<HubAccessEndpoint[]>(defaultHubEndpoints);
+ const [deployment,setDeployment]=useState<{status:"pending"|"applied";desiredRevision:number;appliedRevision:number}>({status:"pending",desiredRevision:1,appliedRevision:0});
+ const [busy,setBusy]=useState(true);
+ const [saving,setSaving]=useState(false);
+ const [confirming,setConfirming]=useState(false);
+ const [message,setMessage]=useState("");
+ useEffect(()=>{
+  let active=true;
+  fetch("/api/v1/hub-settings",{credentials:"same-origin"}).then(async response=>{
+   if(!response.ok)throw new Error("Unable to load Hub access settings.");
+   return response.json();
+  }).then(result=>{
+   if(!active)return;
+   const saved:HubAccessEndpoint[] = result.data?.endpoints ?? [];
+   setEndpoints(defaultHubEndpoints.map(fallback=>saved.find(item=>item.method===fallback.method)??fallback));
+   if(result.data?.deployment)setDeployment(result.data.deployment);
+  }).catch(error=>{if(active)setMessage(error instanceof Error?error.message:"Unable to load Hub access settings.");})
+   .finally(()=>{if(active)setBusy(false);});
+  return()=>{active=false;};
+ },[]);
+ function updateEndpoint(method:HubAccessMethod,patch:Partial<HubAccessEndpoint>){
+  setEndpoints(current=>current.map(endpoint=>endpoint.method===method?{...endpoint,...patch}:endpoint));
+ }
+ function addressTypeOptions(method:HubAccessMethod){
+  if(method==="local")return <><option value="">Default local binding</option><option value="hostname">LAN hostname</option><option value="ip">LAN IP address</option></>;
+  if(method==="tailscale")return <><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip">Tailscale IPv4 address</option></>;
+  return <><option value="hostname">Hostname</option><option value="ip">IP address</option></>;
+ }
+ async function save(event:React.FormEvent){
+  event.preventDefault();setSaving(true);setMessage("");
+  try{
+   const payload=endpoints.map(endpoint=>({...endpoint,addressType:endpoint.address?.trim()?endpoint.addressType:null,address:endpoint.address?.trim()||null}));
+   const response=await fetch("/api/v1/hub-settings/access-endpoints",{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoints:payload})});
+   const result=await response.json();
+   if(!response.ok)throw new Error(result.error?.message??"Unable to save Hub access settings.");
+   setDeployment({status:"pending",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision});
+   const success="Access methods saved. Deployment confirmation is now pending.";
+   setMessage(success);notify(success,"success");
+  }catch(error){
+   const failure=error instanceof Error?error.message:"Unable to save Hub access settings.";
+   setMessage(failure);notify(failure,"error");
+  }finally{setSaving(false);}
+ }
+ async function confirmDeployment(){
+  if(!window.confirm("Confirm that you have applied any required Docker Compose, reverse-proxy, DNS, and network changes for these access methods."))return;
+  setConfirming(true);setMessage("");
+  try{
+   const response=await fetch("/api/v1/hub-settings/deployment-applied",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({confirmation:"APPLIED"})});
+   const result=await response.json();
+   if(!response.ok)throw new Error(result.error?.message??"Unable to confirm deployment.");
+   setDeployment({status:"applied",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision});
+   const success="Deployment confirmation recorded. Reachability has not been tested.";
+   setMessage(success);notify(success,"success");
+  }catch(error){
+   const failure=error instanceof Error?error.message:"Unable to confirm deployment.";
+   setMessage(failure);notify(failure,"error");
+  }finally{setConfirming(false);}
+ }
+ const methodCopy:Record<HubAccessMethod,{title:string;description:string;placeholder:string}> = {
+  local:{title:"Local network",description:"Use the local machine or a LAN address. Leave the address blank to use the default local binding.",placeholder:"192.168.1.20"},
+  tailscale:{title:"Tailscale",description:"Use an address already available on your tailnet. Hub Manager does not install or configure Tailscale.",placeholder:"hub.example-tailnet.ts.net"},
+  hostname:{title:"Hostname or IP",description:"Use a DNS hostname or network IP managed outside Hub Manager.",placeholder:"hub.example.com"}
+ };
+ return <><div className="page-heading"><div><h1>Hub Settings</h1><p>Configure the access addresses administrators use to reach this Hub installation.</p></div></div>
+  <form onSubmit={save} className="hub-settings-layout">
+   <Panel title="Access methods">
+    <p className="hub-settings-intro">Enable more than one access method. Each method has its own address and HTTPS port, and can be configured independently.</p>
+    <div className="hub-endpoint-list">{endpoints.map(endpoint=>{
+     const copy=methodCopy[endpoint.method];
+     const label=endpoint.addressType==="magic_dns"?"MagicDNS hostname":endpoint.addressType==="tailscale_ip"?"Tailscale IPv4 address":endpoint.addressType==="ip"?"IP address":endpoint.method==="local"?"LAN hostname":"Hostname";
+     return <section className="hub-endpoint-card" key={endpoint.method}>
+      <div className="hub-endpoint-heading"><div><strong>{copy.title}</strong><small>{copy.description}</small></div>
+       <label className="hub-endpoint-toggle"><input type="checkbox" checked={endpoint.enabled} onChange={event=>updateEndpoint(endpoint.method,{enabled:event.target.checked})}/><span>{endpoint.enabled?"Enabled":"Disabled"}</span></label>
+      </div>
+      <div className="hub-endpoint-fields">
+       <label>Address type<select value={endpoint.addressType??""} onChange={event=>updateEndpoint(endpoint.method,{addressType:event.target.value?event.target.value as HubAccessEndpoint["addressType"]:null,address:null})} disabled={busy}>
+        {addressTypeOptions(endpoint.method)}
+       </select></label>
+       <label>{label}<input value={endpoint.address??""} onChange={event=>updateEndpoint(endpoint.method,{address:event.target.value||null})} placeholder={copy.placeholder} disabled={busy||!endpoint.addressType}/></label>
+       <label>HTTPS port<input type="number" min="1" max="65535" value={endpoint.httpsPort} onChange={event=>updateEndpoint(endpoint.method,{httpsPort:Number(event.target.value)})} disabled={busy}/></label>
+      </div>
+     </section>;
+    })}</div>
+    {message&&<div className="settings-message" role="status">{message}</div>}
+    <div className="hub-settings-actions"><button className="primary-button" disabled={busy||saving}>{saving?"Saving…":"Save access methods"}</button></div>
+   </Panel>
+   <Panel title="Deployment status">
+    <div className={deployment.status==="pending"?"hub-deployment-state pending":"hub-deployment-state applied"}>
+     <strong>{deployment.status==="pending"?"Deployment pending":"Deployment confirmed"}</strong>
+     <span>Configuration revision {deployment.desiredRevision}, applied revision {deployment.appliedRevision}</span>
+    </div>
+    <p className="hub-settings-note">Saving stores these addresses in PostgreSQL. It does not change Docker port bindings, install Tailscale, configure DNS or a reverse proxy, or test reachability. Apply any required infrastructure changes separately, then confirm below. Confirmation records your action, it does not verify connectivity.</p>
+    <button type="button" className="secondary-button" onClick={confirmDeployment} disabled={busy||confirming||saving||deployment.status==="applied"}>{confirming?"Recording…":"Confirm deployment applied"}</button>
+   </Panel>
+  </form>
+ </>;
 }
+

@@ -129,3 +129,33 @@
 .site-onboarding-form .onboarding-select-chevron svg{display:block;width:17px;height:17px}
 .site-onboarding-form .onboarding-select-wrap:focus-within .onboarding-select-chevron{color:#075df5}
 .site-onboarding-form .onboarding-select-wrap select:disabled{cursor:not-allowed;opacity:.65}
+
+
+/* Hub access endpoint settings */
+.hub-settings-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(270px,.8fr);gap:14px;align-items:start}
+.hub-settings-layout>.panel{min-width:0}
+.hub-settings-intro{margin:0 0 13px;color:#63738d;font-size:12px;line-height:1.5}
+.hub-endpoint-list{display:grid;gap:10px}
+.hub-endpoint-card{padding:13px;border:1px solid #dce5f0;border-radius:10px;background:#fbfcfe}
+.hub-endpoint-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.hub-endpoint-heading>div{display:grid;gap:4px;min-width:0}
+.hub-endpoint-heading strong{font-size:13px;color:#102747}
+.hub-endpoint-heading small{font-size:11px;line-height:1.45;color:#63738d}
+.hub-endpoint-toggle{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:11px;font-weight:650;color:#405775}
+.hub-endpoint-toggle input{accent-color:#075df5}
+.hub-endpoint-fields{display:grid;grid-template-columns:1fr 1.3fr 110px;gap:10px}
+.hub-endpoint-fields label{display:grid;gap:6px;min-width:0;color:#405775;font-size:11px;font-weight:650}
+.hub-endpoint-fields input,.hub-endpoint-fields select{width:100%;min-width:0;min-height:38px;padding:8px 10px;border:1px solid #d5dfec;border-radius:8px;background:#fff;color:#183252;font:inherit;font-size:12px}
+.hub-endpoint-fields input:disabled{background:#f1f4f8;color:#9aa7b8}
+.hub-settings-actions{display:flex;justify-content:flex-end;margin-top:14px}
+.hub-deployment-state{display:grid;gap:5px;padding:12px;border-radius:9px;margin-bottom:12px}
+.hub-deployment-state strong{font-size:13px}
+.hub-deployment-state span{font-size:11px}
+.hub-deployment-state.pending{background:#fff7e9;color:#925600}
+.hub-deployment-state.applied{background:#effbf3;color:#08783a}
+.hub-settings-note{font-size:11px;line-height:1.55;color:#63738d;margin:0 0 14px}
+.secondary-button{border:1px solid #d2ddeb;border-radius:7px;background:#fff;color:#294361;padding:9px 12px;font-size:11px;font-weight:650}
+.secondary-button:hover:not(:disabled){border-color:#9db8dc;background:#f7faff}
+.secondary-button:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:900px){.hub-settings-layout{grid-template-columns:1fr}}
+@media(max-width:600px){.hub-endpoint-fields{grid-template-columns:1fr}.hub-endpoint-heading{flex-direction:column}}
