@@ -45,11 +45,26 @@ def load_config() -> dict[str, Any]:
     required = {"api_base_url", "api_token", "socket_path", "socket_gid", "tailscale_binary", "web_local_url"}
     if not isinstance(raw, dict) or not required.issubset(raw):
         raise AgentError("AGENT_CONFIGURATION_INVALID")
+    try:
+        metadata = CONFIG_PATH.stat()
+    except OSError as exc:
+        raise AgentError("AGENT_CONFIGURATION_UNAVAILABLE") from exc
+    if metadata.st_uid != 0 or metadata.st_mode & 0o077:
+        raise AgentError("AGENT_CONFIGURATION_PERMISSIONS_INVALID")
     parsed = urllib.parse.urlparse(raw["api_base_url"])
-    if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1") or parsed.path not in ("", "/"):
+    if (parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1")
+            or parsed.path not in ("", "/") or parsed.username or parsed.password
+            or parsed.query or parsed.fragment or parsed.port is None
+            or not 1 <= parsed.port <= 65535):
         raise AgentError("AGENT_API_MUST_BE_LOOPBACK")
-    if not isinstance(raw["api_token"], str) or len(raw["api_token"]) < 32:
+    if not isinstance(raw["api_token"], str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", raw["api_token"]):
         raise AgentError("AGENT_TOKEN_INVALID")
+    if not isinstance(raw["socket_path"], str) or not os.path.isabs(raw["socket_path"]):
+        raise AgentError("AGENT_SOCKET_PATH_INVALID")
+    if not isinstance(raw["socket_gid"], int) or isinstance(raw["socket_gid"], bool) or not 1 <= raw["socket_gid"] <= 65535:
+        raise AgentError("AGENT_SOCKET_GROUP_INVALID")
+    if not isinstance(raw["tailscale_binary"], str) or not os.path.isabs(raw["tailscale_binary"]):
+        raise AgentError("AGENT_TAILSCALE_BINARY_INVALID")
     if raw["web_local_url"] != "http://127.0.0.1:8080":
         raise AgentError("AGENT_WEB_TARGET_INVALID")
     return raw
