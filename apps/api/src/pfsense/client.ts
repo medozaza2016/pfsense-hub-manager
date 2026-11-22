@@ -28,7 +28,8 @@ export function selectTlsCa(trust: PfSenseTlsTrust | undefined, legacyCa?: Buffe
   return trust.certificateAuthority;
  }
  if (trust?.mode === "legacy-ca-file") return legacyCa;
- return legacyCa;
+ if (trust === undefined) return legacyCa;
+ return undefined;
 }
 
 type PinnedLookup = (
