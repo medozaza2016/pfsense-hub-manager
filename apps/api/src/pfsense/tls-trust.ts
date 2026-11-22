@@ -35,7 +35,7 @@ export function normalizeDeviceCaBundle(input: string): string {
       throw new Error("The custom TLS trust bundle contains a certificate that is not currently valid.");
     }
 
-    const isSelfSigned = certificate.checkIssued(certificate) && certificate.verify(certificate.publicKey);
+    const isSelfSigned = certificate.issuer === certificate.subject && certificate.verify(certificate.publicKey);
     if (!certificate.ca && !isSelfSigned) {
       throw new Error("Each custom TLS trust certificate must be a CA certificate or a valid self-signed certificate.");
     }
