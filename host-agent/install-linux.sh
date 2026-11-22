@@ -80,7 +80,6 @@ config = {
     "api_base_url": f"http://127.0.0.1:{port}",
     "api_token": token,
     "socket_path": os.path.join(project, "run/host-agent/agent.sock"),
-    "socket_gid": 2000,
     "tailscale_binary": tailscale_binary,
     "web_local_url": "http://127.0.0.1:8080"
 }
@@ -93,7 +92,7 @@ os.chmod(path, 0o600)
 PY
 install -m 0644 "$SERVICE_SOURCE" /etc/systemd/system/pfsense-hub-deployment-agent.service
 chown root:pfsense-hub-agent "$PROJECT_DIR/run/host-agent"
-chmod 0770 "$PROJECT_DIR/run/host-agent"
+chmod 2770 "$PROJECT_DIR/run/host-agent"
 systemctl daemon-reload
 systemctl enable --now pfsense-hub-deployment-agent.service
 
