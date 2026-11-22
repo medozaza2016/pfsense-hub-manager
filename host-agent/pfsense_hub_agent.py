@@ -325,7 +325,7 @@ def has_funnel_handler(raw: str, host: str, port: int) -> bool:
     allow_funnel = value.get("AllowFunnel") or {}
     if not isinstance(allow_funnel, dict):
         raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
-    return allow_funnel.get(f"{host}:{port}") is True
+    return allow_funnel.get(str(port)) is True or allow_funnel.get(f"{host}:{port}") is True
 
 
 def verify_tailscale_endpoint(endpoint: dict[str, Any], config: dict[str, Any]) -> str:
