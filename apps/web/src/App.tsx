@@ -618,7 +618,7 @@ function HubSettingsPage(){
   if(method==="tailscale")return <><option value="">Select address type</option><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip" disabled>Tailscale IPv4, not valid for HTTPS</option></>;
   return <><option value="">Select address type</option><option value="hostname">Hostname</option><option value="ip">IP address</option></>;
  }
- const deploymentInProgress=saving||["pending","queued","applying","validating","verifying","rolling_back"].includes(deployment.status);
+ const deploymentInProgress=saving||(Boolean(deployment.deploymentId)&&["pending","queued","applying","validating","verifying","rolling_back"].includes(deployment.status));
  const saveButtonLabel=saving?"Saving settings…":deployment.status==="queued"?"Starting deployment…":deployment.status==="applying"?"Applying settings…":deployment.status==="validating"?"Validating configuration…":deployment.status==="verifying"?"Verifying endpoint…":deployment.status==="rolling_back"?"Restoring previous access…":"Applying settings…";
  async function save(event:React.FormEvent){
   event.preventDefault();
