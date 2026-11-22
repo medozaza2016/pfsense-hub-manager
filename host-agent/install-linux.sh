@@ -71,7 +71,7 @@ config = {
     "api_token": token,
     "socket_path": os.path.join(project, "run/host-agent/agent.sock"),
     "socket_gid": 2000,
-    "tailscale_binary": "/usr/bin/tailscale",
+    "tailscale_binary": tailscale_binary,
     "web_local_url": "http://127.0.0.1:8080"
 }
 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
