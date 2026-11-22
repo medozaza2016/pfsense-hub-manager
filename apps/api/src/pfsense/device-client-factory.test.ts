@@ -64,8 +64,8 @@ describe("DevicePfSenseClientFactory", () => {
     expect(repository.decryptDeviceCaBundle).toHaveBeenCalledWith(deviceId);
   });
 
-  it("explicitly selects system trust when the device has no custom CA", async () => {
-    const repository = makeRepository();
+  it("applies the stored TLS server name when the device uses system trust", async () => {
+    const repository = makeRepository({ listProfiles: async () => [profile({ tlsServername: "firewall.example.test" })] });
     const buildClient = vi.fn(() => ({} as PfSenseClient));
     const factory = new DevicePfSenseClientFactory(config, repository, buildClient);
 
@@ -74,7 +74,7 @@ describe("DevicePfSenseClientFactory", () => {
     expect(buildClient).toHaveBeenCalledWith(
       expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
       apiKey,
-      { mode: "system", servername: null }
+      { mode: "system", servername: "firewall.example.test" }
     );
   });
 
