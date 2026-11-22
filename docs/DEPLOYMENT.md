@@ -65,3 +65,26 @@ Back up PostgreSQL and the runtime encryption key separately. Protect the recove
 The initial installation remains bound to `127.0.0.1`. The future Administration → Hub Settings page will store optional Tailscale IPv4 and later hostname/proxy settings in PostgreSQL. Entering an address does not install Tailscale, configure DNS, create a proxy, change Docker's host-port publication, or prove remote reachability.
 
 Do not change `HUB_BIND_ADDRESS` or enable a remote binding until manager authentication/authorization and a reviewed apply workflow exist. Docker host-port publication is controlled outside the application container. A future apply mechanism must be narrowly scoped, validate that the address belongs to a host interface, preserve rollback to the previous binding, and report applied state separately from reachability. Do not mount the Docker socket into the web or API container. See `HUB-ACCESS-CONFIGURATION.md` and DEC-025.
+
+
+## Windows 11 local development workflow, current baseline
+
+The supported current development workstation is Windows 11 with VS Code and Docker Desktop. Run the repository locally from PowerShell. Docker Compose is the reproducible local runtime for the web, API, PostgreSQL, and code-server services. Production remains a Linux deployment target; the existing Proxmox LXC is the intended target unless a later decision changes it.
+
+Recommended closeout sequence from the repository root:
+
+```powershell
+git status --short --branch
+git fetch origin
+npm ci
+npm run typecheck
+npm test
+npm run build
+docker compose config
+docker compose up -d --build
+docker compose ps
+```
+
+Use the exact scripts available in the current root `package.json`; if a command is not defined, run its workspace equivalent and record that fact. Confirm the application in a browser after the rebuild. A running container can retain an older image even when the local source and Git branch are current. When UI behavior appears inconsistent with source, inspect the running image/container and rebuild the relevant service before changing application code.
+
+Do not run development seed commands against production data. Use only a local development database and the explicit development guard documented in [Phase 01](PHASE-01-USER-MANAGEMENT-AUDIT-ALERTS.md).

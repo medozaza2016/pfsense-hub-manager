@@ -83,3 +83,20 @@ The existing 172.10.x.x addressing is intentionally being left unchanged for thi
 The repository now contains an initial Fastify backend provider wired to exactly the eight GET paths above. The manager API's read-only overview route invokes these operations sequentially, records per-operation outcome and duration in PostgreSQL, and emits bounded Prometheus metrics. ARP and firewall-state response rows are reduced to counts when the upstream data is an array; the raw rows are not returned or stored. System, gateway, interface, and service payloads are not exposed as raw records by the provider; only collection indicators/counts are returned. The state-size and version responses are included for initial inspection.
 
 This is code implementation, not yet a successful live application run. The CI workflow has verified TypeScript, unit tests, and frontend/backend builds on GitHub Actions. Docker Compose image build validation and deployment on the target LXC are still pending. TLS verification is enforced, but the manager's trust of the firewall certificate has not yet been verified.
+
+
+## Local application verification update, November 21, 2026
+
+The current development work was performed on Windows 11 using VS Code and Docker Desktop. The feature branch contains the shared UI and administration work described in the frontend and phase documentation.
+
+A local runtime discrepancy made the search/filter and mobile UI appear absent. Inspection confirmed that the source branch contained `ToastProvider.tsx`, `ui.tsx`, and `ui.css`, and the app referenced the shared components. The running web container was serving an older build. Rebuilding the web service loaded the current source and resolved the discrepancy. This incident was not evidence of missing source code or a divergent local/remote feature branch.
+
+The development session's recorded API test result was **52 tests passing across 7 test files**. Treat this as a session result, not a substitute for rerunning the checks on the final PR head. The branch was synchronized with origin at commit `06e8d0f49433654d37b7d9c8c8135ab96da17283`.
+
+### Remaining verification
+- Re-run API tests, typecheck, and production builds on the final PR head.
+- Run `docker compose config` and rebuild the complete local stack.
+- Verify search, filters, pagination, toasts, and mobile cards in a browser at desktop and phone widths.
+- Verify admin versus user authorization, disabled-account login rejection, last-active-admin protection, and audit outcomes.
+- Validate migrations and development seed idempotency against a disposable local database.
+- Do not treat the local Docker UI fix as evidence that firewall TLS trust, live multi-device collection, or production deployment has been validated.

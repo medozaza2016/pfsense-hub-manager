@@ -12,7 +12,8 @@
     "dev:web": "npm --workspace @pfsense-hub/web run dev",
     "build": "npm run build --workspace @pfsense-hub/api && npm run build --workspace @pfsense-hub/web",
     "typecheck": "npm run typecheck --workspace @pfsense-hub/api && npm run typecheck --workspace @pfsense-hub/web",
-    "test": "npm run test --workspace @pfsense-hub/api"
+    "test": "npm run test --workspace @pfsense-hub/api",
+    "db:seed:dev": "npm run db:seed:dev --workspace @pfsense-hub/api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

@@ -222,6 +222,7 @@ app.patch("/api/v1/users/:userId", async (request, reply) => {
   const { userId } = request.params as { userId: string };
   if (!z.string().uuid().safeParse(userId).success) return reply.code(400).send({ error: { code: "INVALID_USER_ID", message: "Invalid user identifier." } });
   const actor = (request as typeof request & { admin: AdminUser }).admin;
+  if (userId === actor.id) return reply.code(409).send({ error: { code: "SELF_ACCOUNT_PROTECTED", message: "You cannot change your own administrator account from User Management. Use the account security workflow instead." } });
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
@@ -405,7 +406,14 @@ app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
 app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: { code: "NOT_FOUND", message: "Route not found." } }));
 app.setErrorHandler((error, request, reply) => {
   request.log.error({ err: error }, "Request failed");
-  reply.code(500).send({ error: { code: "INTERNAL_ERROR", message: "The request could not be completed.", requestId: request.id } });
+  const requestError = error as Error & { statusCode?: number; code?: string };
+  const statusCode = typeof requestError.statusCode === "number" && requestError.statusCode >= 400 && requestError.statusCode <= 599 ? requestError.statusCode : 500;
+  const isClientError = statusCode < 500;
+  reply.code(statusCode).send({ error: {
+    code: isClientError && typeof requestError.code === "string" ? requestError.code : "INTERNAL_ERROR",
+    message: isClientError ? requestError.message : "The request could not be completed.",
+    requestId: request.id
+  } });
 });
 await app.listen({ host: config.HOST, port: config.PORT });
 app.log.info("pfSense Hub Manager API started");

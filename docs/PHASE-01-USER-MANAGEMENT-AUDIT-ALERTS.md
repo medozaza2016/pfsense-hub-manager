@@ -13,8 +13,7 @@ Complete the Hub administration and accountability foundation before moving to t
 - Reuse the existing authentication, login flow, user records, and role model already established in the project.
 - The current signed-in administrator is the starting administrative context.
 - Do not create a second authentication system, duplicate users, or silently redefine roles.
-- First implementation task is to inspect and document the existing role names, permission checks, session handling, and user persistence. Preserve established behavior.
-- Administrative UI and API operations must enforce authorization on the server. Hiding a button in the browser is not authorization.
+- Administrative UI and API operations must enforce authorization on the server.
 - Any role or permission change must itself be audited.
 
 ## Scope A: User Management
@@ -32,112 +31,52 @@ Required capabilities:
 - Enforce role-based access in API handlers and UI.
 - Record the acting administrator, target account, change, outcome, and timestamp for each administrative operation.
 
-Out of scope unless already supported by the existing identity implementation: new SSO provider, MFA redesign, custom role builder, external directory synchronization, and password storage redesign.
-
 ## Scope B: Audit Logs
 
-Audit logging is a cross-cutting requirement, not merely a page. Every consequential application action must generate a durable audit event, including successful and failed attempts where applicable.
-
-Initial event coverage:
-- Authentication success and failure, logout, session expiration, and access denied.
-- User creation, edits, role changes, activation, deactivation, and password/invitation reset initiation.
-- Administrative configuration changes.
-- Site registration, connection profile/credential changes, and site removal.
-- Security-sensitive actions and operational actions that change Hub-managed state.
-- Relevant system jobs and integration failures, with the system recorded as the actor.
+Audit logging is a cross-cutting requirement. Initial event coverage includes authentication, user administration, configuration changes, site lifecycle, security-sensitive operations, and relevant system jobs.
 
 Each record should capture, where available:
-- UTC timestamp.
-- Actor identity and actor type (user or system).
+- UTC timestamp, actor identity and actor type.
 - Action/event type and outcome.
 - Target resource type and identifier.
-- A concise human-readable summary.
-- Request/correlation ID and source context where safe.
-- Sanitized structured metadata sufficient for investigation.
+- Concise summary, request/correlation ID, and sanitized metadata.
 
-Security and integrity requirements:
-- Audit records are append-only through application behavior. No ordinary UI/API edit or delete operation.
-- Never record passwords, API keys, access tokens, session cookies, private keys, or other secrets.
-- Do not store full credential payloads or sensitive request bodies in metadata.
-- Restrict audit-log access by the existing authorization model.
-- Support filtering by date range, actor, event, resource, and outcome.
-- Make records exportable only through an authorized, audited action.
-- Define retention and backup behavior before production release.
+Audit records are append-only through application behavior. Never record passwords, API keys, access tokens, session cookies, private keys, or sensitive request bodies. Restrict access by the existing authorization model. Define retention, export, backup, and restore behavior before production release.
 
 ## Scope C: Alerts and notifications
 
-Alerts are the operational and security attention layer. They should be generated from qualifying audit events and system conditions, then displayed in the Hub Alerts area.
+Alerts are the operational and security attention layer. Initial severity levels are Critical, Warning, and Info. Alerts retain a stable identifier, title, message, source, affected resource, first/last-seen timestamps, occurrence count, and status.
 
-Initial severity levels:
-- **Critical:** immediate security or service-impacting condition requiring urgent action.
-- **Warning:** degraded state, repeated failure, or condition needing investigation.
-- **Info:** meaningful event or state change that does not currently require intervention.
-
-Initial alert behavior:
-- Each alert has a stable event/alert identifier, severity, title, message, source, affected user/site/resource when relevant, first-seen time, and current status.
-- Show active and resolved alerts separately.
-- Support acknowledge and resolve actions with actor and timestamps.
-- Preserve alert history after resolution.
-- Deduplicate repeated occurrences where appropriate, update occurrence count and last-seen time, and avoid flooding the feed.
-- Provide filtering by severity, status, source, and date.
-- Make notification delivery a separate, configurable channel. A notification failure must not erase the alert or audit event.
-- Any acknowledge, resolve, mute, or notification-setting change must itself be audited.
-
-Not every audit event should create a user-facing alert. Every consequential action must be audited; only events meeting alert rules should create alerts. This separation prevents routine activity from overwhelming administrators while retaining a complete audit trail.
+The lifecycle supports Active, Acknowledged, and Resolved states with actor and timestamps. Repeated occurrences are deduplicated where appropriate. Notification delivery remains separate and is not claimed unless a provider and delivery path are configured and tested.
 
 ## Integration contract
-
-The three areas must share a consistent event model:
 
 1. An action or system condition occurs.
 2. Authorization is checked where the action is user initiated.
 3. The application writes the audit event with a clear outcome.
-4. If the event matches an alert rule, an alert is created or an existing alert is updated.
-5. The Alerts page displays the alert and its lifecycle.
-6. Any notification is dispatched independently and its delivery result is recorded without exposing secrets.
-
-Audit and alert persistence must be transactional where they are part of the same database operation. Where external notification delivery is involved, use a durable queued/outbox pattern or equivalent retry-safe mechanism rather than relying on an in-memory task.
+4. Qualifying conditions create or update alerts.
+5. The Alerts page displays the alert lifecycle.
+6. Notification delivery is independent of audit and alert persistence.
 
 ## Delivery sequence
 
-1. **Inspect and preserve identity:** trace the existing login, user model, roles, permission middleware, database schema, and tests. Record what already exists and avoid rebuilding it.
-2. **Define persistence and event contracts:** migrations, audit event schema, alert schema, indexes, retention, and safe metadata rules.
-3. **Implement audit foundation:** central server-side audit service and coverage for authentication and administrative actions.
-4. **Implement user management:** API authorization and persisted CRUD/status workflows using the existing role model.
-5. **Implement alert engine:** severity rules, deduplication, lifecycle, and notification boundary.
-6. **Connect redesigned screens:** replace all user, audit, and alert fixtures with real API/database data; provide loading, empty, error, and permission-denied states.
-7. **Validate:** automated tests, role/authorization tests, audit coverage tests, alert lifecycle tests, migration tests, and local Windows/Docker browser verification.
+1. Inspect and preserve identity, roles, and session handling.
+2. Define persistence and event contracts.
+3. Implement append-only audit persistence.
+4. Implement user management with server-side authorization.
+5. Implement alert severity, deduplication, and lifecycle.
+6. Connect the three screens to API-backed data with loading, empty, error, and permission-denied states.
+7. Validate automated tests, authorization, migrations, and local Windows/Docker browser behavior.
 
 ## Acceptance criteria
 
-- The existing administrator can manage users through the redesigned User Management screen, subject to the established role rules.
+- Existing administrator account and credentials remain unchanged.
 - Existing roles and login behavior remain intact.
-- Unauthorized users cannot invoke administrative endpoints even if they bypass the UI.
-- Every consequential action in the defined coverage produces a durable audit record with actor, action, target, outcome, and timestamp.
-- Secrets and credentials are absent from audit records and application-facing alert messages.
-- Qualifying events produce correctly classified alerts, and routine events do not create unnecessary alerts.
-- Alerts can be filtered, acknowledged, resolved, and retained with their history.
-- Alert delivery failures do not lose audit records or alerts.
-- Tests prove last-admin protection, access control, audit immutability through application interfaces, and alert deduplication/lifecycle.
-- No screen reports success for an operation until the server confirms it.
-- The three screens contain no production-facing demo records.
-
-## Explicit non-goals
-
-- No changes to pfSense firewall configuration or firewall-side users.
-- No replacement of the existing authentication/role model without a separately approved decision.
-- No claim that email, SMS, or push notifications are delivered until a provider and delivery path are configured and tested.
-- No implementation of unrelated Hub or Site workspace pages in this phase.
-
-## Open implementation decisions
-
-These are to be resolved by inspecting the existing code before building, not guessed:
-- Exact existing role names and permission matrix.
-- Existing user/session persistence and password reset mechanism.
-- Existing database migration and transaction conventions.
-- Initial alert rules and which notification channels are actually configured.
-- Audit and alert retention period, export format, and any compliance requirements.
-
+- Unauthorized users cannot invoke administrative endpoints.
+- Audit records contain actor, action, target, outcome, and timestamp without secrets.
+- Alerts support filtering, acknowledgment, resolution, and history.
+- No screen reports success before the server confirms it.
+- No production-facing screen uses demo records.
 
 ## Implementation record, November 21, 2026
 
@@ -149,16 +88,39 @@ Delivered on the feature branch:
 - Disabled accounts are rejected during login and session lookup.
 - Audit retrieval and event coverage for setup/login/logout, failed authentication, access denials, user changes, Hub reachability settings, alert lifecycle, and automatic polling recovery.
 - Deduplicated Critical/Warning alerts for firewall polling failures, automatically resolved after a fully successful polling cycle.
-- User Management, Audit Logs, and Alerts screens now use API-backed data and include loading, empty, error, and action states.
-- Service-level tests cover audit metadata sanitization and alert deduplication.
+- User Management, Audit Logs, and Alerts screens use API-backed data and include loading, empty, error, and action states.
+- Added a development-only, transactional, idempotent seed command for nine standard users, 50 alerts, and 100 synthetic audit events.
+- Seeded users receive random unknown passwords, the existing administrator account is not changed, and synthetic audit events are labeled in metadata.
+- Seeded user accounts are all role `user`; seven are active and two are disabled to exercise account-state handling.
+
+## Running the development seed
+
+The seed is guarded by `NODE_ENV=development`. It applies pending migrations, requires an existing active administrator, and uses a transaction plus a seed ledger to prevent duplicate runs.
+
+For a local Windows development environment, build the API first, set `NODE_ENV=development` and a development-only `DATABASE_URL`, then run:
+
+```powershell
+npm run build --workspace @pfsense-hub/api
+$env:NODE_ENV = "development"
+npm run db:seed:dev
+```
+
+For the Docker Compose API container, explicitly override its production environment only for this one command:
+
+```powershell
+docker compose exec -e NODE_ENV=development api npm run db:seed:dev
+```
+
+Do not run this command against a production database. Running it a second time reports that the dataset was already applied and makes no changes. Seeded user accounts have randomly generated, unknown passwords; assign a password through the User Management workflow before attempting to sign in as one.
 
 ## Verification and remaining release gates
 
-- GitHub Actions typecheck, test, production build, Compose validation, and container build must pass on the final pull request head.
+- Run typecheck, tests, production build, Compose validation, and container build on the final pull request head.
 - Verify administrator and regular-user access in the Windows Docker environment.
-- Validate migration 004 against a copy of the current PostgreSQL database, including existing migration history.
+- Validate migrations against a copy of the current PostgreSQL database.
 - Verify last-active-admin protection and append-only enforcement against PostgreSQL.
-- Define audit/alert retention, backup, restore, and any notification delivery policy before production release.
+- Run the seed once and rerun it to confirm that the second invocation skips without creating duplicates.
+- Define audit/alert retention, backup, restore, and notification delivery policy before production release.
 
 ## Known limitations
 
@@ -166,3 +128,12 @@ Delivered on the feature branch:
 - Notification delivery, audit export, configurable retention, and alert mute controls are not implemented.
 - The wider dashboard still contains demonstration data outside these three administration screens.
 - No pfSense configuration-changing operation is introduced.
+
+
+## Closeout update, November 21, 2026
+
+The development seed and responsive administration UI are now part of the active feature branch. The shared `DataTable` and `ListToolbar` components provide search, expandable filters, pagination, and mobile cards. A global `ToastProvider` supplies consistent operation feedback. User Management, Audit Logs, and Alerts render API-backed data and retain loading, empty, error, and action states.
+
+The development-only seed command is exposed as `npm run db:seed:dev`. It must only be run against a disposable/local development database. Its guard, transaction, and seed ledger make it safe to rerun without duplicating the seeded dataset. Seeded accounts have unknown random passwords, so use the application administrator workflow to set credentials before testing those accounts.
+
+The recent local UI issue was traced to a stale Docker web image. Rebuilding the web service resolved the discrepancy; no source rollback or branch repair was required. Remaining verification gates in this document still apply, particularly role behavior, migration validation, seed rerun behavior, and production-build checks on the final merge candidate.
