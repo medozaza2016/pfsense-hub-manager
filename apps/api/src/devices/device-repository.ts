@@ -43,19 +43,27 @@ const apiOriginSchema = z.string().trim().min(1).max(2048).url().transform((valu
   return url.origin;
 });
 
+const tlsServernameSchema = z.string().trim().min(1).max(253).nullable().optional().transform(value => value || null).refine(
+  value => value === null || value.split(".").every(label => label.length >= 1 && label.length <= 63 && /^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(label)),
+  "TLS server name must be a valid DNS hostname."
+);
+
 export const createDeviceSchema = z.object({
   name: z.string().trim().min(1).max(120),
   location: z.string().trim().max(120).nullable().optional().transform(value => value || null),
   edition: z.enum(["plus", "ce"]),
   apiBaseUrl: apiOriginSchema,
-  apiKey: z.string().min(1).max(4096)
+  apiKey: z.string().min(1).max(4096),
+  tlsServername: tlsServernameSchema,
+  certificateAuthority: z.string().max(60 * 1024).optional()
 }).strict();
 
 export const updateDeviceProfileSchema = z.object({
   name: z.string().trim().min(1).max(120),
   location: z.string().trim().max(120).nullable().optional().transform(value => value || null),
   edition: z.enum(["plus", "ce"]),
-  apiBaseUrl: apiOriginSchema
+  apiBaseUrl: apiOriginSchema,
+  tlsServername: tlsServernameSchema
 }).strict();
 
 export type CreateDeviceInput = z.infer<typeof createDeviceSchema>;
@@ -67,6 +75,7 @@ export interface ManagedDeviceProfile {
   location: string | null;
   edition: "plus" | "ce" | "unknown";
   apiBaseUrl: string;
+  tlsServername: string | null;
   enabled: boolean;
   isDemo: boolean;
   createdAt: string;
@@ -79,6 +88,7 @@ interface DeviceRow {
   location: string | null;
   edition: "plus" | "ce" | "unknown";
   api_base_url: string;
+  tls_servername: string | null;
   enabled: boolean;
   is_demo: boolean;
   created_at: Date | string;
@@ -108,6 +118,7 @@ function toProfile(row: DeviceRow): ManagedDeviceProfile {
     location: row.location,
     edition: row.edition,
     apiBaseUrl: row.api_base_url,
+    tlsServername: row.tls_servername,
     enabled: row.enabled,
     isDemo: row.is_demo,
     createdAt: new Date(row.created_at).toISOString(),
@@ -139,7 +150,7 @@ export class DeviceRepository {
 
   async listProfiles(): Promise<ManagedDeviceProfile[]> {
     const result = await this.pool.query<DeviceRow>(
-      `SELECT id,name,location,edition,api_base_url,enabled,is_demo,created_at,updated_at
+      `SELECT id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at
        FROM managed_devices ORDER BY name,id`
     );
     return result.rows.map(toProfile);
@@ -148,7 +159,7 @@ export class DeviceRepository {
   async getProfile(deviceId: string): Promise<ManagedDeviceProfile | null> {
     const id = deviceIdSchema.parse(deviceId);
     const result = await this.pool.query<DeviceRow>(
-      `SELECT id,name,location,edition,api_base_url,enabled,is_demo,created_at,updated_at
+      `SELECT id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at
        FROM managed_devices WHERE id=$1`,
       [id]
     );
@@ -215,16 +226,25 @@ export class DeviceRepository {
     const encrypted = encryptDeviceCredential(parsed.apiKey, this.encryptionKey, id);
     return withTransaction(this.pool, async client => {
       const inserted = await client.query<DeviceRow>(
-        `INSERT INTO managed_devices(id,name,location,edition,api_base_url,enabled,is_demo)
-         VALUES($1,$2,$3,$4,$5,true,false)
-         RETURNING id,name,location,edition,api_base_url,enabled,is_demo,created_at,updated_at`,
-        [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl]
+        `INSERT INTO managed_devices(id,name,location,edition,api_base_url,tls_servername,enabled,is_demo)
+         VALUES($1,$2,$3,$4,$5,$6,true,false)
+         RETURNING id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at`,
+        [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl, parsed.tlsServername]
       );
       await client.query(
         `INSERT INTO device_credentials(device_id,algorithm,format_version,key_version,nonce,auth_tag,ciphertext)
          VALUES($1,'aes-256-gcm',$2,1,$3,$4,$5)`,
         [id, encrypted.version, Buffer.from(encrypted.nonce, "hex"), Buffer.from(encrypted.authTag, "hex"), Buffer.from(encrypted.ciphertext, "hex")]
       );
+      if (parsed.certificateAuthority) {
+        const normalizedCa = normalizeDeviceCaBundle(parsed.certificateAuthority);
+        const encryptedCa = encryptDeviceTlsTrust(normalizedCa, this.encryptionKey, id);
+        await client.query(
+          `INSERT INTO device_tls_trust(device_id,algorithm,format_version,key_version,nonce,auth_tag,ciphertext)
+           VALUES($1,'aes-256-gcm',$2,1,$3,$4,$5)`,
+          [id, encryptedCa.version, Buffer.from(encryptedCa.nonce, "hex"), Buffer.from(encryptedCa.authTag, "hex"), Buffer.from(encryptedCa.ciphertext, "hex")]
+        );
+      }
       const row = inserted.rows[0];
       if (!row) throw new Error("Managed device creation returned no profile.");
       return toProfile(row);
@@ -235,10 +255,10 @@ export class DeviceRepository {
     const id = deviceIdSchema.parse(deviceId);
     const parsed = updateDeviceProfileSchema.parse(input);
     const result = await this.pool.query<DeviceRow>(
-      `UPDATE managed_devices SET name=$2,location=$3,edition=$4,api_base_url=$5,updated_at=now()
+      `UPDATE managed_devices SET name=$2,location=$3,edition=$4,api_base_url=$5,tls_servername=$6,updated_at=now()
        WHERE id=$1 AND is_demo=false
-       RETURNING id,name,location,edition,api_base_url,enabled,is_demo,created_at,updated_at`,
-      [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl]
+       RETURNING id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at`,
+      [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl, parsed.tlsServername]
     );
     const row = result.rows[0];
     return row ? toProfile(row) : null;
@@ -250,7 +270,7 @@ export class DeviceRepository {
     const result = await this.pool.query<DeviceRow>(
       `UPDATE managed_devices SET enabled=$2,updated_at=now()
        WHERE id=$1 AND is_demo=false
-       RETURNING id,name,location,edition,api_base_url,enabled,is_demo,created_at,updated_at`,
+       RETURNING id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at`,
       [id, enabled]
     );
     const row = result.rows[0];
