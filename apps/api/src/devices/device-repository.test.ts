@@ -113,4 +113,32 @@ describe("DeviceRepository", () => {
     expect(query.mock.calls[3]?.[0]).toBe("ROLLBACK");
     expect(client.release).toHaveBeenCalledOnce();
   });
+
+  it("decrypts a stored credential only with its bound device identity", async () => {
+    const deviceId = "11111111-1111-4111-8111-111111111111";
+    const encrypted = encryptDeviceCredential("stored-api-key", key, deviceId);
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [{
+        format_version: 2,
+        key_version: 1,
+        nonce: Buffer.from(encrypted.nonce, "hex"),
+        auth_tag: Buffer.from(encrypted.authTag, "hex"),
+        ciphertext: Buffer.from(encrypted.ciphertext, "hex")
+      }],
+      rowCount: 1
+    });
+    const pool = { query } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.decryptApiKeyForConnection(deviceId)).resolves.toBe("stored-api-key");
+    expect(query.mock.calls[0]?.[1]).toEqual([deviceId]);
+  });
+
+  it("returns no credential when the device is missing or disabled", async () => {
+    const query = vi.fn().mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const pool = { query } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.decryptApiKeyForConnection("11111111-1111-4111-8111-111111111111")).resolves.toBeNull();
+  });
 });
