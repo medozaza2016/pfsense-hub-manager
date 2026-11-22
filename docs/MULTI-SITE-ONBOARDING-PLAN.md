@@ -1,8 +1,8 @@
 # Multi-site Onboarding and Connection Management
 
-**Status:** In progress  
+**Status:** Core implementation delivered; verification recorded; wider product acceptance remains open  
 **Implementation branch:** `feature/multi-site-onboarding`  
-**Last reconciled:** November 21, 2026  
+**Last reconciled:** November 22, 2026  
 **Scope:** Read-only firewall connectivity and managed-device lifecycle
 
 ## 1. Objective
@@ -48,13 +48,13 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
   - `PUT /api/v1/devices/:deviceId/credential`
   - `PUT /api/v1/devices/:deviceId/tls-trust`
   - `POST /api/v1/devices/:deviceId/connection-test`
-- Route tests now cover administrator enforcement, credential non-disclosure, profile secret rejection, pre-registration test success/failure, and safe certificate discovery. These tests and the integrated server build are pending execution in the user's local checkout.
-- The startup configuration still requires the legacy `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, `PFSENSE_API_BASE_URL`, and `PFSENSE_API_KEY_FILE` bootstrap settings. The first configured firewall is persisted at startup. Removing that requirement is a separate compatibility change and must preserve existing deployments.
+- Route tests cover administrator enforcement, credential non-disclosure, profile secret rejection, pre-registration test success/failure, and safe certificate discovery. The Windows API suite was run locally: 177 tests passed and 4 platform-specific Unix-socket tests were skipped. API/web typechecks and production builds also passed.
+- A fresh Hub installation does not require populated legacy `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, or `PFSENSE_API_BASE_URL` values or a real bootstrap API key. The Compose file retains blank compatibility settings and an empty API-key secret placeholder. The optional legacy bootstrap path remains available for an existing single-firewall deployment.
 - The capabilities response currently reports the fixed operation list as supported/tested. This is an implementation declaration, not proof that every endpoint has been verified against every pfSense edition or release. Do not interpret it as a live compatibility test.
 - The inventory derives `connectionState` and `lastConnectionCheckAt` from the latest persisted `version` operation in `poll_runs`. Explicit connection tests record success or failure in the existing history table, so status survives refresh without a new migration. Devices with no recorded check remain `unknown`; demo devices remain unverified.
 - The Add Site workflow is connected to the API. It collects the site name, optional location, edition, HTTPS API origin, API credential, optional TLS server name, and optional custom CA bundle. It can discover and display the presented certificate before credentials are submitted. The administrator must confirm the displayed SHA-256 fingerprint against a trusted independent source before the pre-registration test can proceed. Credentials and CA material are cleared after successful registration.
 - The pre-registration connection test uses only the `version` GET operation. The server repeats that test during registration, then persists the profile, encrypted trust material, and successful `poll_runs` entry in one database transaction. The post-registration dialog still allows a fresh connection test.
-- TLS trust persistence, server-name persistence, and lifecycle logic have unit-test coverage. Migration execution against the user's actual PostgreSQL database and live firewall connectivity have not yet been confirmed.
+- TLS trust persistence, server-name persistence, and lifecycle logic have unit-test coverage. The clean Debian 13 installation completed and ran the repository's migrations on a fresh PostgreSQL volume. This confirms clean-start migration execution, not migration of a preserved existing-data database or a two-firewall live test.
 
 ## 3. Security invariants
 
@@ -88,7 +88,7 @@ These are non-negotiable throughout the remaining work:
 - [x] Add administrator-only connection-test endpoints using the selected device's own client factory.
 - [x] Use only the fixed read-only operation allowlist. A successful `version` request establishes basic authenticated reachability only, not full compatibility.
 - [x] Return normalized results with classified outcomes and timestamps. Do not expose raw upstream responses, credentials, internal exception details, or arbitrary headers.
-- [ ] Distinguish reachable/authenticated, DNS/network failure, timeout, TLS failure, authentication failure, authorization failure, unsupported endpoint, rate limiting, remote server failure, and invalid response where the client can reliably identify them.
+- [x] Classify the connection errors that the client can reliably identify, including network, timeout, TLS, authentication, authorization, unsupported, rate-limit, remote-server, and invalid-response classes. Exact differentiation remains dependent on upstream error information.
 - [x] Ensure disabled and demo devices cannot be tested.
 - [x] Audit test outcomes without recording secret material.
 
@@ -103,19 +103,19 @@ These are non-negotiable throughout the remaining work:
 - [x] Discover the presented TLS certificate with safe destination validation and pinned DNS resolution.
 - [x] Require an authenticated read-only connection test before registration, and repeat it server-side before persistence.
 - [x] Persist optional TLS server name and custom CA trust atomically with the new device.
-- [ ] Add edit, enable/disable, and credential rotation controls for administrators.
-- [ ] Distinguish configured, enabled, reachable, and compatible states. Do not treat these as interchangeable.
-- [ ] Clearly label demo devices and prevent demo actions from being presented as live firewall operations.
-- [ ] Preserve the existing visual system and responsive behavior while adding loading, validation, permission, TLS, timeout, and partial-failure states.
+- [x] Add edit, enable/disable, credential rotation, custom TLS trust set/remove, and archive controls for administrators.
+- [x] Distinguish configured, enabled, reachable, and compatible states. Do not treat these as interchangeable.
+- [x] Clearly label demo devices and prevent demo actions from being presented as live firewall operations.
+- [x] Preserve the existing visual system and responsive behavior with loading, validation, permission, TLS, timeout, and partial-failure states.
 
 ### Phase D: Deployment and operational verification
 
-- [ ] Apply migrations 008 and 009 in a controlled development database and verify the resulting schema.
-- [ ] Verify encrypted credential and custom CA persistence, decryption, wrong-key failure, and tamper rejection.
-- [ ] Verify the legacy bootstrap path preserves an existing manager-rotated credential and profile.
-- [ ] Verify independent device behavior with two test devices when the user is ready to connect the second firewall.
-- [ ] Verify Docker Compose configuration, production build, and Linux deployment.
-- [ ] Document encryption-key backup/recovery requirements before production rollout. Never rotate or replace the key without a separately tested data migration plan.
+- [x] Execute the full migration chain during a clean Debian 13 installation. Existing-data migration and schema-diff validation remain outstanding.
+- [ ] Complete a dedicated encrypted credential/custom CA round-trip, wrong-key, tamper, and restore test against a disposable database.
+- [ ] Verify the legacy bootstrap path preserves an existing manager-rotated credential and profile before migrating an existing installation.
+- [ ] Verify independent device behavior with two real test devices when the user is ready to connect the second firewall.
+- [x] Verify Docker Compose configuration, production build, and Linux deployment. The clean installer and all three container health checks passed.
+- [x] Document encryption-key backup/recovery requirements. A backup/restore drill and key rotation procedure remain outstanding; never replace the key without a separately tested data migration plan.
 
 ## 5. Deferred decisions and scope
 
@@ -130,7 +130,7 @@ These are non-negotiable throughout the remaining work:
 
 ## 6. Acceptance criteria
 
-The onboarding milestone is complete only when:
+The core onboarding implementation is present on this branch. The remaining release/acceptance criteria are:
 
 1. An administrator can register multiple real-device profiles through the GUI without adding environment variables for each additional firewall.
 2. Each device uses its own encrypted credential, HTTPS origin, TLS trust configuration, and optional verified TLS server name.
@@ -142,7 +142,7 @@ The onboarding milestone is complete only when:
 8. Disabled and demo devices cannot obtain live clients or be tested.
 9. TLS verification, DNS validation, pinned lookup, and the fixed GET allowlist remain enforced.
 10. The legacy first-firewall bootstrap remains compatible until an intentional migration away from it is implemented.
-11. Migration execution, API tests, typecheck, production build, Compose validation, and browser acceptance are verified and recorded.
+11. API tests (177 passed, 4 skipped on Windows), API/web typechecks, production build, Compose validation, clean Linux installation, and browser Tailscale acceptance are recorded in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 12. The second firewall can be added when the user chooses the transport and is ready to connect it.
 13. No firewall configuration-changing operation is introduced.
 
@@ -151,10 +151,10 @@ The onboarding milestone is complete only when:
 Continue on `feature/multi-site-onboarding`. Do not switch to, commit to, or merge into `main` without explicit user approval. Keep changes incremental, inspect the current code before editing, run the relevant tests, and report exact verification results. A pull request or merge requires separate user approval.
 
 
-## 8. Hub access endpoint settings
+## 8. Hub access endpoint settings and deployment
 
-Migration `012_hub_access_endpoints.sql` introduces `hub_access_endpoints`, with at most one record for each of Local, Tailscale, and Hostname/IP. Existing `hub_settings` data is copied forward and the old table is retained for compatibility. Each endpoint has its own enabled state, address type, address, HTTPS port, and audit attribution.
+Migration `012_hub_access_endpoints.sql` introduces `hub_access_endpoints`, with one retained record for each of Local, Tailscale, and Custom. Exactly one method is selected as active. Each method retains its own address type, address, HTTPS port, and audit attribution. Existing `hub_settings` data is copied forward and the old table is retained for compatibility.
 
-The singleton `hub_access_deployment_state` tracks the desired configuration revision and the revision an administrator has explicitly confirmed as applied. The confirmation is an attestation only. It does not invoke Docker, edit Compose files, configure DNS/Tailscale/reverse proxy, or test connectivity.
+Migration `014_hub_access_deployments.sql` adds revision-scoped deployment history. The API persists the desired endpoint configuration, creates a deployment record, and dispatches only a deployment ID and desired revision over the restricted Unix socket. The Linux Host Agent retrieves the approved configuration from the loopback API and applies the fixed host operation. The API records the applied revision only after the agent returns a verified HTTPS origin. This is an actual host deployment and endpoint probe, not an administrator attestation.
 
-The API exposes authenticated read access and administrator-only endpoint replacement and deployment-confirmation operations. Endpoint updates are validated, transactional, and audited. No firewall configuration writes, Docker socket access, or arbitrary command execution are introduced.
+For Tailscale, the active endpoint must be the local host's MagicDNS hostname and the agent may provision only the fixed private Serve proxy to `http://127.0.0.1:8080`. It will not replace a conflicting handler or configure Funnel, DNS, ACLs, or tailnet HTTPS. LAN and Custom require an operator-managed trusted reverse proxy. See [Automatic Hub Access Deployment](AUTOMATIC-HUB-ACCESS-DEPLOYMENT.md) and [Hub Access Configuration](HUB-ACCESS-CONFIGURATION.md) for the complete implementation and verification record.
