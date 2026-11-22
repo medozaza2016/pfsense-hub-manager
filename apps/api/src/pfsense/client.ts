@@ -110,15 +110,15 @@ export const pfSenseOperations=Object.keys(routes) as PfSenseOperation[];
  */
 const recordSchema=z.record(z.string(),z.unknown());
 const recordsSchema=z.array(recordSchema);
+// Version payloads vary across pfSense package releases. Require a non-empty
+// version object/string while preserving the upstream fields for later mapping.
 const versionSchema=z.union([
  z.string().min(1),
- z.object({release:z.string().min(1)}).passthrough(),
- z.object({version:z.string().min(1)}).passthrough()
+ z.object({}).passthrough().refine(value=>Object.values(value).some(item=>typeof item==="string"&&item.trim().length>0),"Expected a non-empty version object.")
 ]);
 const firewallStateSizeSchema=z.union([
  z.number().finite().nonnegative(),
- z.object({size:z.number().finite().nonnegative()}).passthrough(),
- z.object({states:z.number().finite().nonnegative()}).passthrough()
+ z.object({}).passthrough().refine(value=>Object.values(value).some(item=>typeof item==="number"&&Number.isFinite(item)&&item>=0),"Expected a non-negative state size.")
 ]);
 const dataSchemas:Record<PfSenseOperation,z.ZodType>={
  system:recordSchema,
