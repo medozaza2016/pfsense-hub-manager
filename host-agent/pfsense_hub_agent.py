@@ -200,7 +200,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
 
 def handle_client(conn: socket.socket, config: dict[str, Any], lock_path: Path) -> None:
     try:
-        conn.settimeout(10)
+        conn.settimeout(120)
         data = bytearray()
         while b"\n" not in data and len(data) <= MAX_LINE:
             chunk = conn.recv(4096)
