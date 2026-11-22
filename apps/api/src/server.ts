@@ -10,7 +10,7 @@ import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
 import { appendAudit, upsertAlert } from "./audit.js";
-import { hubAccessEndpointsSchema } from "./hub-settings.js";
+import { deploymentConfirmationSchema, hubAccessEndpointsSchema } from "./hub-settings.js";
 
 const config = loadConfig();
 const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
@@ -346,11 +346,12 @@ app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
         [endpoint.method, endpoint.addressType, endpoint.address, endpoint.httpsPort, endpoint.enabled, admin?.id ?? null]
       );
     }
-    const state = await db.query<{ desiredRevision: number }>(
-      'UPDATE hub_access_deployment_state SET desired_revision=desired_revision+1,updated_at=now(),updated_by=$1 WHERE id=1 RETURNING desired_revision AS "desiredRevision"',
+    const state = await db.query<{ desiredRevision: number; appliedRevision: number }>(
+      'UPDATE hub_access_deployment_state SET desired_revision=desired_revision+1,updated_at=now(),updated_by=$1 WHERE id=1 RETURNING desired_revision AS "desiredRevision", applied_revision AS "appliedRevision"',
       [admin?.id ?? null]
     );
     revision = Number(state.rows[0]?.desiredRevision ?? 1);
+    var appliedRevision = Number(state.rows[0]?.appliedRevision ?? 0);
     await db.query("COMMIT");
   } catch (error) {
     try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
@@ -368,18 +369,19 @@ app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
     requestId: request.id,
     metadata: { methods: parsed.data.endpoints.map(endpoint => endpoint.method), enabledCount: parsed.data.endpoints.filter(endpoint => endpoint.enabled).length, desiredRevision: revision }
   });
-  return { data: { endpoints: parsed.data.endpoints, desiredRevision: revision, appliedRevision: revision - 1, deploymentStatus: "pending" } };
+  return { data: { endpoints: parsed.data.endpoints, desiredRevision: revision, appliedRevision, deploymentStatus: revision === appliedRevision ? "applied" : "pending" } };
 });
 
 app.post("/api/v1/hub-settings/deployment-applied", async (request, reply) => {
-  const parsed = z.object({ confirmation: z.literal("APPLIED") }).strict().safeParse(request.body);
-  if (!parsed.success) return reply.code(400).send({ error: { code: "DEPLOYMENT_CONFIRMATION_REQUIRED", message: "Confirm that the required deployment and network changes have been applied." } });
+  const parsed = deploymentConfirmationSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "DEPLOYMENT_CONFIRMATION_REQUIRED", message: "Provide the exact configuration revision you have applied." } });
   const admin = (request as typeof request & { admin?: AdminUser }).admin;
   const result = await pool.query(
-    'UPDATE hub_access_deployment_state SET applied_revision=desired_revision,applied_at=now(),applied_by=$1 WHERE id=1 RETURNING desired_revision AS "desiredRevision",applied_revision AS "appliedRevision",applied_at AS "appliedAt"',
-    [admin?.id ?? null]
+    'UPDATE hub_access_deployment_state SET applied_revision=$2,applied_at=now(),applied_by=$1 WHERE id=1 AND desired_revision=$2 RETURNING desired_revision AS "desiredRevision",applied_revision AS "appliedRevision",applied_at AS "appliedAt"',
+    [admin?.id ?? null, parsed.data.expectedRevision]
   );
   const state = result.rows[0];
+  if (!state) return reply.code(409).send({ error: { code: "DEPLOYMENT_REVISION_CHANGED", message: "Hub access settings changed after this deployment revision was loaded. Reload settings and apply the latest revision." } });
   await appendAudit(pool, {
     actorId: admin?.id ?? null,
     actorUsername: admin?.username ?? null,
