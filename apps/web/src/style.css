@@ -118,3 +118,14 @@
 .certificate-help p{margin:7px 0}
 .certificate-help ol{margin:7px 0;padding-left:20px}
 .certificate-help li{margin:4px 0}
+
+
+/* Explicit native select affordance for firewall onboarding */
+.site-onboarding-form .onboarding-select-wrap{position:relative;display:block;width:100%}
+.site-onboarding-form .onboarding-select-wrap select{appearance:none;-webkit-appearance:none;width:100%;padding-right:48px;background:#fff;cursor:pointer;color:#102747;font-weight:650}
+.site-onboarding-form .onboarding-select-wrap select:hover{border-color:#9bb9e3;background-color:#fbfdff}
+.site-onboarding-form .onboarding-select-wrap select:focus-visible{outline:3px solid #1764d526;outline-offset:1px;border-color:#397ed6;box-shadow:0 0 0 1px #397ed6}
+.site-onboarding-form .onboarding-select-chevron{position:absolute;top:50%;right:15px;transform:translateY(-50%);display:grid;place-items:center;width:22px;height:22px;border-left:1px solid #e1e9f4;padding-left:10px;color:#315b91;pointer-events:none}
+.site-onboarding-form .onboarding-select-chevron svg{display:block;width:17px;height:17px}
+.site-onboarding-form .onboarding-select-wrap:focus-within .onboarding-select-chevron{color:#075df5}
+.site-onboarding-form .onboarding-select-wrap select:disabled{cursor:not-allowed;opacity:.65}
