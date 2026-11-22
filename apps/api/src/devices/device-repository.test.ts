@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Pool, PoolClient } from "pg";
+import { encryptDeviceCredential } from "../security/credential-encryption.js";
 import {
   createDeviceSchema,
   DeviceRepository,
@@ -41,7 +42,11 @@ describe("managed device profile validation", () => {
     "https://192.168.10.1/api/v2",
     "https://192.168.10.1?token=x",
     "https://localhost",
-    "https://router.localhost"
+    "https://router.localhost",
+    "https://127.0.0.2",
+    "https://[::1]",
+    "https://192.168.10.1?",
+    "https://192.168.10.1#"
   ])("rejects unsafe or non-origin URL %s", apiBaseUrl => {
     expect(createDeviceSchema.safeParse({ ...validInput, apiBaseUrl }).success).toBe(false);
   });
