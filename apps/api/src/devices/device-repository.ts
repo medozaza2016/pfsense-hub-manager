@@ -170,7 +170,12 @@ export class DeviceRepository {
     apiKey: string;
   }): Promise<void> {
     const id = deviceIdSchema.parse(input.id);
-    const profile = updateDeviceProfileSchema.parse({
+    const profile = z.object({
+      name: z.string().trim().min(1).max(120),
+      location: z.string().trim().max(120).nullable().transform(value => value || null),
+      edition: z.enum(["plus", "ce", "unknown"]),
+      apiBaseUrl: apiOriginSchema
+    }).strict().parse({
       name: input.name,
       location: input.location || null,
       edition: input.edition,
