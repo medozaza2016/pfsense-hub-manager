@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isIP } from "node:net";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import {
@@ -8,6 +9,23 @@ import {
 } from "../security/credential-encryption.js";
 
 const deviceIdSchema = z.string().uuid();
+function isForbiddenAddress(hostname: string): boolean {
+  const address = hostname.replace(/^\\[|\\]$/g, "").toLowerCase();
+  const family = isIP(address);
+  if (family === 4) {
+    const octets = address.split(".").map(Number);
+    const first = octets[0] ?? 0;
+    const second = octets[1] ?? 0;
+    return first === 0 || first === 127 || (first === 169 && second === 254) || first >= 224;
+  }
+  if (family === 6) {
+    return address === "::" || address === "::1" || address.startsWith("fe8") ||
+      address.startsWith("fe9") || address.startsWith("fea") || address.startsWith("feb") ||
+      address.startsWith("ff") || address.startsWith("::ffff:127.");
+  }
+  return false;
+}
+
 const apiOriginSchema = z.string().trim().min(1).max(2048).url().transform((value, context) => {
   let url: URL;
   try {
@@ -28,7 +46,7 @@ const apiOriginSchema = z.string().trim().min(1).max(2048).url().transform((valu
     hostname.endsWith(".localhost") ||
     hostname === "0.0.0.0" ||
     hostname === "127.0.0.1" ||
-    hostname === "[::1]"
+    hostname === "[::1]" || isForbiddenAddress(hostname)
   ) {
     context.addIssue({ code: "custom", message: "Use an HTTPS origin only, without credentials, path, query, fragment, or localhost target." });
     return z.NEVER;
