@@ -123,6 +123,22 @@ def has_existing_serve_configuration(raw: str) -> bool:
     return bool(value.get("Web") or value.get("TCP"))
 
 
+def has_serve_handler(raw: str, host: str, port: int, target: str) -> bool:
+    try:
+        value = json.loads(raw)
+    except Exception as exc:
+        raise AgentError("TAILSCALE_SERVE_STATUS_INVALID") from exc
+    if not isinstance(value, dict):
+        raise AgentError("TAILSCALE_SERVE_STATUS_INVALID")
+    web = value.get("Web") or {}
+    if not isinstance(web, dict):
+        raise AgentError("TAILSCALE_SERVE_STATUS_INVALID")
+    endpoint = web.get(f"{host}:{port}") or {}
+    handlers = endpoint.get("Handlers") or {}
+    root_handler = handlers.get("/") or {}
+    return root_handler.get("Proxy") == target
+
+
 def verify_https(origin: str) -> None:
     context = ssl.create_default_context()
     request = urllib.request.Request(origin + "/health", headers={"User-Agent": "pfSense-Hub-Deployment-Agent/1"})
@@ -196,9 +212,9 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         rollback_ok = False
         if applied:
             try:
-                run_fixed([binary, "serve", "--https=" + str(port), "off"], timeout=15)
+                run_fixed([binary, "serve", "--https=" + str(port), "--set-path=/", "off"], timeout=15)
                 after = serve_status(binary)
-                rollback_ok = not has_existing_serve_configuration(after)
+                rollback_ok = not has_serve_handler(after, host, port, config["web_local_url"])
             except Exception:
                 rollback_ok = False
         code = exc.code if isinstance(exc, AgentError) else "DEPLOYMENT_FAILED"
