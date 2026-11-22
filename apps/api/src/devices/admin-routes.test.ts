@@ -28,6 +28,7 @@ function setup(actor: AdminUser = admin, overrides: {
   getError?: Error;
 } = {}) {
   const devices = {
+    getProfile: vi.fn(async () => profile),
     create: vi.fn(async () => profile),
     updateProfile: vi.fn(async () => profile),
     setEnabled: vi.fn(async () => profile),
