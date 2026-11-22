@@ -250,6 +250,16 @@ export async function registerDeviceAdminRoutes(
     return reply.code(201).send({ data: profile });
   });
 
+  app.get("/api/v1/devices/:deviceId/profile", { preHandler: requireAdministrator }, async (request, reply) => {
+    const deviceId = parseDeviceId(request, reply);
+    if (!deviceId) return;
+    const profile = await devices.getProfile(deviceId);
+    if (!profile || profile.isDemo) {
+      return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+    }
+    return { data: profile };
+  });
+
   app.patch("/api/v1/devices/:deviceId", { preHandler: requireAdministrator }, async (request, reply) => {
     const deviceId = parseDeviceId(request, reply);
     if (!deviceId) return;
