@@ -232,3 +232,51 @@ describe("DeviceRepository per-device TLS trust", () => {
     await expect(repository.decryptDeviceCaBundle(deviceId)).resolves.toBeNull();
   });
 });
+
+
+describe("DeviceRepository legacy bootstrap", () => {
+  const bootstrap = {
+    id: "22222222-2222-4222-8222-222222222222",
+    name: "Legacy Firewall",
+    location: "Main Office",
+    edition: "ce" as const,
+    apiBaseUrl: "https://192.168.10.2",
+    apiKey: "legacy-bootstrap-secret"
+  };
+
+  it("creates the legacy profile and encrypted credential without replacing existing credentials", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: bootstrap.id, is_demo: false }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+    const client = makePoolClient(query);
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.ensureBootstrapDevice(bootstrap)).resolves.toBeUndefined();
+    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\\s+/)[0])).toEqual([
+      "BEGIN", "INSERT", "SELECT", "INSERT", "COMMIT"
+    ]);
+    expect(String(query.mock.calls[1]?.[0])).toContain("ON CONFLICT(id) DO NOTHING");
+    expect(String(query.mock.calls[3]?.[0])).toContain("ON CONFLICT(device_id) DO NOTHING");
+    expect(query.mock.calls[3]?.[1]).not.toContain(bootstrap.apiKey);
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it("refuses a bootstrap ID that belongs to a demo device", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ id: bootstrap.id, is_demo: true }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+    const client = makePoolClient(query);
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.ensureBootstrapDevice(bootstrap)).rejects.toThrow("conflicts with a demo");
+    expect(query.mock.calls[3]?.[0]).toBe("ROLLBACK");
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+});
