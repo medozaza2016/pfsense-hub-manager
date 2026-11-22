@@ -1,6 +1,7 @@
 import type { AppConfig } from "../config.js";
 import { DeviceRepository, type ManagedDeviceProfile } from "../devices/device-repository.js";
 import { PfSenseClient, type PfSenseTlsTrust } from "./client.js";
+import { normalizeDeviceCaBundle } from "./tls-trust.js";
 
 export type PfSenseClientBuilder = (
   config: AppConfig,
@@ -20,6 +21,25 @@ export class DevicePfSenseClientFactory {
     private readonly buildClient: PfSenseClientBuilder = (config, apiKey, tlsTrust) =>
       new PfSenseClient(config, apiKey, tlsTrust)
   ) {}
+
+  async testConnection(input: {
+    apiBaseUrl: string;
+    apiKey: string;
+    certificateAuthority?: string;
+    tlsServername?: string | null;
+  }): Promise<void> {
+    const ca = input.certificateAuthority ? normalizeDeviceCaBundle(input.certificateAuthority) : null;
+    const trust: PfSenseTlsTrust = ca === null
+      ? { mode: "system", servername: input.tlsServername ?? null }
+      : { mode: "custom-ca", certificateAuthority: Buffer.from(ca, "utf8"), servername: input.tlsServername ?? null };
+    const testConfig: AppConfig = { ...this.config, PFSENSE_API_BASE_URL: input.apiBaseUrl };
+    const client = this.buildClient(testConfig, input.apiKey, trust);
+    try {
+      await client.get("version");
+    } finally {
+      await client.close();
+    }
+  }
 
   async create(deviceId: string): Promise<PfSenseClient | null> {
     const profiles = await this.devices.listProfiles();
