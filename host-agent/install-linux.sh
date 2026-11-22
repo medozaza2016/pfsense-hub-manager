@@ -59,15 +59,6 @@ for required_setting in \
     exit 1
   }
 done
-if [[ ! "$TOKEN" =~ ^[A-Za-z0-9_-]{32,256}$ ]]; then
-  echo "Set HUB_DEPLOYMENT_AGENT_TOKEN to a 32 to 256 character URL-safe random token in .env first (for example, generated with openssl rand -hex 32)." >&2
-  exit 1
-fi
-if [[ ! "$API_PORT" =~ ^[0-9]{1,5}$ ]] || (( API_PORT < 1 || API_PORT > 65535 )); then
-  echo "HUB_AGENT_API_PORT must be a valid TCP port." >&2
-  exit 1
-fi
-
 install -d -m 0750 "$CONFIG_DIR" /run/pfsense-hub "$PROJECT_DIR/run/host-agent"
 install -d -m 0755 /usr/local/libexec
 if ! getent group pfsense-hub-agent >/dev/null; then
@@ -119,7 +110,8 @@ with os.fdopen(fd, "w", encoding="utf-8") as stream:
     stream.write("\\n")
 os.chown(path, 0, 0)
 os.chmod(path, 0o600)
-PYinstall -m 0644 "$SERVICE_SOURCE" /etc/systemd/system/pfsense-hub-deployment-agent.service
+PY
+install -m 0644 "$SERVICE_SOURCE" /etc/systemd/system/pfsense-hub-deployment-agent.service
 chown root:pfsense-hub-agent "$PROJECT_DIR/run/host-agent"
 chmod 2750 "$PROJECT_DIR/run/host-agent"
 systemctl daemon-reload
