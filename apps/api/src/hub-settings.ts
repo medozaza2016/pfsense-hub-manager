@@ -29,8 +29,8 @@ export const hubAccessEndpointSchema = z.object({
   if (enabled && method === "tailscale" && addressType === "tailscale_ip") {
     invalid("HTTPS access requires the Hub host's Tailscale MagicDNS hostname, not its Tailscale IP address.");
   }
-  if (enabled && method !== "local" && (!addressType || !address)) {
-    invalid("An address is required for the active Tailscale or Custom method.");
+  if (enabled && (!addressType || !address)) {
+    invalid("A hostname or IP address is required for the active access method.");
   }
   if (address && ["ip", "tailscale_ip"].includes(addressType ?? "")) {
     const valid = addressType === "tailscale_ip"
