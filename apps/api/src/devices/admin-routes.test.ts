@@ -139,6 +139,36 @@ describe("managed-device administrator routes", () => {
     await state.app.close();
   });
 
+  it("rejects malformed custom CA material before persistence", async () => {
+    const state = setup();
+    await state.ready;
+    const response = await state.app.inject({
+      method: "PUT",
+      url: `/api/v1/devices/${deviceId}/tls-trust`,
+      payload: { certificateAuthority: "not a PEM certificate" }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(state.devices.setDeviceCaBundle).not.toHaveBeenCalled();
+    await state.app.close();
+  });
+
+  it("does not attempt a connection test for a disabled device", async () => {
+    const state = setup(admin, {
+      devices: { getProfile: vi.fn(async () => ({ ...profile, enabled: false })) }
+    });
+    await state.ready;
+    const response = await state.app.inject({
+      method: "POST",
+      url: `/api/v1/devices/${deviceId}/connection-test`
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe("DEVICE_DISABLED");
+    expect(state.clientFactory.create).not.toHaveBeenCalled();
+    await state.app.close();
+  });
+
   it("reports successful read-only connection tests and closes the client", async () => {
     const state = setup();
     await state.ready;
