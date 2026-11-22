@@ -40,7 +40,7 @@ export class PfSenseClient{
    return new Agent({connect:{
     ...(ca?{ca}:{}),
     rejectUnauthorized:true,
-    lookup:createPinnedLookup(this.base.hostname.replace(/^\\[|\\]$/g,""),destination)
+    lookup:createPinnedLookup(this.base.hostname.startsWith("[") ? this.base.hostname.slice(1,-1) : this.base.hostname,destination)
    }});
   })();
  }
