@@ -69,7 +69,7 @@ class DeploymentAgentTests(unittest.TestCase):
     @patch.object(agent, "serve_status")
     @patch.object(agent, "tailscale_identity")
     @patch.object(agent, "get_deployment")
-    def test_does_not_overwrite_existing_serve_configuration(self, run_fixed, get_deployment, identity, serve_status):
+    def test_does_not_overwrite_existing_serve_configuration(self, get_deployment, identity, serve_status, run_fixed):
         get_deployment.return_value = {
             "deploymentId": self.request["deploymentId"],
             "desiredRevision": 3,
