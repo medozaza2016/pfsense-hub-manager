@@ -144,8 +144,8 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         raise AgentError("TLS_METHOD_NOT_SUPPORTED_YET")
     address = endpoint.get("address")
     port = endpoint.get("port")
-    if not isinstance(address, str) or not isinstance(port, int) or not 1 <= port <= 65535:
-        raise AgentError("DEPLOYMENT_ENDPOINT_INVALID")
+    if not isinstance(address, str) or not isinstance(port, int) or port not in (443, 8443, 10000):
+        raise AgentError("TAILSCALE_HTTPS_PORT_UNSUPPORTED")
     host = address.rstrip(".").lower()
     if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\.ts\.net", host):
         raise AgentError("TAILSCALE_MAGICDNS_REQUIRED")
