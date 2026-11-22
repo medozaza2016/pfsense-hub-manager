@@ -341,7 +341,7 @@ export class DeviceRepository {
 
     return withTransaction(this.pool, async client => {
       const device = await client.query<{ id: string }>(
-        "SELECT id FROM managed_devices WHERE id=$1 AND is_demo=false FOR UPDATE",
+        "SELECT id FROM managed_devices WHERE id=$1 AND is_demo=false AND archived_at IS NULL FOR UPDATE",
         [id]
       );
       if (!device.rowCount) return false;
