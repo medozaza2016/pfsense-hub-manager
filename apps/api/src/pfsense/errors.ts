@@ -16,6 +16,8 @@ export function findUpstreamErrorCode(error:unknown):string|undefined{
 export function hasTlsFailure(error:unknown):boolean{
  let current:unknown=error;
  for(let depth=0;depth<5&&current instanceof Error;depth++){
+  const code=(current as Error&{code?:unknown}).code;
+  if(typeof code==="string"&&/^(ERR_TLS_|CERT_|SELF_SIGNED_|UNABLE_TO_VERIFY_)/.test(code))return true;
   if(/certificate|tls|ssl/i.test(current.message))return true;
   current=(current as Error&{cause?:unknown}).cause;
  }
