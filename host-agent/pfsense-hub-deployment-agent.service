@@ -1,6 +1,6 @@
 [Unit]
 Description=pfSense Hub Manager restricted deployment agent
-After=network-online.target tailscaled.service
+After=network-online.target docker.service tailscaled.service
 Wants=network-online.target
 
 [Service]
@@ -15,9 +15,9 @@ NoNewPrivileges=true
 CapabilityBoundingSet=
 AmbientCapabilities=
 PrivateTmp=true
-ProtectHome=true
+ProtectHome=read-only
 ProtectSystem=strict
-ReadWritePaths=/run/pfsense-hub /opt/pfsense-hub/run/host-agent
+ReadWritePaths=/run/pfsense-hub /opt/pfsense-hub
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 LockPersonality=true
 MemoryDenyWriteExecute=true
