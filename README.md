@@ -59,6 +59,7 @@ The editor workspace is ./workspace. The code-server container is isolated from 
 - [Multi-site onboarding implementation plan](docs/MULTI-SITE-ONBOARDING-PLAN.md)
 - [Decision log](docs/DECISIONS.md)
 - [Deployment guide](docs/DEPLOYMENT.md)
+- [Hub installation and first-run bootstrap target](docs/INSTALLATION-BOOTSTRAP.md)
 - [Hub access configuration](docs/HUB-ACCESS-CONFIGURATION.md)
 - [Metrics](docs/METRICS.md)
 - [Monitoring](docs/MONITORING.md)
@@ -67,9 +68,9 @@ The editor workspace is ./workspace. The code-server container is isolated from 
 
 Never commit firewall credentials, API keys, tokens, private keys, configuration backups, or real customer/network data. Keep credentials server-side, use least privilege, prefer private connectivity, and validate TLS certificates. Do not expose a firewall management API directly to the public internet by default.
 
-## Development
+## Development and installation status
 
-See [Deployment](docs/DEPLOYMENT.md). Copy .env.example to .env, create the local API key and code-server password files described there, and configure a trusted CA if required. Run docker compose config, then docker compose up -d --build. The initial application UI and VS Code editor are exposed only on localhost ports 8080 and 8443 respectively. The eight upstream GET operations are implemented behind a fixed allowlist; no write routes or arbitrary proxy exist. Manager-user session authentication, `admin`/`user` roles, administrator user management, audit events, and persisted operational alerts are implemented. Multi-device onboarding and a fully live multi-site dashboard remain future work.
+See [Deployment](docs/DEPLOYMENT.md) for current implementation details and [Hub Installation and First-Run Bootstrap](docs/INSTALLATION-BOOTSTRAP.md) for the approved target workflow. **The zero-firewall Hub-only bootstrap is not implemented yet.** The current Compose/API implementation still requires one environment-configured firewall. Do not assume the target instructions are executable, and do not remove existing firewall configuration until the implementation and migration have been verified. The eight upstream GET operations remain behind a fixed allowlist; no firewall write routes or arbitrary proxy exist. Manager-user session authentication, `admin`/`user` roles, administrator user management, audit events, and persisted operational alerts are implemented. Full per-site credential lifecycle and independent multi-device collection remain future work.
 
 ## License
 
@@ -88,6 +89,6 @@ Not yet selected. Do not assume this project is open source until a license is e
 - **Administration boundary:** User Management, Audit Logs, and Alerts are API-backed. Alert production is associated with a requested device overview, not an independent background polling scheduler.
 - **Verification boundary:** Earlier development sessions recorded 52 passing API tests, but that result is not a fresh verification of the current `main` commit. Run the complete local validation sequence before beginning feature implementation.
 - **Next milestone:** Secure multi-site onboarding and per-device connection management. The implementation plan is [Multi-site Onboarding](docs/MULTI-SITE-ONBOARDING-PLAN.md).
-- **Branch workflow:** Complete and review the documentation baseline on `main` first. Create a dedicated development branch only after the documentation pass is complete and the user is ready to begin implementation. Do not create, switch, or delete branches without the user's explicit authorization.
+- **Branch workflow:** This documentation-only update is being prepared on `docs/hub-bootstrap-and-installation-flow`. Review and merge its pull request into `main` first. Create a fresh implementation branch from updated `main` only after explicit authorization. Do not reuse existing branches without reviewing their state.
 
 Use `docs/ROADMAP.md` for milestone order, `docs/MULTI-SITE-ONBOARDING-PLAN.md` for the next implementation scope, and `docs/INTEGRATION-STATUS.md` for verified integration facts.

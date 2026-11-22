@@ -88,6 +88,9 @@ Administrators shall be able to add further supported pfSense firewalls without 
 ### FR-11: Installation and first-run onboarding
 The product shall provide a guided installation and first-run setup experience that accounts for all required infrastructure, configuration, security, and operational prerequisites. The installation workflow and its documentation shall be updated with each feature increment that introduces a new dependency or setup requirement. Infrastructure setup and one-time bootstrap shall be automated wherever practical. Normal site registration, credential entry and rotation, connection testing, and site lifecycle management shall be available through the GUI without routine shell commands. Production deployment shall target Linux, while the supported local development workflow uses Windows 11 and Docker Desktop.
 
+### FR-12: Hub-independent bootstrap and managed-device identity
+A fresh Hub installation shall initialize and remain usable with zero registered firewalls. Hub infrastructure configuration shall not require a firewall UUID, name, edition, API origin, API credential, or firewall CA certificate. Windows PowerShell and Linux Bash installation workflows shall provision Hub infrastructure and Hub-level secrets only. Firewall registration shall be initiated by an authenticated administrator through the GUI after first-run administrator setup. The backend shall generate a random UUID for each new managed-device record. Existing single-firewall environment configuration and data shall be migrated without losing its device identity, credentials, polling history, or audit records.
+
 ## 7. Initial non-functional requirements
 
 - **Security:** Least privilege, secret protection, TLS verification, and private connectivity preferred.
