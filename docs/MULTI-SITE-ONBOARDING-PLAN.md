@@ -137,7 +137,7 @@ The onboarding milestone is complete only when:
 3. Registration is blocked unless TLS verification and an authenticated `version` GET succeed. Certificate discovery itself never establishes trust.
 4. No secret material is returned to the browser or recorded in logs/audit metadata.
 5. Lifecycle mutations, certificate discovery, and connection tests are administrator-only and covered by automated tests.
-5. Connection tests return accurate, classified outcomes without exposing raw upstream errors.
+6. Connection tests return accurate, classified outcomes without exposing raw upstream errors.
 7. One device's failure does not prevent another device's inventory or test.
 8. Disabled and demo devices cannot obtain live clients or be tested.
 9. TLS verification, DNS validation, pinned lookup, and the fixed GET allowlist remain enforced.
