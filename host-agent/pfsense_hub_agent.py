@@ -9,11 +9,15 @@ an explicit certificate lifecycle is provisioned.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
 import socket
 import ssl
+import stat
+import tempfile
+import time
 import subprocess
 import urllib.error
 import urllib.parse
@@ -39,7 +43,7 @@ def load_config() -> dict[str, Any]:
         raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except Exception as exc:
         raise AgentError("AGENT_CONFIGURATION_UNAVAILABLE") from exc
-    required = {"api_base_url", "api_token", "socket_path", "tailscale_binary", "web_local_url"}
+    required = {"api_base_url", "api_token", "socket_path", "tailscale_binary", "docker_binary", "ip_binary", "project_dir", "compose_file", "env_file", "web_local_url"}
     if not isinstance(raw, dict) or not required.issubset(raw):
         raise AgentError("AGENT_CONFIGURATION_INVALID")
     try:
@@ -60,6 +64,14 @@ def load_config() -> dict[str, Any]:
         raise AgentError("AGENT_SOCKET_PATH_INVALID")
     if not isinstance(raw["tailscale_binary"], str) or not os.path.isabs(raw["tailscale_binary"]):
         raise AgentError("AGENT_TAILSCALE_BINARY_INVALID")
+    if raw["tailscale_binary"] and (not isinstance(raw["tailscale_binary"], str) or not os.path.isabs(raw["tailscale_binary"])):
+        raise AgentError("AGENT_TAILSCALE_BINARY_INVALID")
+    if not isinstance(raw["docker_binary"], str) or not os.path.isabs(raw["docker_binary"]):
+        raise AgentError("AGENT_DOCKER_BINARY_INVALID")
+    if not isinstance(raw["ip_binary"], str) or not os.path.isabs(raw["ip_binary"]):
+        raise AgentError("AGENT_IP_BINARY_INVALID")
+    if raw["project_dir"] != "/opt/pfsense-hub" or raw["compose_file"] != "/opt/pfsense-hub/compose.yaml" or raw["env_file"] != "/opt/pfsense-hub/.env":
+        raise AgentError("AGENT_PROJECT_PATH_INVALID")
     if raw["web_local_url"] != "http://127.0.0.1:8080":
         raise AgentError("AGENT_WEB_TARGET_INVALID")
     return raw
