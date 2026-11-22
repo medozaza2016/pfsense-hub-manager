@@ -43,7 +43,7 @@ def load_config() -> dict[str, Any]:
         raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except Exception as exc:
         raise AgentError("AGENT_CONFIGURATION_UNAVAILABLE") from exc
-    required = {"api_base_url", "api_token", "socket_path", "tailscale_binary", "web_local_url"}
+    required = {"api_base_url", "api_token", "socket_path", "socket_gid", "tailscale_binary", "web_local_url"}
     if not isinstance(raw, dict) or not required.issubset(raw):
         raise AgentError("AGENT_CONFIGURATION_INVALID")
     parsed = urllib.parse.urlparse(raw["api_base_url"])
@@ -224,6 +224,7 @@ def main() -> None:
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
     os.chmod(socket_path, 0o660)
+    os.chown(socket_path, 0, int(config["socket_gid"]))
     server.listen(8)
     lock_path = Path("/run/pfsense-hub/deployment.lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
