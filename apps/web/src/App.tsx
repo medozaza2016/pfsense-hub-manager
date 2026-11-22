@@ -152,7 +152,7 @@ export default function App(){
  const [editingSite,setEditingSite]=useState<{id:string;name:string;location:string|null;edition:"plus"|"ce"|"unknown";apiBaseUrl:string}|null>(null);
  const [editName,setEditName]=useState("");
  const [editLocation,setEditLocation]=useState("");
- const [editEdition,setEditEdition]=useState<"plus"|"ce">("ce");
+ const [editEdition,setEditEdition]=useState<"plus"|"ce"|"unknown">("ce");
  const [editApiBaseUrl,setEditApiBaseUrl]=useState("");
  const [archiveTarget,setArchiveTarget]=useState<Device|null>(null);
  const [archiveConfirmation,setArchiveConfirmation]=useState("");
