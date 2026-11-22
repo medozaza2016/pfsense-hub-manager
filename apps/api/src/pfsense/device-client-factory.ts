@@ -32,8 +32,8 @@ export class DevicePfSenseClientFactory {
 
     const caBundle = await this.devices.decryptDeviceCaBundle(deviceId);
     const tlsTrust: PfSenseTlsTrust = caBundle === null
-      ? { mode: "system" }
-      : { mode: "custom-ca", certificateAuthority: Buffer.from(caBundle, "utf8") };
+      ? { mode: "system", servername: profile.tlsServername }
+      : { mode: "custom-ca", certificateAuthority: Buffer.from(caBundle, "utf8"), servername: profile.tlsServername };
 
     const deviceConfig: AppConfig = {
       ...this.config,
