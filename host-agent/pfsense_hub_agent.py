@@ -329,6 +329,9 @@ def has_funnel_handler(raw: str, host: str, port: int) -> bool:
 
 
 def verify_tailscale_endpoint(endpoint: dict[str, Any], config: dict[str, Any]) -> str:
+    _env_content, current_bind = read_bind_address(config)
+    if current_bind != "127.0.0.1":
+        raise AgentError("TAILSCALE_LOOPBACK_BINDING_REQUIRED")
     binary = config.get("tailscale_binary") or ""
     if not binary:
         raise AgentError("TAILSCALE_NOT_INSTALLED")
