@@ -559,7 +559,7 @@ app.setErrorHandler((error, request, reply) => {
 });
 let deploymentWorkerRunning = false;
 async function recoverQueuedHubDeployments(): Promise<void> {
-  if (deploymentWorkerRunning) return;
+  if (!config.HUB_ACCESS_DEPLOYMENT_ENABLED || deploymentWorkerRunning) return;
   deploymentWorkerRunning = true;
   try {
     const queued = await pool.query<{ id: string; desired_revision: number }>(
