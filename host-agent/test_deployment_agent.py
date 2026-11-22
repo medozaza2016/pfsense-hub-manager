@@ -54,7 +54,7 @@ class DeploymentAgentTests(unittest.TestCase):
         get_deployment.return_value = {**self.endpoint, "method": "local", "addressType": None, "address": None}
         with self.assertRaises(agent.AgentError) as caught:
             agent.deploy(self.config, self.request)
-        self.assertEqual(caught.exception.code, "HOST_BIND_ENDPOINT_UNSUPPORTED")
+        self.assertEqual(caught.exception.code, "DEPLOYMENT_ENDPOINT_INVALID")
 
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
