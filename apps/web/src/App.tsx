@@ -579,7 +579,7 @@ function HubSettingsPage(){
  }
  function addressTypeOptions(method:HubAccessMethod){
   if(method==="local")return <><option value="">Default local binding</option><option value="hostname">LAN hostname</option><option value="ip">LAN IP address</option></>;
-  if(method==="tailscale")return <><option value="">Select address type</option><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip">Tailscale IPv4 address</option></>;
+  if(method==="tailscale")return <><option value="">Select address type</option><option value="magic_dns">Tailscale MagicDNS hostname</option></>;
   return <><option value="">Select address type</option><option value="hostname">Hostname</option><option value="ip">IP address</option></>;
  }
  async function save(event:React.FormEvent){
@@ -598,9 +598,9 @@ function HubSettingsPage(){
   }finally{setSaving(false);}
  }
  const methodCopy:Record<HubAccessMethod,{title:string;description:string;placeholder:string}> = {
-  local:{title:"LAN",description:"Use the Hub host's local network interface. Leave the address blank for the default local binding.",placeholder:"192.168.1.20"},
-  tailscale:{title:"Tailscale",description:"Use the Tailscale address assigned to the machine running Hub Manager. Tailscale is managed outside this application.",placeholder:"hub.example-tailnet.ts.net"},
-  hostname:{title:"Custom",description:"Use a specific hostname or IP address managed by your network. This does not configure DNS or a proxy.",placeholder:"hub.example.com"}
+  local:{title:"LAN",description:"LAN access requires a trusted TLS certificate on the Hub host. Automated LAN certificate provisioning is not yet available.",placeholder:"192.168.1.20"},
+  tailscale:{title:"Tailscale",description:"Use this Hub host's MagicDNS name. The Linux agent configures Tailscale Serve and verifies HTTPS. Tailnet HTTPS must already be enabled.",placeholder:"hub.example-tailnet.ts.net"},
+  hostname:{title:"Custom",description:"Custom hostnames require a trusted TLS certificate and reverse-proxy configuration. Automated provisioning is not yet available.",placeholder:"hub.example.com"}
  };
  const endpoint=endpoints.find(item=>item.method===activeMethod)??defaultHubEndpoints[0];
  const addressLabel=endpoint.addressType==="magic_dns"?"Tailscale MagicDNS hostname":endpoint.addressType==="tailscale_ip"?"Tailscale IPv4 address":endpoint.addressType==="ip"?"IP address":activeMethod==="local"?"LAN hostname":"Hostname";
