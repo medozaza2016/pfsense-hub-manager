@@ -113,6 +113,7 @@ git fetch origin
 npm ci
 npm run typecheck
 npm test
+py -3 -m unittest discover -s host-agent -p "test_*.py"
 npm run build
 docker compose config
 docker compose up -d --build
