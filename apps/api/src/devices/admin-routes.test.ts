@@ -206,7 +206,7 @@ describe("managed-device administrator routes", () => {
     expect(response.json().data).toEqual(profile);
     expect(response.body).not.toContain("private-api-key");
     expect(state.clientFactory.testConnection).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "private-api-key" }));
-    expect(state.devices.create).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "private-api-key" }));
+    expect(state.devices.create).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "private-api-key" }), expect.any(Number));
     expect(state.pool.query).toHaveBeenCalledOnce();
     const auditParams = state.pool.query.mock.calls[0]?.[1] as unknown[];
     expect(JSON.stringify(auditParams)).not.toContain("private-api-key");
