@@ -1,10 +1,10 @@
 # Hub Installation and First-Run Bootstrap
 
-**Status:** Linux first-install workflow implemented, broader installation acceptance in progress
+**Status:** Linux first-install and Tailscale access path verified on November 22, 2026; broader production acceptance remains in progress
 **Decision:** DEC-031 and DEC-032
-**Implementation status:** The current branch supports a single-entry Linux installation on a clean Debian/systemd host. The main installer provisions the Hub and standard Host Agent, verifies their connection, and enables GUI-managed access deployment after health checks. Windows/Linux parity, reboot/recovery, and migration acceptance still require separate verification.
+**Implementation status:** The active feature branch supports a single-entry Linux installation on a clean Debian 13/systemd host. The main installer provisions the Hub and standard Host Agent, verifies their connection, and enables GUI-managed access deployment after health checks. A clean install completed successfully, and Hub Settings reported the Tailscale endpoint verified with desired and applied revision 2. Windows/Linux install-script parity is not claimed: Windows Docker Desktop is the local development platform and does not run the Linux systemd Host Agent. Reboot/restore, backup recovery, and migration acceptance remain outstanding.
 
-**Operator procedure:** Follow [Fresh Linux Host Setup](DEPLOYMENT.md#fresh-linux-host-setup) for the clean-machine prerequisites, Docker setup, repository checkout, and installer command. This document records the lifecycle requirements and acceptance criteria.
+**Operator procedure:** Use the [Prepared Proxmox LXC quick start](DEPLOYMENT.md#prepared-proxmox-lxc-quick-start) for the standard two-command path. Use [Fresh Linux Host Setup](DEPLOYMENT.md#fresh-linux-host-setup) only for a plain Linux machine that still needs host prerequisites or Docker. This document records lifecycle requirements and acceptance criteria.
 
 ## 1. Core installation rule
 
@@ -47,7 +47,7 @@ It must not contain per-firewall settings such as:
 
 Per-site credentials must be encrypted in PostgreSQL by the backend. The application encryption key remains a separate protected runtime secret, never a normal `.env` value.
 
-The final environment variable list must be derived from the actual Compose and application configuration after implementation. Do not remove a variable from the deployed environment until its consumer has been removed or migrated.
+The current Compose file retains blank legacy single-firewall bootstrap fields and an empty API-key compatibility placeholder for existing deployments. A standard fresh install does not require a populated firewall ID, name, API origin, API key, or CA certificate. Do not place real firewall credentials in the Hub installation environment.
 
 ## 4. Windows 11 PowerShell installation target
 
@@ -82,7 +82,7 @@ Production deployment targets Linux, initially Debian 13 on a Proxmox LXC or ano
 10. Preserve existing database volumes and application data during ordinary updates, restart, and recovery. Never use volume deletion as an installation shortcut.
 11. Never prompt for a firewall UUID, firewall name, edition, API URL, API key, or firewall certificate during Hub installation.
 
-The Bash and PowerShell installers must implement the same logical workflow, validation gates, safe re-run behavior, and zero-firewall acceptance criteria. Platform-specific permission mechanisms may differ.
+The Linux Bash workflow is implemented and verified on the prepared Debian 13 Proxmox LXC. A matching automated Windows PowerShell Hub installer is not implemented; Windows remains a Docker Desktop development workflow. Do not imply Windows/Linux installer parity.
 
 ## 6. First login and site registration
 
@@ -99,7 +99,7 @@ Credential fields are write-only. The Hub must never return plaintext credential
 
 ## 7. Existing single-firewall installation migration
 
-The current implementation uses environment variables for one firewall and automatically ensures that configured device exists in PostgreSQL. This legacy behavior must be migrated deliberately.
+An optional legacy bootstrap path can import one environment-configured firewall for existing deployments. The standard fresh-install workflow starts with no registered site and does not populate that legacy configuration. Any existing single-firewall deployment must be migrated deliberately before legacy settings are removed.
 
 Before removing any legacy variables or secret files:
 
@@ -114,27 +114,44 @@ Before removing any legacy variables or secret files:
 
 Do not rotate the application encryption key as part of this migration unless a separately tested key-rotation procedure is implemented. Do not delete old secrets, volumes, or database data as a cleanup shortcut.
 
-## 8. Current implementation warning
+## 8. Current implementation and acceptance warning
 
-This document records the approved target design and current partial implementation. The Compose file retains blank legacy single-firewall bootstrap fields and a compatibility API-key placeholder, but a fresh installation can start without registering a firewall. API startup no longer requires a populated firewall identity or API URL, and the manager supports GUI-based site registration with encrypted per-site credentials.
+A fresh Hub can start without a registered firewall. The Compose file retains blank legacy single-firewall bootstrap fields and an empty API-key compatibility placeholder, but the installer does not require a real firewall identity, API URL, API key, or CA certificate. The manager supports GUI-based site registration with encrypted per-device credentials and TLS trust.
 
-The Linux Bash installer now provides one entry point for the Hub and its standard Host Agent. It refuses to overwrite existing secrets, agent configuration, containers, or the named PostgreSQL volume. It does not delete database state. The Host Agent remains a separate maintenance script internally, but normal Linux installation invokes it automatically.
+The Linux Bash installer is the single first-install entry point. It refuses to overwrite existing `.env`/secrets, Host Agent configuration/service, Compose project containers, or the named PostgreSQL volume. It never deletes volumes. The Host Agent installer remains a separate script internally for maintenance, but normal Linux onboarding invokes it automatically.
 
-Remaining acceptance work includes a clean second-LXC installation, reboot/recovery validation, Windows/Linux workflow parity, and migration testing against an existing-data copy. Do not describe the product as production-ready until those checks are complete.
+The standard prepared Proxmox LXC quick start assumes Debian 13, an administrator account, Docker Engine/Compose, Git, and base utilities are already present. It does not reinstall Tailscale or reset the existing CT identity. The full plain-Debian prerequisite procedure remains available for other hosts.
+
+Remaining acceptance work includes reboot and snapshot-restore validation, backup/recovery drills, migration testing against an existing-data copy, and full multi-device validation with two real firewalls. The second CE firewall is intentionally deferred. Do not describe the product as production-ready until the wider release gates are complete.
 
 ## 9. Acceptance criteria
 
-The installation milestone is not complete until all of the following are demonstrated on both Windows Docker Desktop and Linux Docker Compose:
+The installation and onboarding milestone has separate platform and product acceptance criteria. Do not require a Windows systemd Host Agent; that is a Linux production component.
 
-- A fresh Hub starts with no firewall-related environment variables or firewall secret files.
-- Database migrations complete and the administrator can complete first-run setup.
-- The Sites inventory is empty and the dashboard remains healthy.
-- The installer generates and protects the application encryption key and recovery copy.
-- Re-running the installer does not overwrite keys, configuration, or existing database state.
-- A site added through the GUI receives a backend-generated UUID.
-- Two sites can be registered with different origins, credentials, and TLS trust settings.
-- Credentials are encrypted at rest and never returned to the browser or logs.
-- A site connection failure does not prevent the Hub or other sites from operating.
-- Existing single-firewall data can be migrated without losing identity, credentials, history, or audit records.
-- Documentation and both installers agree on the same supported workflow.
-- Tests and deployment verification are recorded from actual runs. Skipped checks are not marked as passed.
+### Linux installation checks
+
+- [x] A fresh Hub starts without populated firewall-specific environment settings or a real firewall API credential.
+- [x] PostgreSQL migrations complete during clean startup and the web/API/database services become healthy.
+- [x] The installer provisions and enables the Host Agent, verifies the Unix socket, API supplementary group, and bearer-authenticated request, then enables GUI-managed access deployment.
+- [x] The installer generates a protected application encryption key and requires confirmation that its one-time recovery copy was saved.
+- [x] The installer refuses to overwrite existing secrets, agent configuration/service, containers, or PostgreSQL volume.
+- [x] Hub Settings can apply and verify the Tailscale MagicDNS HTTPS endpoint on the tested prepared Debian 13 CT.
+- [ ] Reboot and snapshot-restore recovery drill.
+- [ ] Database and encryption-key backup/restore drill.
+- [ ] Migration validation against a preserved existing-data copy.
+
+### Managed-site product checks
+
+- [x] Site registration and lifecycle routes are administrator-only.
+- [x] Per-device API credentials and custom CA trust are encrypted and kept write-only at the API boundary.
+- [x] Connection tests use a fixed read-only version endpoint and preserve strict TLS validation.
+- [ ] Verify two real firewall profiles independently with separate origins and trust settings.
+- [ ] Connect and validate the deferred pfSense CE firewall when the user is ready.
+- [ ] Validate multi-device failure isolation and continuous polling behavior.
+
+### Windows development checks
+
+- [x] Windows API tests, API/web typechecks, and production builds completed in the recorded local run.
+- [ ] A standalone automated Windows first-install/secret-provisioning workflow equivalent to the Linux installer is not currently implemented.
+
+See [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md) for exact commands, commit baselines, test counts, skipped tests, and the clean Linux installation evidence.
