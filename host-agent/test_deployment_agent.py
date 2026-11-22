@@ -47,7 +47,7 @@ class DeploymentAgentTests(unittest.TestCase):
     def loopback_bind(self):
         return patch.object(
             agent, "read_bind_address",
-            return_value=("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1")
+            return_value=("HUB_BIND_ADDRESS=127.0.0.1\n", "127.0.0.1")
         )
 
     def test_rejects_unknown_request_fields(self):
@@ -136,7 +136,7 @@ class DeploymentAgentTests(unittest.TestCase):
             ["/usr/bin/tailscale", "funnel", "status", "--json"], timeout=10
         )
 
-    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=192.168.1.20\\n", "192.168.1.20"))
+    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=192.168.1.20\n", "192.168.1.20"))
     @patch.object(agent, "get_deployment")
     def test_requires_loopback_binding_for_operator_managed_tailscale_serve(self, get_deployment, read_bind):
         get_deployment.return_value = self.endpoint
@@ -148,7 +148,7 @@ class DeploymentAgentTests(unittest.TestCase):
     @patch.object(agent, "compose_web_recreate")
     @patch.object(agent, "write_bind_address")
     @patch.object(agent, "resolve_bind_address", return_value="192.168.1.20")
-    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"))
+    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=127.0.0.1\n", "127.0.0.1"))
     @patch.object(agent, "get_deployment")
     def test_applies_local_bind_address_and_verifies_external_tls(self, get_deployment, read_bind, resolve, write_bind, recreate, verify):
         endpoint = {
@@ -174,7 +174,7 @@ class DeploymentAgentTests(unittest.TestCase):
     @patch.object(agent, "compose_web_recreate")
     @patch.object(agent, "write_bind_address")
     @patch.object(agent, "resolve_bind_address", return_value="192.168.1.20")
-    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"))
+    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=127.0.0.1\n", "127.0.0.1"))
     @patch.object(agent, "get_deployment")
     def test_restores_previous_bind_and_verifies_previous_origin_after_failure(self, get_deployment, read_bind, resolve, write_bind, recreate, verify):
         get_deployment.return_value = {
@@ -221,12 +221,12 @@ class DeploymentAgentTests(unittest.TestCase):
     def test_updates_only_hub_bind_address_and_preserves_other_environment(self):
         with tempfile.TemporaryDirectory() as directory:
             env_path = Path(directory) / ".env"
-            env_path.write_text("POSTGRES_PASSWORD=keep-this\\nHUB_BIND_ADDRESS=127.0.0.1\\nWEB_PORT=8080\\n", encoding="utf-8")
+            env_path.write_text("POSTGRES_PASSWORD=keep-this\nHUB_BIND_ADDRESS=127.0.0.1\nWEB_PORT=8080\n", encoding="utf-8")
             config = {**self.config, "env_file": str(env_path)}
             agent.write_bind_address(config, "192.168.1.20")
             self.assertEqual(
                 env_path.read_text(encoding="utf-8"),
-                "POSTGRES_PASSWORD=keep-this\\nHUB_BIND_ADDRESS=192.168.1.20\\nWEB_PORT=8080\\n"
+                "POSTGRES_PASSWORD=keep-this\nHUB_BIND_ADDRESS=192.168.1.20\nWEB_PORT=8080\n"
             )
 
     @patch.object(agent, "run_fixed")
