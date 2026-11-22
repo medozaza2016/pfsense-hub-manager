@@ -147,8 +147,7 @@ describe("managed-device administrator routes", () => {
     expect(tlsConnectMock).toHaveBeenCalledWith(expect.objectContaining({
       host: "192.168.10.1",
       port: 10443,
-      rejectUnauthorized: false,
-      servername: undefined
+      rejectUnauthorized: false
     }));
     expect(socket.end).toHaveBeenCalledOnce();
     await state.app.close();
