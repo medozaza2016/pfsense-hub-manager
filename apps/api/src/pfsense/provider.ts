@@ -48,7 +48,13 @@ export class PfSenseProvider {
 
   async listDevices() {
     const profiles = await this.devices.listProfiles();
-    return profiles.map(device => ({
+    const checks = await this.pool.query<{ device_id: string; outcome: "success" | "failure"; completed_at: Date | string }>(
+      "SELECT DISTINCT ON (device_id) device_id,outcome,completed_at FROM poll_runs WHERE operation_group='version' ORDER BY device_id,completed_at DESC,id DESC"
+    );
+    const latestCheckByDevice = new Map(checks.rows.map(check => [check.device_id, check]));
+    return profiles.map(device => {
+      const latestCheck = latestCheckByDevice.get(device.id);
+      return ({
       id: device.id,
       name: device.name,
       location: device.location,
@@ -56,8 +62,10 @@ export class PfSenseProvider {
       release: null,
       enabled: device.enabled,
       isDemo: device.isDemo,
-      connectionState: "unknown"
-    }));
+      connectionState: latestCheck ? (latestCheck.outcome === "success" ? "reachable" : "unreachable") : "unknown",
+      lastConnectionCheckAt: latestCheck ? new Date(latestCheck.completed_at).toISOString() : null
+    });
+    });
   }
 
   async collect(
