@@ -157,8 +157,17 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
 
     # Never overwrite an existing Serve configuration that may belong to another app.
     before = serve_status(binary)
-    if before not in ("", "{}", "null"):
+    if has_existing_serve_configuration(before):
         raise AgentError("TAILSCALE_SERVE_ALREADY_CONFIGURED")
+    funnel = run_fixed([binary, "funnel", "status", "--json"], timeout=10)
+    try:
+        funnel_config = json.loads(funnel)
+    except Exception as exc:
+        raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID") from exc
+    if not isinstance(funnel_config, dict):
+        raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
+    if funnel_config.get("Web") or funnel_config.get("TCP"):
+        raise AgentError("TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
 
     # Confirm revision is still current before the only host mutation.
     endpoint = get_deployment(config, deployment_id, revision)
