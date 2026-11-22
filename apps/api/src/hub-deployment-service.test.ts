@@ -105,4 +105,27 @@ describe("Hub deployment dispatcher", () => {
     expect(db.release).toHaveBeenCalledOnce();
   });
 
+
+  it("records a safe failure if the database connection cannot be acquired", async () => {
+    const poolQuery = vi.fn()
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1" }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    const pool = {
+      query: poolQuery,
+      connect: vi.fn().mockRejectedValue(new Error("DB_DOWN"))
+    } as unknown as import("pg").Pool;
+
+    await dispatchHubDeployment(
+      pool,
+      { id: "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1", desired_revision: 4 },
+      { socketPath: "/run/pfsense-hub/agent.sock" }
+    );
+
+    expect(poolQuery).toHaveBeenCalledTimes(3);
+    expect(poolQuery.mock.calls[2]?.[0]).toContain("state='failed'");
+    expect(poolQuery.mock.calls[2]?.[1]).toContain("DB_DOWN");
+    expect(requestHostDeploymentMock).not.toHaveBeenCalled();
+  });
+
 });
