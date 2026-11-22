@@ -8,33 +8,34 @@ The code-server container has a persistent project workspace and persistent edit
 ## Prerequisites
 - Docker Engine and Docker Compose plugin.
 - Node.js 22 only if running application development scripts outside containers.
-- A trusted CA certificate for the firewall API, if required.
-- The dedicated read-only pfSense API key.
 - A strong, unique code-server password.
-- The application encryption key provisioned by scripts/setup-encryption-key.ps1 on Windows.
+- A secure location outside the server for the application encryption recovery key.
+- A pfSense API key is needed only when you register a firewall through Administration → Add Site.
 
 ## First-time setup
-On Windows 11, run the provisioning script from the repository root in PowerShell:
+For Linux production, run the installer from the repository root:
+
+```bash
+sudo bash scripts/install-linux.sh
+```
+
+The installer generates the PostgreSQL password and application encryption key, prompts only for the code-server password, creates the required secret files, validates Compose, and starts the application. It does not request a pfSense address, API key, or certificate. The pfSense API key and optional CA bundle are entered separately for each firewall through Administration → Add Site.
+
+The installer prints the one-time application encryption recovery key. Save it in a password manager before continuing. Do not paste it into chat, source control, or .env. The runtime key is stored at secrets/runtime/app_encryption_key. The installer refuses to overwrite existing configuration or secret files. If it reports existing files, preserve them and do not regenerate the key.
+
+For Windows 11 development, run the existing key-provisioning script from the repository root in PowerShell:
 
 ```powershell
 .\scripts\setup-encryption-key.ps1
 ```
 
-Save the one-time recovery value in a password manager. Do not copy it into chat, source control, .env, or a terminal transcript. The runtime file is created at secrets/runtime/app_encryption_key. The script refuses to overwrite an existing key. If the script reports that a key already exists, preserve it and do not regenerate it.
-
-On Linux, create the runtime key once using a cryptographically secure random generator, then store the recovery copy in an approved password manager without printing it into shell history or logs. The Linux application-key provisioning workflow still requires a dedicated implementation and review.
-
-For the existing Compose secrets, create the pfSense API key and code-server password files as described below. Do not commit any secret files.
-
-```powershell
-New-Item -ItemType Directory -Force .\secrets, .\certs, .\workspace | Out-Null
-```
+Save the recovery value in a password manager. Create the Compose secret directories and files locally as required. Do not commit any secret files.
 
 Set POSTGRES_PASSWORD in .env to a strong random value. Keep it alphanumeric as generated so it can be safely embedded in the Compose connection URL.
 
 For Linux deployments, restrict secret file permissions to the API container's runtime user. For Windows Docker Desktop, the key file is protected by the Windows ACL created by the provisioning script, but verify that Docker Desktop can mount and read it before relying on it in operation.
 
-If the firewall uses a private CA, place the CA certificate at certs/pfsense-ca.pem and set PFSENSE_CA_FILE=/run/certs/pfsense-ca.pem in .env. The API client always verifies TLS and hostname identity. Never disable verification.
+For each firewall, import its CA certificate in Administration → Add Site when required. TLS trust is stored encrypted per device. The API client always verifies TLS and hostname identity. Never disable verification.
 
 ## Start and access
 ```powershell
@@ -44,17 +45,18 @@ docker compose ps
 docker compose logs -f api
 ```
 
-For Windows local development, the pfSense Hub application UI is available at http://127.0.0.1:8080. On Linux production, use the Tailscale MagicDNS HTTPS endpoint configured through the restricted host agent. Do not use direct HTTP access over the tailnet. The browser-based VS Code editor remains available at http://127.0.0.1:8443 and requires a local connection or SSH forwarding. Do not expose code-server or the application directly to the public internet.
+For Windows local development, the pfSense Hub application UI is available at http://127.0.0.1:8080. On Linux, initially reach the loopback-only UI with an SSH tunnel, for example `ssh -L 8080:127.0.0.1:8080 ahmed@<LXC-Tailscale-IP>`, then open http://127.0.0.1:8080. Tailscale Serve can be configured separately later. Do not expose the application directly to the public internet. The browser-based VS Code editor remains available at http://127.0.0.1:8443 and requires a local connection or SSH forwarding.
 
 The API container reads the application encryption key from /run/secrets/app_encryption_key. Missing or malformed key material prevents API startup. Do not delete or replace the key file while encrypted credentials exist.
 
 ## Updates and backup
-Back up PostgreSQL and the runtime encryption key separately. Protect the recovery copy independently. A database backup without its corresponding encryption key cannot restore credentials. Also back up .env, the pfSense API key, code-server password, CA certificate, and any persistent workspace or editor volumes that need preservation.
+Back up PostgreSQL and the runtime encryption key separately. Protect the recovery copy independently. A database backup without its corresponding encryption key cannot restore firewall credentials. Also back up .env, the code-server password, and any persistent workspace or editor volumes that need preservation. Firewall API credentials and imported CA bundles are encrypted per device in PostgreSQL.
 
 ## Security and operational status
 
 - Manager-user authentication, administrator/user roles, session authorization, and administrator-only Hub access mutations are implemented. Tailscale ACLs/grants remain an additional network control, not a replacement for application authorization.
-- The first firewall still uses the legacy environment-configured bootstrap. Multi-device registration and credential lifecycle are implemented on the current development branch, but production rollout and Linux deployment are not yet verified.
+- New deployments can start with no firewall configured. Administrators register all firewalls through Administration → Add Site. The legacy environment bootstrap remains available for existing deployments when its complete settings are supplied.
+- Firewall API credentials and optional CA trust are encrypted per device using the application encryption key.
 - Key rotation and Linux key provisioning remain outstanding.
 - Docker Compose file secrets are not encrypted at rest.
 - Windows host ACLs do not by themselves prove container-side access restrictions.
