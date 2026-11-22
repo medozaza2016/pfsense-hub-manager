@@ -62,8 +62,6 @@ def load_config() -> dict[str, Any]:
         raise AgentError("AGENT_TOKEN_INVALID")
     if not isinstance(raw["socket_path"], str) or not os.path.isabs(raw["socket_path"]):
         raise AgentError("AGENT_SOCKET_PATH_INVALID")
-    if not isinstance(raw["tailscale_binary"], str) or not os.path.isabs(raw["tailscale_binary"]):
-        raise AgentError("AGENT_TAILSCALE_BINARY_INVALID")
     if raw["tailscale_binary"] and (not isinstance(raw["tailscale_binary"], str) or not os.path.isabs(raw["tailscale_binary"])):
         raise AgentError("AGENT_TAILSCALE_BINARY_INVALID")
     if not isinstance(raw["docker_binary"], str) or not os.path.isabs(raw["docker_binary"]):
