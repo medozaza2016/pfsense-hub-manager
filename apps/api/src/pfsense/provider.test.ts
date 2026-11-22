@@ -62,7 +62,7 @@ describe("PfSenseProvider multi-device polling", () => {
   it("collects the fixed eight read-only operations for any managed device and closes its client", async () => {
     const { provider, factory, pool } = makeProvider(null);
     const client = {
-      get: vi.fn(async (operation: PfSenseOperation) => ({ data: operation === "system" ? {} : operation === "version" ? { release: "test" } : operation === "firewallStateSize" ? 0 : [] })),
+      get: vi.fn(async (operation: PfSenseOperation) => ({ data: operation === "system" ? { status: "ok" } : operation === "version" ? { release: "test" } : operation === "firewallStateSize" ? 0 : [] })),
       close: vi.fn(async () => undefined)
     };
     vi.mocked(factory.create).mockResolvedValue(client as unknown as PfSenseClient);
