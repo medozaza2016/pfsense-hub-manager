@@ -59,9 +59,6 @@ if docker volume inspect "$POSTGRES_VOLUME" >/dev/null 2>&1; then
 fi
 existing_containers="$(docker ps -aq --filter label=com.docker.compose.project=pfsense-hub)"
 [[ -z "$existing_containers" ]] || fail "Existing containers for Compose project pfsense-hub were detected. Inspect and preserve that installation before proceeding."
-if [[ -d "$PROJECT_DIR/secrets" ]] && find "$PROJECT_DIR/secrets" -type f -print -quit | grep -q .; then
-  fail "Existing files were found in secrets/. Review and preserve them before installing."
-fi
 
 DB_PASSWORD="$(openssl rand -hex 32)"
 APP_KEY="$(openssl rand -hex 32)"
