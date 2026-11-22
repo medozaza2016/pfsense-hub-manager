@@ -17,7 +17,7 @@ Use this procedure on a **new, empty Linux machine**. The commands below use Deb
 
 ### Prepared Proxmox LXC quick start (recommended)
 
-The standard Proxmox template is already prepared with Debian 13, an administrator account, Docker Engine, Docker Compose, Git, OpenSSL, Python, iproute2, systemd, and Tailscale. When the CT is restored from its own clean snapshot, keep its existing Tailscale identity and configuration. The Hub installer does not reinstall or reset Tailscale, and it does not require a second Tailscale enrollment.
+The standard Proxmox template is already prepared with Debian 13, an administrator account, Docker Engine, Docker Compose, Git, OpenSSL, Python, iproute2, systemd, and Tailscale. This is the operator's normal prepared starting point. When the same CT is restored from its own clean snapshot, retain its existing Tailscale identity and configuration. The Hub installer does not reinstall or reset Tailscale, and it does not require a second Tailscale enrollment. Do not run two concurrently active copies with the same Tailscale state.
 
 From SSH, run only these two commands:
 
@@ -26,7 +26,7 @@ sudo git clone --branch feature/multi-site-onboarding --single-branch https://gi
 sudo bash /opt/pfsense-hub/scripts/install-linux.sh
 ```
 
-The clone is run with `sudo` intentionally, so the repository and privileged Host Agent source files are owned by `root:root`, as required by the installer. The installer then handles application secrets, Host Agent installation and enablement, Compose startup, health checks, and the authenticated agent handshake. Save the one-time application encryption recovery key in your password manager and confirm the prompt. Node.js and npm are not required on the Linux host.
+The clone is run with `sudo` intentionally, so the repository and privileged Host Agent source files are owned by `root:root`, as required by the installer. The installer then handles application secrets, Host Agent installation and enablement, Compose startup, health checks, and the authenticated agent handshake. Save the one-time application encryption recovery key in your password manager and confirm the prompt. Node.js and npm are not required on the Linux host. The tested prepared template already has `/opt`; if using a different base image, create `/opt` first with root ownership and mode 0755.
 
 This quick start assumes `/opt/pfsense-hub` does not already exist. If it exists, stop and inspect it. Do not delete an existing checkout or installation to force the clone.
 
@@ -120,6 +120,37 @@ This is the single supported Linux installation entry point. It generates the Po
 The installer does not install or authenticate Tailscale, enable tailnet HTTPS, configure ACLs, or create a Funnel. Tailscale remains optional. When installed later, the Host Agent discovers the Tailscale CLI from its service PATH. To use Tailscale, connect the host to the tailnet and enable HTTPS certificates in the tailnet administration console, then select the MagicDNS hostname in Administration → Hub Settings.
 
 The installer prints the one-time application encryption recovery key before creating installation files and requires confirmation that it was saved. Store it in a password manager. Do not paste it into chat, source control, or .env. The runtime key is stored at secrets/runtime/app_encryption_key. The installer refuses to overwrite an existing .env, runtime key, API-key placeholder, Host Agent configuration/service, Compose project containers, or the named PostgreSQL volume pfsense-hub_postgres_data. It never deletes volumes. If existing state is detected, stop and inspect or restore that installation instead of removing files to force a fresh install.
+
+### Verify the first installation
+
+The installer performs the important local acceptance checks itself. On successful completion, the expected state is:
+
+- `pfsense-hub-db-1`, `pfsense-hub-api-1`, and `pfsense-hub-web-1` are healthy.
+- `pfsense-hub-deployment-agent.service` is enabled and active.
+- `HUB_ACCESS_DEPLOYMENT_ENABLED=true` is present in the protected `.env`.
+- The installer reports the API-to-agent socket, supplementary-group, and bearer-authenticated handshake as verified.
+
+The operator can confirm the final state with this short check:
+
+```bash
+cd /opt/pfsense-hub
+sudo docker compose ps
+sudo systemctl is-enabled pfsense-hub-deployment-agent.service
+sudo systemctl is-active pfsense-hub-deployment-agent.service
+sudo grep '^HUB_ACCESS_DEPLOYMENT_ENABLED=' .env
+```
+
+### First browser access and Tailscale
+
+The web service binds to `127.0.0.1:8080` initially. From the administrator workstation, open an SSH tunnel:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 <linux-admin>@<linux-host-address>
+```
+
+Keep the SSH session open and browse to `http://127.0.0.1:8080`. Complete the first administrator setup or sign in.
+
+If the prepared CT is already connected to Tailscale, do not reinstall or re-enroll it. Confirm that the host is connected and that HTTPS certificates are enabled for the tailnet. In **Administration → Hub Settings**, select **Tailscale**, choose **Tailscale MagicDNS hostname**, enter the CT's MagicDNS name, keep HTTPS port 443, and save. The page must report **Endpoint verified** and matching desired/applied revisions before using the HTTPS MagicDNS address directly from another tailnet device. Saving a setting alone is not proof of browser reachability.
 
 For Windows 11 development, run the existing key-provisioning script from the repository root in PowerShell:
 
@@ -217,3 +248,5 @@ docker compose ps
 Use the exact scripts available in the current root `package.json`; if a command is not defined, run its workspace equivalent and record that fact. Confirm the application in a browser after the rebuild. A running container can retain an older image even when the local source and Git branch are current. When UI behavior appears inconsistent with source, inspect the running image/container and rebuild the relevant service before changing application code.
 
 Do not run development seed commands against production data. Use only a local development database and the explicit development guard documented in [Phase 01](PHASE-01-USER-MANAGEMENT-AUDIT-ALERTS.md).
+
+For the exact November 22, 2026 verification results, including the Windows test counts, the 23 Linux Host Agent tests, the successful clean install, Tailscale browser verification, and known gaps, see [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
