@@ -53,9 +53,10 @@ export async function dispatchHubDeployment(
     [deployment.id]
   );
 
-  const db = await pool.connect();
+  let db: pg.PoolClient | null = null;
   let transactionOpen = false;
   try {
+    db = await pool.connect();
     await db.query("BEGIN");
     transactionOpen = true;
     const current = await db.query<{ desired_revision: number }>(
@@ -100,7 +101,7 @@ export async function dispatchHubDeployment(
     await db.query("COMMIT");
     transactionOpen = false;
   } catch (error) {
-    if (transactionOpen) {
+    if (transactionOpen && db) {
       try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
       transactionOpen = false;
     }
@@ -110,6 +111,6 @@ export async function dispatchHubDeployment(
       [deployment.id, safeErrorCode(error)]
     );
   } finally {
-    db.release();
+    db?.release();
   }
 }
