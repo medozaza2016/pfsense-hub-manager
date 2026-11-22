@@ -300,7 +300,7 @@ describe("DeviceRepository archival", () => {
     const repository = new DeviceRepository(pool, key);
 
     await expect(repository.archive(deviceId, "22222222-2222-4222-8222-222222222222")).resolves.toEqual({ resolvedAlertCount: 1 });
-    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\\s+/)[0])).toEqual([
+    expect(query.mock.calls.map(call => String(call[0]).trim().split(" ")[0])).toEqual([
       "BEGIN", "SELECT", "UPDATE", "DELETE", "DELETE", "UPDATE", "COMMIT"
     ]);
     expect(String(query.mock.calls[2]?.[0])).toContain("archived_at=now()");
