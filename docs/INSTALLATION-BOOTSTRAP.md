@@ -1,6 +1,6 @@
 # Hub Installation and First-Run Bootstrap
 
-**Status:** Linux first-install and Tailscale access path verified on November 22, 2026; broader production acceptance remains in progress
+**Status:** Linux first-install and Tailscale access path verified on November 22, 2026; broader production acceptance remains in progress. Windows has a documented Docker Desktop development setup, not a full PowerShell installer.
 **Decision:** DEC-031 and DEC-032
 **Implementation status:** The active feature branch supports a single-entry Linux installation on a clean Debian 13/systemd host. The main installer provisions the Hub and standard Host Agent, verifies their connection, and enables GUI-managed access deployment after health checks. A clean install completed successfully, and Hub Settings reported the Tailscale endpoint verified with desired and applied revision 2. Windows/Linux install-script parity is not claimed: Windows Docker Desktop is the local development platform and does not run the Linux systemd Host Agent. Reboot/restore, backup recovery, and migration acceptance remain outstanding.
 
@@ -49,23 +49,39 @@ Per-site credentials must be encrypted in PostgreSQL by the backend. The applica
 
 The current Compose file retains blank legacy single-firewall bootstrap fields and an empty API-key compatibility placeholder for existing deployments. A standard fresh install does not require a populated firewall ID, name, API origin, API key, or CA certificate. Do not place real firewall credentials in the Hub installation environment.
 
-## 4. Windows 11 PowerShell installation target
+## 4. Windows 11 local development workflow
 
-The supported local development platform is Windows 11 with VS Code and Docker Desktop. The future PowerShell installer must:
+Windows 11 with VS Code and Docker Desktop is the supported local development environment. It does not use the Linux production installer or the Linux systemd Host Agent.
 
-1. Verify supported Windows, PowerShell, and Docker Desktop prerequisites.
-2. Create required application, secret, runtime-key, certificate/trust, and workspace directories.
-3. Detect existing configuration, database volumes, and key files before writing anything. Never overwrite or silently reinitialize existing state.
-4. Generate the Hub database password locally.
-5. Generate one high-entropy application encryption key using the operating-system cryptographic random generator.
-6. Install a protected runtime copy of the key and present a one-time recovery copy for the administrator's password manager. Do not log it or place it in source control, chat, or `.env`.
-7. Write a Hub-only `.env` file and protect it with Windows ACLs.
-8. Validate the Compose configuration.
-9. Start the Hub stack only when the operator chooses to start it.
-10. Never prompt for a firewall UUID, firewall name, edition, API URL, API key, or firewall certificate during Hub installation.
+There is currently no full `install-windows.ps1`. The existing `scripts/setup-encryption-key.ps1` provisions only the Windows application encryption key and its one-time recovery copy. It does not configure the full environment or start the Compose stack. The operator workflow is documented in [Windows 11 local setup and development](DEPLOYMENT.md#windows-11-local-setup-and-development-workflow).
 
-The existing `scripts/setup-encryption-key.ps1` recovery behavior must be preserved or incorporated into the final installer. It must refuse to replace an existing key.
+From PowerShell at the repository root, on a clean local development checkout:
 
+```powershell
+Copy-Item .env.example .env
+New-Item -ItemType Directory -Force .\secrets\runtime, .\certs, .\run\host-agent | Out-Null
+if (-not (Test-Path .\secrets\pfsense_api_key)) {
+  New-Item -ItemType File .\secrets\pfsense_api_key | Out-Null
+}
+notepad .env
+.\scripts\setup-encryption-key.ps1
+docker compose config
+docker compose up -d --build
+docker compose ps
+```
+
+Set a strong unique alphanumeric `POSTGRES_PASSWORD` in `.env`. Leave legacy firewall bootstrap settings blank for a Hub with no registered firewall. Keep the agent token/socket empty and `HUB_ACCESS_DEPLOYMENT_ENABLED=false` on Windows. Save the recovery key in a password manager and run the provisioning script with PowerShell transcription/session recording disabled.
+
+The local source validation commands are separate from environment provisioning and Compose startup:
+
+```powershell
+npm ci
+npm test
+npm run typecheck
+npm run build
+```
+
+Node.js 22 and npm are required for these development checks, not for the Linux production host. The Windows workflow runs frontend/API containers but does not install or run the production Linux Host Agent. Do not claim Windows/Linux installer parity.
 ## 5. Linux Bash installation workflow
 
 Production deployment targets Linux, initially Debian 13 on a Proxmox LXC or another supported systemd host. The implemented Bash installer provides the following behavior:
