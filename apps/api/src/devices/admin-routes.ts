@@ -209,7 +209,7 @@ export async function registerDeviceAdminRoutes(
         outcome: "failure",
         targetType: "device",
         summary: "Pre-registration firewall connection test failed",
-        metadata: { operation: "version", errorClass },
+        metadata: { operation: "version", errorClass, ...(diagnosticCode ? { diagnosticCode } : {}) },
         requestId: request.id
       });
       return reply.code(422).send({
