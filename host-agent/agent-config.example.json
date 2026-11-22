@@ -1,0 +1,8 @@
+{
+  "api_base_url": "http://127.0.0.1:3001",
+  "api_token": "REPLACE_WITH_THE_SAME_32_PLUS_CHARACTER_TOKEN_AS_DOT_ENV",
+  "socket_path": "/opt/pfsense-hub/run/host-agent/agent.sock",
+  "socket_gid": 2000,
+  "tailscale_binary": "/usr/bin/tailscale",
+  "web_local_url": "http://127.0.0.1:8080"
+}
