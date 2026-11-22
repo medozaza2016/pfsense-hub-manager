@@ -215,6 +215,7 @@ export default function App(){
    </div>
    <small className="certificate-file-hint">Accepted formats: PEM, CRT, CER. Maximum file size: 60 KB.</small>
   </div>
+  <details className="certificate-help"><summary>How do I obtain the CA certificate?</summary><div><p>Only provide a certificate here if the firewall uses a self-signed certificate or a certificate issued by a private certificate authority. If the web interface certificate is trusted by the Hub host's operating system, leave this field blank.</p><ol><li>In pfSense, open <strong>System → Cert. Manager → CAs</strong>.</li><li>Find the certificate authority that issued the certificate used by the pfSense web interface.</li><li>Export the CA certificate, not its private key.</li><li>If the web interface certificate is self-signed, use that self-signed certificate as the trust certificate.</li></ol><p>Never upload or paste a private key.</p></div></details>
   {formCaFileError&&<Feedback tone="error">{formCaFileError}</Feedback>}
   <label>Or paste PEM certificate bundle<textarea rows={3} value={formCaBundle} onChange={e=>{setFormCaBundle(e.target.value);setFormCaFileName("");setRegistrationVerified(false);}} placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"/></label>
   <p className="onboarding-note">Certificate contents are validated by the API and stored encrypted. Do not upload a private key or a pfSense license file here.</p>
