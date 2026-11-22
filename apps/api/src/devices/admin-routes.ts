@@ -175,7 +175,7 @@ export async function registerDeviceAdminRoutes(
 
   const registrationTestSchema = z.object({
     apiBaseUrl: apiOriginSchema,
-    apiKey: z.string().min(1).max(4096).refine(value => !/[\\r\\n]/.test(value), "API credentials cannot contain line breaks."),
+    apiKey: z.string().min(1).max(4096).refine(value => !/[\r\n]/.test(value), "API credentials cannot contain line breaks."),
     certificateAuthority: z.string().max(60 * 1024).optional(),
     tlsServername: tlsServernameSchema
   }).strict();
