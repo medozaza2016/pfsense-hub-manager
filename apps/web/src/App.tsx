@@ -523,7 +523,7 @@ function HubSettingsPage(){
    const saved:HubAccessEndpoint[] = result.data?.endpoints ?? [];
    setEndpoints(defaultHubEndpoints.map(fallback=>saved.find(item=>item.method===fallback.method)??fallback));
    if(result.data?.deployment)setDeployment(result.data.deployment);
-  }).catch(error=>{if(active)setMessage(error instanceof Error?error.message:"Unable to load Hub access settings.");})
+  }).catch(error=>{if(active){setLoadFailed(true);setMessage(error instanceof Error?error.message:"Unable to load Hub access settings.");}})
    .finally(()=>{if(active)setBusy(false);});
   return()=>{active=false;};
  },[]);
@@ -591,7 +591,7 @@ function HubSettingsPage(){
      </section>;
     })}</div>
     {message&&<div className="settings-message" role="status">{message}</div>}
-    <div className="hub-settings-actions"><button className="primary-button" disabled={busy||saving}>{saving?"Saving…":"Save access methods"}</button></div>
+    <div className="hub-settings-actions"><button className="primary-button" disabled={busy||saving||loadFailed}>{saving?"Saving…":"Save access methods"}</button></div>
    </Panel>
    <Panel title="Deployment status">
     <div className={deployment.status==="pending"?"hub-deployment-state pending":"hub-deployment-state applied"}>
@@ -599,7 +599,7 @@ function HubSettingsPage(){
      <span>Configuration revision {deployment.desiredRevision}, applied revision {deployment.appliedRevision}</span>
     </div>
     <p className="hub-settings-note">Saving stores these addresses in PostgreSQL. It does not change Docker port bindings, install Tailscale, configure DNS or a reverse proxy, or test reachability. Apply any required infrastructure changes separately, then confirm below. Confirmation records your action, it does not verify connectivity.</p>
-    <button type="button" className="secondary-button" onClick={confirmDeployment} disabled={busy||confirming||saving||deployment.status==="applied"}>{confirming?"Recording…":"Confirm deployment applied"}</button>
+    <button type="button" className="secondary-button" onClick={confirmDeployment} disabled={busy||loadFailed||confirming||saving||deployment.status==="applied"}>{confirming?"Recording…":"Confirm deployment applied"}</button>
    </Panel>
   </form>
  </>;
