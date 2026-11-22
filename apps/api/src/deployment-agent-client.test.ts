@@ -42,7 +42,7 @@ const request = {
   desiredRevision: 4
 };
 
-describe("host deployment agent socket client", () => {
+describe.skipIf(process.platform === "win32")("host deployment agent Unix socket client", () => {
   it("sends only the strict deployment identifier and revision", async () => {
     let received = "";
     const socketPath = await listen(
