@@ -510,6 +510,7 @@ function HubSettingsPage(){
  const [endpoints,setEndpoints]=useState<HubAccessEndpoint[]>(defaultHubEndpoints);
  const [deployment,setDeployment]=useState<{status:"pending"|"applied";desiredRevision:number;appliedRevision:number}>({status:"pending",desiredRevision:1,appliedRevision:0});
  const [busy,setBusy]=useState(true);
+ const [loadFailed,setLoadFailed]=useState(false);
  const [saving,setSaving]=useState(false);
  const [confirming,setConfirming]=useState(false);
  const [message,setMessage]=useState("");
