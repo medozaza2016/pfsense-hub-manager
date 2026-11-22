@@ -89,7 +89,11 @@ grep -Eq '^HUB_BIND_ADDRESS=.+$' "$ENV_FILE" || {
   echo "Set HUB_BIND_ADDRESS to the current private or loopback host address in .env." >&2
   exit 1
 }
+[[ ! -L "$CONFIG_DIR" ]] || { echo "$CONFIG_DIR must not be a symbolic link." >&2; exit 1; }
 install -d -m 0750 "$CONFIG_DIR" /run/pfsense-hub "$PROJECT_DIR/run/host-agent"
+chown root:root "$CONFIG_DIR"
+chmod 0750 "$CONFIG_DIR"
+[[ ! -L "$CONFIG_FILE" ]] || { echo "$CONFIG_FILE must not be a symbolic link." >&2; exit 1; }
 install -d -m 0755 /usr/local/libexec
 if ! getent group pfsense-hub-agent >/dev/null; then
   if getent group 2000 >/dev/null; then echo "GID 2000 is already assigned. Resolve this before installing." >&2; exit 1; fi
