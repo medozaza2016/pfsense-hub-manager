@@ -510,6 +510,7 @@ const deploymentErrorCopy:Record<string,string> = {
  TAILSCALE_SERVE_NOT_CONFIGURED:"Configure a private Tailscale Serve route to the Hub loopback service before saving this method.",
  TAILSCALE_LOOPBACK_BINDING_REQUIRED:"Tailscale Serve requires the Hub web service to remain bound to 127.0.0.1. Restore the loopback bind before using this method.",
  HOST_BIND_ADDRESS_NOT_ASSIGNED:"The selected address does not resolve to an IP assigned to this Hub host.",
+ HOST_BIND_ENDPOINT_UNSUPPORTED:"Select a LAN or Custom hostname/IP address before deploying.",
  HOST_BIND_HOSTNAME_RESOLUTION_FAILED:"The selected hostname could not be resolved by the Hub host.",
  HOST_BIND_LOOPBACK_NOT_ALLOWED:"A Custom hostname cannot bind to a loopback address.",
  HOST_BIND_PUBLIC_ADDRESS_NOT_ALLOWED:"Publicly routable host addresses are blocked. Use a private LAN address.",
@@ -611,7 +612,7 @@ function HubSettingsPage(){
   setEndpoints(current=>current.map(endpoint=>endpoint.method===method?{...endpoint,...patch}:endpoint));
  }
  function addressTypeOptions(method:HubAccessMethod){
-  if(method==="local")return <><option value="">Default local binding</option><option value="hostname">LAN hostname</option><option value="ip">LAN IP address</option></>;
+  if(method==="local")return <><option value="">Select address type</option><option value="hostname">LAN hostname</option><option value="ip">LAN IP address</option></>;
   if(method==="tailscale")return <><option value="">Select address type</option><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip" disabled>Tailscale IPv4, not valid for HTTPS</option></>;
   return <><option value="">Select address type</option><option value="hostname">Hostname</option><option value="ip">IP address</option></>;
  }
