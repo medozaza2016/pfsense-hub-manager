@@ -7,7 +7,7 @@ import {
 } from "./deployment-agent-protocol.js";
 
 const MAX_RESPONSE_BYTES = 16 * 1024;
-const DEFAULT_TIMEOUT_MS = 90_000;
+const DEFAULT_TIMEOUT_MS = 210_000;
 
 /**
  * Exchange one newline-delimited JSON request/response with the local host agent.
@@ -21,7 +21,7 @@ export function requestHostDeployment(
   if (!socketPath || !socketPath.startsWith("/")) {
     return Promise.reject(new Error("HOST_AGENT_SOCKET_NOT_CONFIGURED"));
   }
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 240_000) {
     return Promise.reject(new Error("HOST_AGENT_TIMEOUT_INVALID"));
   }
 
