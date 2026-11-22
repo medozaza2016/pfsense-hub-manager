@@ -311,7 +311,7 @@ export async function registerDeviceAdminRoutes(
       metadata: { pollingHistoryRetained: true, alertsRetained: true, resolvedAlertCount: archived.resolvedAlertCount },
       requestId: request.id
     });
-    return { data: { deviceId, archived: true, pollingHistoryRetained: true, alertsRetained: true, resolvedAlertCount: resolvedAlerts.rowCount ?? 0 } };
+    return { data: { deviceId, archived: true, pollingHistoryRetained: true, alertsRetained: true, resolvedAlertCount: archived.resolvedAlertCount } };
   });
 
   app.patch("/api/v1/devices/:deviceId/enabled", { preHandler: requireAdministrator }, async (request, reply) => {
