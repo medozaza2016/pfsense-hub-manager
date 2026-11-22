@@ -139,6 +139,34 @@ describe("DevicePfSenseClientFactory", () => {
     );
   });
 
+  it("retains the legacy CA file during temporary pre-registration when no per-device CA was supplied", async () => {
+    const legacyPath = process.env.PFSENSE_CA_FILE;
+    process.env.PFSENSE_CA_FILE = "/run/certs/legacy-ca.pem";
+    try {
+      const repository = makeRepository();
+      const client = {
+        get: vi.fn(async () => ({ data: { release: "2.8.1" } })),
+        close: vi.fn(async () => undefined)
+      } as unknown as PfSenseClient;
+      const buildClient = vi.fn(() => client);
+      const factory = new DevicePfSenseClientFactory(config, repository, buildClient);
+
+      await factory.testConnection({
+        apiBaseUrl: "https://192.168.10.9",
+        apiKey: "temporary-registration-key"
+      });
+
+      expect(buildClient).toHaveBeenCalledWith(
+        expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.9" }),
+        "temporary-registration-key",
+        { mode: "legacy-ca-file", servername: null }
+      );
+    } finally {
+      if (legacyPath === undefined) delete process.env.PFSENSE_CA_FILE;
+      else process.env.PFSENSE_CA_FILE = legacyPath;
+    }
+  });
+
   it("tests a temporary registration profile with strict system TLS and closes the client", async () => {
     const repository = makeRepository();
     const client = {
