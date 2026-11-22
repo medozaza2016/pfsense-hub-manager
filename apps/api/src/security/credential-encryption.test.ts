@@ -39,7 +39,8 @@ describe("credential encryption", () => {
 
   it("rejects tampered ciphertext and wrong keys", () => {
     const encrypted = encryptDeviceCredential("example-api-token", key, deviceA);
-    const tampered = { ...encrypted, ciphertext: encrypted.ciphertext.replace(/^../, "ff") };
+    const replacement = encrypted.ciphertext.slice(0, 2).toLowerCase() === "ff" ? "00" : "ff";
+    const tampered = { ...encrypted, ciphertext: replacement + encrypted.ciphertext.slice(2) };
     expect(() => decryptDeviceCredential(tampered, key, deviceA)).toThrow(/authentication/);
     expect(() => decryptDeviceCredential(encrypted, Buffer.alloc(32, 7), deviceA)).toThrow(/authentication/);
   });
