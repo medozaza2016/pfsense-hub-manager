@@ -73,14 +73,17 @@ describe("DevicePfSenseClientFactory", () => {
     await factory.create(deviceId);
 
     expect(buildClient).toHaveBeenCalledWith(
-      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
+      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://legacy-firewall.example" }),
       apiKey,
       { mode: "legacy-ca-file", servername: null }
     );
   });
 
   it("does not apply a legacy CA when the bootstrap profile has explicit device trust", async () => {
-    const repository = makeRepository({ decryptDeviceCaBundle: async () => certificate });
+    const repository = makeRepository({
+      listProfiles: async () => [profile({ apiBaseUrl: config.PFSENSE_API_BASE_URL as string })],
+      decryptDeviceCaBundle: async () => certificate
+    });
     const buildClient = vi.fn(() => ({} as PfSenseClient));
     const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId, PFSENSE_DEVICE_NAME: "Legacy Firewall" } as AppConfig;
     const factory = new DevicePfSenseClientFactory(bootstrapConfig, repository, buildClient);
