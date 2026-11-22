@@ -256,7 +256,7 @@ describe("DeviceRepository legacy bootstrap", () => {
     const repository = new DeviceRepository(pool, key);
 
     await expect(repository.ensureBootstrapDevice(bootstrap)).resolves.toBeUndefined();
-    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\\s+/)[0])).toEqual([
+    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\s+/)[0])).toEqual([
       "BEGIN", "INSERT", "SELECT", "INSERT", "COMMIT"
     ]);
     expect(String(query.mock.calls[1]?.[0])).toContain("ON CONFLICT(id) DO NOTHING");
