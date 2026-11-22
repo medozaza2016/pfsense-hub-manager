@@ -267,7 +267,7 @@ This section is authoritative for work starting from the current `main` branch. 
 - [x] Synchronize the user's Windows working copy with `origin/main`; the user reported a clean working tree at `fa2d524d746213972b1c085f8737d427b134b012`.
 - [x] Confirm Windows 11, VS Code, and Docker Desktop as the local development environment.
 - [x] Retain Linux deployment on the existing Proxmox LXC as the intended production direction.
-- [ ] Complete and review this documentation baseline on `main`.
+- [x] Complete and review this documentation baseline on `main`.
 - [ ] After documentation completion, obtain the user's authorization and create a dedicated development branch for the multi-site implementation.
 - [ ] Do not create, switch, or delete any branch without explicit user authorization.
 
