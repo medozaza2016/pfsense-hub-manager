@@ -98,7 +98,7 @@ os.chmod(path, 0o600)
 PY
 install -m 0644 "$SERVICE_SOURCE" /etc/systemd/system/pfsense-hub-deployment-agent.service
 chown root:pfsense-hub-agent "$PROJECT_DIR/run/host-agent"
-chmod 2770 "$PROJECT_DIR/run/host-agent"
+chmod 2750 "$PROJECT_DIR/run/host-agent"
 systemctl daemon-reload
 systemctl enable --now pfsense-hub-deployment-agent.service
 
