@@ -569,7 +569,7 @@ function HubSettingsPage(){
     setDeployment(value=>({...value,status:current.state,appliedOrigin:current.appliedOrigin??undefined,errorCode:current.errorCode??undefined}));
     if(current.state==="succeeded"&&typeof current.appliedOrigin==="string"){
      const target=new URL(current.appliedOrigin,window.location.href);
-     if(["http:","https:"].includes(target.protocol))window.location.assign(target.toString());
+     if(target.protocol==="https:")window.location.assign(target.toString());
     }
     if(["failed","rolled_back"].includes(current.state)){
      const failure=current.errorCode??"Deployment did not complete.";
