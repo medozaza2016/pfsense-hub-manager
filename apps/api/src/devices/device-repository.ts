@@ -61,7 +61,7 @@ export const createDeviceSchema = z.object({
 export const updateDeviceProfileSchema = z.object({
   name: z.string().trim().min(1).max(120),
   location: z.string().trim().max(120).nullable().optional().transform(value => value || null),
-  edition: z.enum(["plus", "ce"]),
+  edition: z.enum(["plus", "ce", "unknown"]),
   apiBaseUrl: apiOriginSchema
 }).strict();
 
