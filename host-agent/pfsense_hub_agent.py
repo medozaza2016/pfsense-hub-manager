@@ -207,6 +207,16 @@ def assigned_interface_addresses(config: dict[str, Any]) -> set[ipaddress.IPv4Ad
         raise AgentError("HOST_INTERFACE_DISCOVERY_FAILED") from exc
 
 
+def validate_previous_bind_address(value: str) -> None:
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError as exc:
+        raise AgentError("PREVIOUS_BIND_ADDRESS_INVALID") from exc
+    if (address.is_unspecified or address.is_multicast or address.is_link_local
+            or (not address.is_private and not address.is_loopback)):
+        raise AgentError("PREVIOUS_BIND_ADDRESS_UNSAFE")
+
+
 def resolve_bind_address(endpoint: dict[str, Any], config: dict[str, Any]) -> str:
     method = endpoint.get("method")
     address_type = endpoint.get("addressType")
@@ -418,6 +428,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
 
     origin = format_origin(address, port)
     _old_content, old_bind_address = read_bind_address(config)
+    validate_previous_bind_address(old_bind_address)
     new_bind_address = resolve_bind_address(endpoint, config)
     changed = True
     try:
