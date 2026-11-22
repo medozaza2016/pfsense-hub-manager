@@ -74,9 +74,17 @@
 .site-onboarding-form textarea{min-height:94px;resize:vertical}
 .site-onboarding-form label>small{font-size:10px;font-weight:400;line-height:1.4;color:#718198}
 .field-optional{margin-left:5px;color:#8391a5;font-size:10px;font-weight:500}
-.site-onboarding-form .certificate-file-label{display:grid;gap:8px;padding:13px;border:1px dashed #b9cbe2;border-radius:10px;background:#f8fbff;font-size:12px}
-.site-onboarding-form .certificate-file-label input{width:100%;min-height:36px;padding:6px;border:0;background:transparent;font-size:12px}
-.site-onboarding-form .certificate-file-label small{color:#667991;font-size:11px;font-weight:500}
+.certificate-file-picker{display:grid;gap:10px;padding:15px 16px;border:1px dashed #b9cbe2;border-radius:11px;background:#f8fbff}
+.certificate-file-title{font-size:12px;font-weight:700;color:#102747}
+.certificate-file-picker-row{display:flex;align-items:center;gap:12px;min-width:0}
+.certificate-file-input{position:absolute!important;width:1px!important;height:1px!important;min-height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.certificate-file-button{display:inline-flex!important;align-items:center;justify-content:center;gap:8px;min-height:40px;margin:0!important;padding:0 15px;border:1px solid #c9d9ef;border-radius:9px;background:#fff;color:#0755d6;font-size:12px!important;font-weight:700!important;box-shadow:0 1px 2px #0b2d5410;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+.certificate-file-button:hover{background:#eef5ff;border-color:#8db4ed;box-shadow:0 3px 9px #075df51a}
+.certificate-file-button:active{transform:translateY(1px)}
+.certificate-file-input:focus-visible+.certificate-file-picker-row .certificate-file-button{outline:3px solid #90baff;outline-offset:2px}
+.certificate-file-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#718198;font-size:11px}
+.certificate-file-name.selected{color:#18365d;font-weight:650}
+.certificate-file-hint{color:#667991;font-size:11px;font-weight:500}
 .onboarding-note{margin:8px 0 0}
 .onboarding-actions{position:sticky;bottom:0;background:#fff;padding:14px 0 2px;border-top:1px solid #e7edf5;margin-top:8px}
 @media(max-width:640px){
