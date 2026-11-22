@@ -91,7 +91,7 @@ def read_bind_address(config: dict[str, Any]) -> tuple[str, str]:
     path = Path(config["env_file"])
     try:
         metadata = path.lstat()
-        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_gid != 0 or metadata.st_mode & 0o022:
             raise AgentError("ENV_FILE_PERMISSIONS_INVALID")
         content = path.read_text(encoding="utf-8")
     except AgentError:
@@ -133,7 +133,6 @@ def write_bind_address(config: dict[str, Any], content: str, address: str) -> No
         fd, temporary = tempfile.mkstemp(prefix=".hub-env-", dir=str(path.parent))
         try:
             os.fchmod(fd, mode)
-            os.fchown(fd, metadata.st_uid, metadata.st_gid)
             with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
                 stream.write("".join(updated))
                 stream.flush()
