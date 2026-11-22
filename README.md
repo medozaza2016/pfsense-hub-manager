@@ -29,13 +29,17 @@ The following are still incomplete: a second live firewall/CE validation, contin
 
 The standard Linux target is a prepared Debian 13 Proxmox LXC template with an administrator account, systemd, Docker Engine, Docker Compose, Git, and the required base utilities already installed. Tailscale may already be present and connected. Hub Manager does not reinstall Docker, create another administrator, or reset/re-enroll the host's Tailscale identity.
 
-On a clean restore of that prepared template, clone the branch and run the single installer:
+On a clean restore of that prepared template, the **release install command will use the repository's `main` branch after this feature is merged**. The installer is currently present on `feature/multi-site-onboarding` and has not yet been merged into `main`; the clean-install acceptance test was run from that feature branch. Do not expect the `main` command to work until the merge is complete.
+
+After the merge, run:
 
 ```bash
 sudo install -d -o root -g root -m 0755 /opt
-sudo git clone --branch feature/multi-site-onboarding --single-branch https://github.com/medozaza2016/pfsense-hub-manager.git /opt/pfsense-hub
+sudo git clone --branch main --single-branch https://github.com/medozaza2016/pfsense-hub-manager.git /opt/pfsense-hub
 sudo bash /opt/pfsense-hub/scripts/install-linux.sh
 ```
+
+For a repeat of the current feature-branch acceptance test before merge, use `--branch feature/multi-site-onboarding` instead of `--branch main`.
 
 The installer generates protected secrets, displays a one-time application encryption recovery key, installs and enables the Host Agent, builds the web/API images, starts PostgreSQL, waits for all services to become healthy, verifies the API-to-agent socket and bearer-authenticated handshake, and enables GUI-managed access deployment. Save the recovery key in a password manager. Never paste it into chat, source control, or logs.
 
@@ -45,20 +49,46 @@ The Linux production host does not need Node.js or npm. The application builds i
 
 For a plain Debian 13 machine that does not already have Docker installed, follow the full [Fresh Linux Host Setup](docs/DEPLOYMENT.md#fresh-linux-host-setup) procedure. It includes Docker Engine and Compose installation, repository checkout, and first install.
 
-### Windows development
+### Windows 11 local setup and development
 
-The supported local development workstation is Windows 11 with VS Code and Docker Desktop. From the repository root:
+The supported Windows workflow is local development with Docker Desktop, not an automated production installer. There is currently no `install-windows.ps1`. The existing `scripts/setup-encryption-key.ps1` provisions only the protected application encryption key and one-time recovery copy; it does not configure the complete environment or start Docker Compose.
+
+From PowerShell at the repository root, on a clean local development checkout:
+
+```powershell
+Copy-Item .env.example .env
+New-Item -ItemType Directory -Force .\secrets\runtime, .\certs, .\run\host-agent | Out-Null
+if (-not (Test-Path .\secrets\pfsense_api_key)) {
+  New-Item -ItemType File .\secrets\pfsense_api_key | Out-Null
+}
+notepad .env
+.\scripts\setup-encryption-key.ps1
+```
+
+In `.env`, replace the PostgreSQL password placeholder with a strong, unique alphanumeric value. Leave the legacy `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, and `PFSENSE_API_BASE_URL` blank for a new Hub with no registered firewall. Keep `HUB_DEPLOYMENT_AGENT_TOKEN` and `HUB_DEPLOYMENT_AGENT_SOCKET` blank and `HUB_ACCESS_DEPLOYMENT_ENABLED=false` on Windows. Do not reuse a production application's encryption key. The PowerShell key script refuses to overwrite an existing key, prints the recovery key once, and prompts you to confirm that you saved it. Run it only when PowerShell transcription and screen recording are off.
+
+Then validate and start the local stack:
+
+```powershell
+docker compose config
+docker compose up -d --build
+docker compose ps
+```
+
+Open `http://127.0.0.1:8080`. Docker Compose builds and runs the web, API, and PostgreSQL containers. Windows Docker Desktop does not run the production Linux systemd Host Agent, so automatic host access deployment remains disabled. Do not set the feature gate to true on Windows.
+
+### Windows local code validation
+
+Node.js 22 and npm are needed for local source checks, not for the Linux production host. From the repository root:
 
 ```powershell
 npm ci
 npm test
 npm run typecheck
 npm run build
-docker compose config
-docker compose up -d --build
 ```
 
-Windows local development exercises the web and API. It does not run the production Linux systemd Host Agent or automatically apply host access settings.
+These commands validate API/web source tests, TypeScript, and production builds. They are separate from the Docker Compose start commands above. The Linux Host Agent Python tests require a Linux environment for the Unix-socket integration cases; Windows skips the platform-specific Unix-socket tests.
 
 ## Verification and current limits
 
