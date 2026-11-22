@@ -242,6 +242,25 @@ describe("managed-device administrator routes", () => {
     await state.app.close();
   });
 
+  it("returns a non-secret connection profile to administrators", async () => {
+    const state = setup();
+    await state.ready;
+    const response = await state.app.inject({ method: "GET", url: `/api/v1/devices/${deviceId}/profile` });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toEqual(profile);
+    expect(response.body).not.toContain("apiKey");
+    await state.app.close();
+  });
+
+  it("denies connection profile details to regular users", async () => {
+    const state = setup(regularUser);
+    await state.ready;
+    const response = await state.app.inject({ method: "GET", url: `/api/v1/devices/${deviceId}/profile` });
+    expect(response.statusCode).toBe(403);
+    expect(state.devices.getProfile).not.toHaveBeenCalled();
+    await state.app.close();
+  });
+
   it("rejects credentials in profile update payloads", async () => {
     const state = setup();
     await state.ready;
