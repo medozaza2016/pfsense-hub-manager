@@ -114,18 +114,6 @@ def serve_status(binary: str) -> str:
     return run_fixed([binary, "serve", "status", "--json"], timeout=10)
 
 
-def has_existing_serve_configuration(raw: str) -> bool:
-    if not raw.strip():
-        return False
-    try:
-        value = json.loads(raw)
-    except Exception as exc:
-        raise AgentError("TAILSCALE_SERVE_STATUS_INVALID") from exc
-    if not isinstance(value, dict):
-        raise AgentError("TAILSCALE_SERVE_STATUS_INVALID")
-    return bool(value.get("Web") or value.get("TCP"))
-
-
 def has_serve_handler(raw: str, host: str, port: int, target: str) -> bool:
     if not raw.strip():
         return False
