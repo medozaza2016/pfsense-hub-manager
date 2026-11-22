@@ -14,7 +14,8 @@ const validInput = {
   location: "New Jersey",
   edition: "ce" as const,
   apiBaseUrl: "https://192.168.10.1",
-  apiKey: "sensitive-firewall-api-key"
+  apiKey: "sensitive-firewall-api-key",
+  tlsServername: null
 };
 
 function makePoolClient(query: ReturnType<typeof vi.fn>) {
