@@ -170,7 +170,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
 
     # Fetch once before any host action, then again immediately before applying.
     endpoint = get_deployment(config, deployment_id, revision)
-    if endpoint.get("method") != "tailscale" or endpoint.get("addressType") != "magic_dns":
+    if endpoint.get("method") != "tailscale" or endpoint.get("addressType") != "magic_dns" or endpoint.get("scheme") != "https":
         raise AgentError("TLS_METHOD_NOT_SUPPORTED_YET")
     address = endpoint.get("address")
     port = endpoint.get("port")
