@@ -2,6 +2,7 @@
 
 **Status:** Planned milestone, documentation baseline only  
 **Baseline:** `main`, November 21, 2026  
+**Documentation branch:** `docs/hub-bootstrap-and-installation-flow`  
 **Implementation branch:** Not created  
 **Scope:** Read-only firewall connectivity and managed-device lifecycle
 
@@ -11,7 +12,13 @@ Make each registered pfSense firewall an independently configured managed device
 
 The current application is not yet a true multi-firewall manager. The inventory API can return multiple database records, but the active provider's capabilities and overview collection are still tied to the single environment-configured device ID. This milestone closes that gap.
 
-## 2. Current verified starting point
+## 2. Hub bootstrap requirement
+
+The Hub installation and firewall registration are separate lifecycles. A fresh Hub must initialize with zero managed devices. No firewall UUID, name, edition, API origin, API key, or firewall CA certificate may be required by `.env`, Docker Compose, or either platform installer. The Hub first provisions infrastructure, database, application encryption key, and administrator setup. A firewall is added later through the authenticated Sites GUI.
+
+The backend generates a random UUID when a site is registered. This UUID identifies the Hub's managed-device row only. It is not supplied by pfSense, is not a Hub installation identifier, and must not be derived from a serial number or credential. Do not create a placeholder firewall record during installation. See [Hub Installation and First-Run Bootstrap](INSTALLATION-BOOTSTRAP.md) for the Windows PowerShell and Linux Bash target workflows and migration safeguards.
+
+## 3. Current verified starting point
 
 The current `main` implementation includes:
 
@@ -28,7 +35,7 @@ The current `main` implementation includes:
 
 These are foundations, not a completed multi-device lifecycle. Credential encryption is not yet integrated into registration and provider selection. Capability and overview routes currently accept only the environment-configured device ID.
 
-## 3. Functional scope
+## 4. Functional scope
 
 ### 3.1 Managed-device profile
 
@@ -83,7 +90,7 @@ The result must distinguish at least:
 
 A saved profile is not proof of reachability. A successful test is not proof that all API operations or write capabilities are supported.
 
-## 4. Backend implementation sequence
+## 5. Backend implementation sequence
 
 ### Phase A, schema and service boundary
 
@@ -131,7 +138,7 @@ The following are proposed manager-facing API capabilities. Final route names an
 
 Do not implement a generic arbitrary pfSense proxy or accept caller-supplied upstream endpoint paths.
 
-## 5. Frontend implementation sequence
+## 6. Frontend implementation sequence
 
 - [ ] Replace the current preview-only Add Site action with a real API-backed form.
 - [ ] Validate required name, edition, HTTPS origin, and credential fields.
@@ -143,7 +150,7 @@ Do not implement a generic arbitrary pfSense proxy or accept caller-supplied ups
 - [ ] Keep seeded demo sites clearly labeled and non-actionable as live devices.
 - [ ] Ensure loading, validation, empty, permission, timeout, TLS, authentication, and partial-failure states are accessible and responsive.
 
-## 6. Security requirements
+## 7. Security requirements
 
 - No plaintext credentials in PostgreSQL, source control, browser storage, URLs, logs, audit metadata, or API responses.
 - Encryption key remains outside PostgreSQL and outside the repository. The backend must fail closed if the key is unavailable or invalid.
@@ -156,7 +163,7 @@ Do not implement a generic arbitrary pfSense proxy or accept caller-supplied ups
 - Keep all firewall configuration-changing operations disabled.
 - Audit administrative lifecycle actions with sanitized metadata.
 
-## 7. Explicitly deferred
+## 8. Explicitly deferred
 
 - Selection of the firewall-to-hub transport method.
 - Connecting the second pfSense CE firewall until the user is ready.
@@ -166,7 +173,7 @@ Do not implement a generic arbitrary pfSense proxy or accept caller-supplied ups
 - Any firewall configuration write, apply, reboot, or arbitrary upstream API operation.
 - Production backup/restore, retention, and disaster-recovery completion.
 
-## 8. Acceptance criteria
+## 9. Acceptance criteria
 
 The milestone is complete only when all of the following are demonstrated:
 
@@ -183,8 +190,6 @@ The milestone is complete only when all of the following are demonstrated:
 11. API tests, typechecks, production builds, migration tests, Compose validation, and browser acceptance pass.
 12. Documentation records the exact verification results and all remaining limitations.
 
-## 9. Branch and delivery workflow
+## 10. Branch and delivery workflow
 
-This document is being established on `main` before implementation begins. Once the documentation baseline is reviewed and the user authorizes development, create a dedicated feature branch from the then-current `main`. Implement and verify the milestone on that branch, review the diff, and merge through a pull request only after the user approves the merge.
-
-Do not create, switch, or delete branches as part of this documentation-only step.
+This documentation-only update is being prepared on `docs/hub-bootstrap-and-installation-flow` from current `main`. Review and merge its pull request into `main` before implementation. After the documentation merge, create a fresh implementation branch from updated `main`, only when the user authorizes it. Do not reuse `feature/multi-site-onboarding` without reviewing its state. This documentation pass changes no application source, Compose configuration, `.env.example`, or installer scripts.
