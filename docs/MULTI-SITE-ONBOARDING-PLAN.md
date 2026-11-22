@@ -35,7 +35,14 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
 
 - All `/api/v1/` routes other than the explicitly public version and authentication routes require a valid session.
 - Device inventory and detail are available to authenticated users. Device capability and overview routes also require authentication and reject demo devices. Overview rejects disabled devices.
-- Device creation, profile editing, enable/disable, credential rotation, custom CA management, and an explicit connection-test endpoint are **not yet exposed as manager API routes**. Repository support for most of these operations already exists.
+- Administrator-only lifecycle routes have now been added for device creation, non-secret profile updates, enable/disable, credential rotation, custom CA set/remove, and explicit connection testing:
+  - `POST /api/v1/devices`
+  - `PATCH /api/v1/devices/:deviceId`
+  - `PATCH /api/v1/devices/:deviceId/enabled`
+  - `PUT /api/v1/devices/:deviceId/credential`
+  - `PUT /api/v1/devices/:deviceId/tls-trust`
+  - `POST /api/v1/devices/:deviceId/connection-test`
+- Route tests have been added for administrator enforcement, credential non-disclosure, profile secret rejection, and successful/failed read-only connection tests. These new tests and the integrated server build are pending execution in the user's local checkout.
 - The startup configuration still requires the legacy `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, `PFSENSE_API_BASE_URL`, and `PFSENSE_API_KEY_FILE` bootstrap settings. The first configured firewall is persisted at startup. Removing that requirement is a separate compatibility change and must preserve existing deployments.
 - The capabilities response currently reports the fixed operation list as supported/tested. This is an implementation declaration, not proof that every endpoint has been verified against every pfSense edition or release. Do not interpret it as a live compatibility test.
 - Connection state in the device inventory is currently `unknown`; inventory does not imply reachability.
