@@ -21,7 +21,10 @@ for file in "$ENV_FILE" "$AGENT_SOURCE" "$SERVICE_SOURCE"; do
 done
 command -v python3 >/dev/null || { echo "python3 is required." >&2; exit 1; }
 command -v systemctl >/dev/null || { echo "systemd is required." >&2; exit 1; }
-TAILSCALE_BIN="$(command -v tailscale)" || { echo "Tailscale CLI is required for the initial agent implementation." >&2; exit 1; }
+DOCKER_BIN="$(command -v docker)" || { echo "Docker Engine is required." >&2; exit 1; }
+IP_BIN="$(command -v ip)" || { echo "iproute2 is required." >&2; exit 1; }
+"$DOCKER_BIN" compose version >/dev/null
+TAILSCALE_BIN="$(command -v tailscale || true)"
 
 # Parse only literal KEY=value lines. Never source or execute the .env file.
 TOKEN="$(python3 - "$ENV_FILE" <<'PY'
@@ -80,14 +83,19 @@ else
   fi
 fi
 install -m 0755 "$AGENT_SOURCE" /usr/local/libexec/pfsense-hub-deployment-agent.py
-python3 - "$CONFIG_FILE" "$TOKEN" "$API_PORT" "$PROJECT_DIR" "$TAILSCALE_BIN" <<'PY'
+python3 - "$CONFIG_FILE" "$TOKEN" "$API_PORT" "$PROJECT_DIR" "$TAILSCALE_BIN" "$DOCKER_BIN" "$IP_BIN" <<'PY'
 import json, os, sys
-path, token, port, project, tailscale_binary = sys.argv[1:]
+path, token, port, project, tailscale_binary, docker_binary, ip_binary = sys.argv[1:]
 config = {
     "api_base_url": f"http://127.0.0.1:{port}",
     "api_token": token,
     "socket_path": os.path.join(project, "run/host-agent/agent.sock"),
     "tailscale_binary": tailscale_binary,
+    "docker_binary": docker_binary,
+    "ip_binary": ip_binary,
+    "project_dir": project,
+    "compose_file": os.path.join(project, "compose.yaml"),
+    "env_file": os.path.join(project, ".env"),
     "web_local_url": "http://127.0.0.1:8080"
 }
 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
