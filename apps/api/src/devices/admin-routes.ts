@@ -277,6 +277,33 @@ export async function registerDeviceAdminRoutes(
     return { data: profile };
   });
 
+  app.delete("/api/v1/devices/:deviceId", { preHandler: requireAdministrator }, async (request, reply) => {
+    const deviceId = parseDeviceId(request, reply);
+    if (!deviceId) return;
+    const parsed = z.object({ confirmation: z.literal("ARCHIVE") }).strict().safeParse(request.body);
+    if (!parsed.success) {
+      return invalidBody(reply, "ARCHIVE_CONFIRMATION_REQUIRED", "Confirm this manager-side action by sending confirmation: ARCHIVE.");
+    }
+
+    const actor = actorFor(request);
+    const archived = await devices.archive(deviceId);
+    if (!archived) {
+      return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found or is already archived." } });
+    }
+    await appendAudit(pool, {
+      actorId: actor.id,
+      actorUsername: actor.username,
+      action: "device.archive",
+      outcome: "success",
+      targetType: "device",
+      targetId: deviceId,
+      summary: "Archived managed firewall and purged its stored connection secrets",
+      metadata: { pollingHistoryRetained: true, alertsRetained: true },
+      requestId: request.id
+    });
+    return { data: { deviceId, archived: true, pollingHistoryRetained: true, alertsRetained: true } };
+  });
+
   app.patch("/api/v1/devices/:deviceId/enabled", { preHandler: requireAdministrator }, async (request, reply) => {
     const deviceId = parseDeviceId(request, reply);
     if (!deviceId) return;
