@@ -46,12 +46,12 @@ describe("host deployment agent socket client", () => {
   it("sends only the strict deployment identifier and revision", async () => {
     let received = "";
     const socketPath = await listen(
-      () => JSON.stringify({ state: "succeeded", appliedOrigin: "http://192.168.1.20:8080" }),
+      () => JSON.stringify({ state: "succeeded", appliedOrigin: "https://hub.example.ts.net" }),
       value => { received = value; }
     );
     await expect(requestHostDeployment(socketPath, request)).resolves.toEqual({
       state: "succeeded",
-      appliedOrigin: "http://192.168.1.20:8080"
+      appliedOrigin: "https://hub.example.ts.net"
     });
     expect(JSON.parse(received)).toEqual(request);
   });
@@ -59,7 +59,7 @@ describe("host deployment agent socket client", () => {
   it("rejects an invalid agent response", async () => {
     const socketPath = await listen(() => JSON.stringify({
       state: "succeeded",
-      appliedOrigin: "http://192.168.1.20:8080",
+      appliedOrigin: "https://hub.example.ts.net",
       command: "docker compose down"
     }));
     await expect(requestHostDeployment(socketPath, request)).rejects.toThrow("HOST_AGENT_RESPONSE_INVALID");
