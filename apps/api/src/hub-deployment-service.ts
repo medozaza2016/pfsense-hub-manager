@@ -91,10 +91,13 @@ export async function dispatchHubDeployment(
       const endpoint = selected.rows[0];
       const appliedUrl = new URL(result.appliedOrigin);
       const appliedPort = appliedUrl.port ? Number(appliedUrl.port) : 443;
-      if (!endpoint || endpoint.method !== "tailscale" || endpoint.address_type !== "magic_dns"
-          || !endpoint.address || appliedUrl.protocol !== "https:"
-          || appliedUrl.hostname.toLowerCase() !== endpoint.address.toLowerCase()
-          || appliedPort !== Number(endpoint.https_port)) {
+      const expectedHost = endpoint?.address?.toLowerCase().replace(/^\\[|\\]$/g, "") ?? "";
+      const actualHost = appliedUrl.hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+      const supportedAddressType = endpoint?.method === "tailscale"
+        ? endpoint.address_type === "magic_dns"
+        : ["hostname", "ip"].includes(endpoint?.address_type ?? "");
+      if (!endpoint || !supportedAddressType || !expectedHost || appliedUrl.protocol !== "https:"
+          || actualHost !== expectedHost || appliedPort !== Number(endpoint.https_port)) {
         throw new Error("HOST_AGENT_ORIGIN_MISMATCH");
       }
       await db.query(
