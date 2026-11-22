@@ -507,6 +507,7 @@ const deploymentErrorCopy:Record<string,string> = {
  HOST_AGENT_ORIGIN_MISMATCH:"The agent reported an HTTPS origin that does not match the selected endpoint. The API rejected it.",
  TLS_METHOD_NOT_SUPPORTED_YET:"This access method still needs a trusted TLS certificate and deployment configuration.",
  TAILSCALE_HTTPS_NOT_ENABLED:"Enable HTTPS certificates for this tailnet before using Tailscale Serve.",
+ TAILSCALE_SERVE_NOT_CONFIGURED:"Configure a private Tailscale Serve route to the Hub loopback service before saving this method.",
  TAILSCALE_NOT_CONNECTED:"Tailscale is not connected on the Hub host.",
  TAILSCALE_ADDRESS_MISMATCH:"The selected MagicDNS name does not belong to this Hub host.",
  TAILSCALE_SERVE_ALREADY_CONFIGURED:"The host already has a Tailscale Serve configuration. It was left unchanged.",
@@ -621,7 +622,7 @@ function HubSettingsPage(){
  }
  const methodCopy:Record<HubAccessMethod,{title:string;description:string;placeholder:string}> = {
   local:{title:"LAN",description:"LAN access requires a trusted TLS certificate on the Hub host. Automated LAN certificate provisioning is not yet available.",placeholder:"192.168.1.20"},
-  tailscale:{title:"Tailscale",description:"Use this Hub host's MagicDNS name. The Linux agent configures Tailscale Serve and verifies HTTPS. Tailnet HTTPS must already be enabled.",placeholder:"hub.example-tailnet.ts.net"},
+  tailscale:{title:"Tailscale",description:"Use this Hub host's MagicDNS name. Configure Tailscale Serve separately to proxy to the Hub loopback service. The Linux agent verifies the route and HTTPS but does not change Tailscale settings.",placeholder:"hub.example-tailnet.ts.net"},
   hostname:{title:"Custom",description:"Custom hostnames require a trusted TLS certificate and reverse-proxy configuration. Automated provisioning is not yet available.",placeholder:"hub.example.com"}
  };
  const endpoint=endpoints.find(item=>item.method===activeMethod)??defaultHubEndpoints[0];
