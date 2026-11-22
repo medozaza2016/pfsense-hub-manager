@@ -41,6 +41,7 @@ function setup(actor: AdminUser = admin, overrides: {
     archive: vi.fn(async () => true),
     rotateCredential: vi.fn(async () => true),
     setDeviceCaBundle: vi.fn(async () => true),
+    decryptDeviceCaBundle: vi.fn(async () => null),
     ...(overrides.devices ?? {})
   } as unknown as DeviceRepository & Record<string, ReturnType<typeof vi.fn>>;
 
@@ -343,7 +344,24 @@ describe("managed-device administrator routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().data).toEqual({ deviceId, credentialUpdated: true });
     expect(response.body).not.toContain("rotated-private-key");
+    expect(state.clientFactory.testConnection).toHaveBeenCalledWith(expect.objectContaining({apiBaseUrl:profile.apiBaseUrl,apiKey:"rotated-private-key"}));
     expect(JSON.stringify(state.pool.query.mock.calls)).not.toContain("rotated-private-key");
+    await state.app.close();
+  });
+
+  it("does not rotate a credential when its read-only connection test fails", async () => {
+    const state = setup();
+    state.clientFactory.testConnection.mockRejectedValueOnce(new PfSenseApiError("private detail", "authentication", 401));
+    await state.ready;
+    const response = await state.app.inject({
+      method: "PUT",
+      url: `/api/v1/devices/${deviceId}/credential`,
+      payload: { apiKey: "invalid-replacement-key" }
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe("CREDENTIAL_TEST_FAILED");
+    expect(response.body).not.toContain("private detail");
+    expect(state.devices.rotateCredential).not.toHaveBeenCalled();
     await state.app.close();
   });
 
