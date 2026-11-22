@@ -308,10 +308,12 @@ describe("managed-device administrator routes", () => {
       deviceId,
       archived: true,
       pollingHistoryRetained: true,
-      alertsRetained: true
+      alertsRetained: true,
+      resolvedAlertCount: 1
     });
     expect(state.devices.archive).toHaveBeenCalledWith(deviceId);
-    expect(state.pool.query).toHaveBeenCalledOnce();
+    expect(state.pool.query).toHaveBeenCalledTimes(2);
+    expect(state.pool.query.mock.calls[0]?.[0]).toContain("UPDATE alerts");
     expect(JSON.stringify(state.pool.query.mock.calls)).not.toContain("apiKey");
     await state.app.close();
   });
