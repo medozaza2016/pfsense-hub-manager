@@ -1,5 +1,4 @@
 import Fastify, { type FastifyRequest } from "fastify";
-import { connect as tlsConnect } from "node:tls";
 import { describe, expect, it, vi } from "vitest";
 const { tlsConnectMock } = vi.hoisted(() => ({ tlsConnectMock: vi.fn() }));
 vi.mock("node:tls", () => ({ connect: tlsConnectMock }));
@@ -49,7 +48,7 @@ function setup(actor: AdminUser = admin, overrides: {
   const clientFactory = {
     create: vi.fn(async () => client),
     testConnection: vi.fn(async () => undefined)
-  } as unknown as DevicePfSenseClientFactory & { create: ReturnType<typeof vi.fn> };
+  } as unknown as DevicePfSenseClientFactory & { create: ReturnType<typeof vi.fn>; testConnection: ReturnType<typeof vi.fn> };
   const pool = { query: vi.fn(async () => ({ rows: [], rowCount: 1 })) } as unknown as Pool & { query: ReturnType<typeof vi.fn> };
 
   const app = Fastify();
