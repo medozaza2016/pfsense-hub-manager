@@ -29,8 +29,11 @@ export class DevicePfSenseClientFactory {
     tlsServername?: string | null;
   }): Promise<void> {
     const ca = input.certificateAuthority ? normalizeDeviceCaBundle(input.certificateAuthority) : null;
+    const legacyCaFileConfigured = Boolean(process.env.PFSENSE_CA_FILE);
     const trust: PfSenseTlsTrust = ca === null
-      ? { mode: "system", servername: input.tlsServername ?? null }
+      ? legacyCaFileConfigured
+        ? { mode: "legacy-ca-file", servername: input.tlsServername ?? null }
+        : { mode: "system", servername: input.tlsServername ?? null }
       : { mode: "custom-ca", certificateAuthority: Buffer.from(ca, "utf8"), servername: input.tlsServername ?? null };
     const testConfig: AppConfig = { ...this.config, PFSENSE_API_BASE_URL: input.apiBaseUrl };
     const client = this.buildClient(testConfig, input.apiKey, trust);
