@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import { DataTable, Feedback, ListToolbar } from "./components/ui";
 import "./components/ui.css";
 import { useToast } from "./components/ToastProvider";
