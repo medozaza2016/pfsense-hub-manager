@@ -10,7 +10,7 @@ import {
 } from "./device-repository.js";
 import type { DevicePfSenseClientFactory } from "../pfsense/device-client-factory.js";
 import { classifyError } from "../pfsense/errors.js";
-import { normalizeDeviceCaBundle } from "../pfsense/../pfsense/tls-trust.js";
+import { normalizeDeviceCaBundle } from "../pfsense/tls-trust.js";
 
 interface AuthenticatedRequest extends FastifyRequest {
   admin?: AdminUser;
@@ -251,5 +251,5 @@ export async function registerDeviceAdminRoutes(
       requestId: request.id
     });
     return { data: { deviceId, outcome, errorClass, testedAt, operation: "version" } };
-  });;
+  });
 }
