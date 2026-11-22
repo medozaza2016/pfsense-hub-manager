@@ -183,7 +183,7 @@ export default function App(){
   <div className="onboarding-section-heading"><span>01</span><div><strong>Site information</strong><small>Identify this firewall in your inventory.</small></div></div>
   <div className="onboarding-grid">
    <label>Site name<input required maxLength={120} value={formName} onChange={e=>setFormName(e.target.value)} placeholder="e.g. Branch Office"/></label>
-   <label>Location <span className="field-optional">Optional</span><input maxLength={120} value={formLocation} onChange={e=>setFormLocation(e.target.value)} placeholder="City or site description"/></label>
+   <label><span className="field-label-row">Location <span className="field-optional">Optional</span></span><input maxLength={120} value={formLocation} onChange={e=>setFormLocation(e.target.value)} placeholder="City or site description"/></label>
    <label>pfSense edition<select value={formEdition} onChange={e=>setFormEdition(e.target.value as "plus"|"ce")}><option value="ce">pfSense CE</option><option value="plus">pfSense Plus</option></select></label>
   </div>
  </section>
