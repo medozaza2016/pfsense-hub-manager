@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import type { AppConfig } from "../config.js";
 import type { DeviceRepository } from "../devices/device-repository.js";
-import type { PfSenseClient } from "./client.js";
+import type { PfSenseClient, PfSenseOperation } from "./client.js";
 import type { DevicePfSenseClientFactory } from "./device-client-factory.js";
 import { PfSenseProvider } from "./provider.js";
 
@@ -16,7 +16,7 @@ const config = {
 
 function makeProvider(client: Partial<PfSenseClient> | null) {
   const firewallClient = client === null ? null : {
-    get: vi.fn(async () => ({ data: [] })),
+    get: vi.fn(async (_operation: PfSenseOperation) => ({ data: [] })),
     close: vi.fn(async () => undefined),
     ...client
   };
@@ -47,7 +47,7 @@ describe("PfSenseProvider multi-device polling", () => {
   });
 
   it("collects the fixed eight read-only operations for any managed device and closes its client", async () => {
-    const { provider, factory, pool, firewallClient } = makeProvider(null);
+    const { provider, factory, pool } = makeProvider(null);
     const client = {
       get: vi.fn(async () => ({ data: [] })),
       close: vi.fn(async () => undefined)
@@ -82,7 +82,7 @@ describe("PfSenseProvider multi-device polling", () => {
   it("records operation failures and still closes the client", async () => {
     const { provider, factory } = makeProvider(null);
     const client = {
-      get: vi.fn(async () => { throw new Error("connection failed"); }),
+      get: vi.fn(async (_operation: PfSenseOperation) => { throw new Error("connection failed"); }),
       close: vi.fn(async () => undefined)
     };
     vi.mocked(factory.create).mockResolvedValue(client as unknown as PfSenseClient);
