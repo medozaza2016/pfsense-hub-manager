@@ -4,10 +4,17 @@ import { normalizeDeviceCaBundle } from "./tls-trust.js";
 
 const certificate = readFileSync(new URL("./fixtures/firewall-test-cert.pem", import.meta.url), "utf8");
 const privateKey = readFileSync(new URL("./fixtures/firewall-test-key.pem", import.meta.url), "utf8");
+const pfSenseNonCaCertificate = readFileSync(new URL("./fixtures/pfsense-non-ca-self-signed-cert.pem", import.meta.url), "utf8");
 
 describe("per-device TLS trust bundle validation", () => {
   it("accepts and normalizes a valid self-signed firewall certificate", () => {
     const normalized = normalizeDeviceCaBundle(certificate);
+    expect(normalized).toContain("-----BEGIN CERTIFICATE-----");
+    expect(normalized).toContain("-----END CERTIFICATE-----");
+  });
+
+  it("accepts a valid self-signed pfSense certificate that is not marked as a CA", () => {
+    const normalized = normalizeDeviceCaBundle(pfSenseNonCaCertificate);
     expect(normalized).toContain("-----BEGIN CERTIFICATE-----");
     expect(normalized).toContain("-----END CERTIFICATE-----");
   });
