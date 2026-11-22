@@ -35,6 +35,7 @@ for trusted_path in "$PROJECT_DIR" "$PROJECT_DIR/compose.yaml"; do
   }
 done
 command -v python3 >/dev/null || { echo "python3 is required." >&2; exit 1; }
+python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' || { echo "Python 3.10 or newer is required." >&2; exit 1; }
 command -v systemctl >/dev/null || { echo "systemd is required." >&2; exit 1; }
 DOCKER_BIN="$(command -v docker)" || { echo "Docker Engine is required." >&2; exit 1; }
 IP_BIN="$(command -v ip)" || { echo "iproute2 is required." >&2; exit 1; }
