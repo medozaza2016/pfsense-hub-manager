@@ -10,6 +10,11 @@ agent = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
 SPEC.loader.exec_module(agent)
 
+SERVE_STATUS = (
+    '{"Web":{"hub.example.ts.net:443":{"Handlers":{"/":'
+    '{"Proxy":"http://127.0.0.1:8080"}}}}}'
+)
+
 
 class DeploymentAgentTests(unittest.TestCase):
     def setUp(self):
@@ -39,10 +44,7 @@ class DeploymentAgentTests(unittest.TestCase):
             "address": "hub.example.ts.net",
             "port": 443,
         }
-        self.serve_status = (
-            '{"Web":{"hub.example.ts.net:443":{"Handlers":{"/":'
-            '{"Proxy":"http://127.0.0.1:8080"}}}}}'
-        )
+        self.serve_status = SERVE_STATUS
 
     def loopback_bind(self):
         return patch.object(
@@ -84,7 +86,7 @@ class DeploymentAgentTests(unittest.TestCase):
 
     @patch.object(agent, "verify_https_with_retries")
     @patch.object(agent, "run_fixed", side_effect=['{"AllowFunnel":{}}', ""])
-    @patch.object(agent, "serve_status", side_effect=["{}", self.serve_status])
+    @patch.object(agent, "serve_status", side_effect=["{}", SERVE_STATUS])
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
     def test_configures_missing_private_serve_route_from_hub_settings(self, get_deployment, identity, serve_status, run_fixed, verify_https):
