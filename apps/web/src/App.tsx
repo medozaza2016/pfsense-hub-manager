@@ -665,7 +665,7 @@ function HubSettingsPage(){
      <span>Configuration revision {deployment.desiredRevision}, applied revision {deployment.appliedRevision}</span>
      {deployment.errorCode&&<><span>Safe error code: {deployment.errorCode}</span><span>{deploymentErrorCopy[deployment.errorCode]??"The host agent could not complete this deployment. Review the agent service logs."}</span></>}
     </div>
-    <p className="hub-settings-note">Saving automatically requests the restricted host agent to verify the selected HTTPS endpoint. For Tailscale, the private Serve route must already be configured outside Hub Manager. The agent does not modify Tailscale, DNS, or host network settings. The browser redirects only after the host agent verifies the endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
+    <p className="hub-settings-note">Saving automatically requests the restricted host agent to verify the selected HTTPS endpoint. For Tailscale, the private Serve route must already be configured outside Hub Manager. For LAN/Custom, the agent changes only HUB_BIND_ADDRESS and recreates the web service. It does not configure Tailscale, DNS, certificates, or reverse proxies. The browser redirects only after the host agent verifies the endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
     {deployment.previousAppliedOrigin&&<p className="hub-settings-note">Last verified access: <a href={deployment.previousAppliedOrigin} target="_blank" rel="noreferrer">{deployment.previousAppliedOrigin}</a>. Keep this recovery address available while changing access settings.</p>}
    </Panel>
    <Panel title="Recent deployments">
