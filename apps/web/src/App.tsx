@@ -510,7 +510,6 @@ const deploymentErrorCopy:Record<string,string> = {
  TAILSCALE_SERVE_NOT_CONFIGURED:"Configure a private Tailscale Serve route to the Hub loopback service before saving this method.",
  TAILSCALE_NOT_CONNECTED:"Tailscale is not connected on the Hub host.",
  TAILSCALE_ADDRESS_MISMATCH:"The selected MagicDNS name does not belong to this Hub host.",
- TAILSCALE_SERVE_ALREADY_CONFIGURED:"The host already has a Tailscale Serve configuration. It was left unchanged.",
  TAILSCALE_FUNNEL_ALREADY_CONFIGURED:"The host already has a Tailscale Funnel configuration. It was left unchanged.",
  TLS_OR_ENDPOINT_VERIFICATION_FAILED:"The new HTTPS endpoint failed certificate or health verification. The agent attempted rollback."
 };
