@@ -221,3 +221,37 @@ This is an approved product scope, not an implemented feature. Implementation an
 - [ ] Implement and verify an external notification delivery channel only when one is selected and configured.
 
 **Scope note:** This phase does not make the overall dashboard live. Other Hub and Site pages still contain preview data. The alert producer currently uses the existing firewall polling endpoint, which runs when the device overview is requested; it is not a background polling scheduler.
+
+
+## Development closeout and next baseline, November 21, 2026
+
+The active implementation branch is `feature/development-seed-data`, currently synchronized with its GitHub remote at `06e8d0f49433654d37b7d9c8c8135ab96da17283`. At the recorded comparison point it is 91 commits ahead of `main`, with no commits behind. The current task is documentation closeout, then a pull request into `main`. Do not begin new feature work on the feature branch after the merge; continue from an updated local `main`.
+
+### Completed in this implementation increment
+- [x] Add shared frontend UI components for searchable tables, search fields, list toolbars, expandable filters, pagination, and responsive mobile cards.
+- [x] Apply the shared components to site inventory and administration views, including mobile-friendly user, audit, and alert records.
+- [x] Add a global toast provider and use it for operation feedback.
+- [x] Complete API-backed user management, audit log, and alert screens, backed by the account/alert/audit persistence and authorization work described in DEC-028.
+- [x] Add a development-only transactional/idempotent seed command and sample dataset, with migration support.
+- [x] Confirm the feature branch and origin branch point to the same commit.
+- [x] Diagnose the recent UI discrepancy: the running Docker web container was using an older image. Rebuilding the web service loaded the current source and restored the expected shared UI, search/filter behavior, and mobile presentation.
+
+### Merge gate
+- [ ] Finish this documentation update on the feature branch.
+- [ ] Run final local typecheck, API tests, production build, `docker compose config`, and a clean `docker compose up -d --build` on the final branch head. Record exact results and any skipped checks.
+- [ ] Inspect the pull-request diff for secrets, generated artifacts, accidental environment files, and unrelated changes.
+- [ ] Open and review a PR from `feature/development-seed-data` to `main`; resolve any merge conflicts before merging.
+- [ ] Merge only after the PR is mergeable and final checks pass.
+- [ ] On Windows, switch to `main`, fetch and pull the merge, verify a clean working tree, and confirm the local branch is tracking `origin/main`.
+- [ ] Retire the feature branch after successful merge if no longer needed.
+
+### Next development sequence on main
+1. Verify the merged application from a clean local Docker rebuild and exercise the current UI at desktop and mobile widths.
+2. Close remaining role/access-control and seed-data verification gaps, including migration validation and last-active-admin protections.
+3. Continue the live-data path: database-backed site inventory, per-site configuration/credential lifecycle, connection testing, and per-device compatibility/capability state.
+4. Implement a real background polling scheduler with bounded concurrency, retries/backoff, and independent per-device outcomes before treating alerts as continuously monitored.
+5. Complete secure TLS trust for the first Plus firewall and record the exact REST API package version; defer the CE firewall until explicitly ready.
+6. Define audit/alert retention and database backup/restore, then perform a restore drill.
+7. Only after read-only integration is reliable, plan configuration write workflows with capability gating, preview, explicit confirmation, rollback/recovery, and audit verification.
+
+**Do not mark the product production-ready.** A working local UI and passing unit tests do not prove production deployment, multi-device operation, background monitoring, or safe firewall configuration management.
