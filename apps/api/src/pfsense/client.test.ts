@@ -3,7 +3,7 @@ import {createServer} from "node:https";
 import type {AddressInfo} from "node:net";
 import {Agent,fetch} from "undici";
 import {describe,expect,it,vi} from "vitest";
-import {createPinnedLookup,pfSenseOperations} from "./client.js";
+import {createPinnedLookup,pfSenseOperations,selectTlsCa} from "./client.js";
 
 const testCertificate=readFileSync(new URL("./fixtures/firewall-test-cert.pem",import.meta.url));
 const testPrivateKey=readFileSync(new URL("./fixtures/firewall-test-key.pem",import.meta.url));
@@ -91,5 +91,28 @@ describe("Undici pinned HTTPS integration",()=>{
    expect(failure).toBeInstanceOf(Error);
    expect((failure as Error&{cause?:{code?:string}}).cause?.code).toBe("ERR_TLS_CERT_ALTNAME_INVALID");
   });
+ });
+});
+
+describe("per-device TLS trust selection",()=>{
+ it("uses the explicitly configured custom CA for one device",()=>{
+  const deviceCa=Buffer.from("device-specific-ca");
+  const legacyCa=Buffer.from("legacy-global-ca");
+  expect(selectTlsCa({mode:"custom-ca",certificateAuthority:deviceCa},legacyCa)).toBe(deviceCa);
+ });
+
+ it("uses system trust when explicitly selected, ignoring the legacy global CA",()=>{
+  const legacyCa=Buffer.from("legacy-global-ca");
+  expect(selectTlsCa({mode:"system"},legacyCa)).toBeUndefined();
+ });
+
+ it("preserves legacy CA-file behavior only when no device trust mode is supplied",()=>{
+  const legacyCa=Buffer.from("legacy-global-ca");
+  expect(selectTlsCa(undefined,legacyCa)).toBe(legacyCa);
+ });
+
+ it("rejects an empty or oversized device CA bundle",()=>{
+  expect(()=>selectTlsCa({mode:"custom-ca",certificateAuthority:Buffer.alloc(0)})).toThrow(/trust bundle is invalid/);
+  expect(()=>selectTlsCa({mode:"custom-ca",certificateAuthority:Buffer.alloc(64*1024+1)})).toThrow(/trust bundle is invalid/);
  });
 });
