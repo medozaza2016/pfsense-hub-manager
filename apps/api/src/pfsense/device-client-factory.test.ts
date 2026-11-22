@@ -19,6 +19,7 @@ function profile(overrides: Partial<ManagedDeviceProfile> = {}): ManagedDevicePr
     location: "Branch",
     edition: "ce",
     apiBaseUrl: "https://192.168.10.1",
+    tlsServername: null,
     enabled: true,
     isDemo: false,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -57,7 +58,7 @@ describe("DevicePfSenseClientFactory", () => {
     expect(buildClient).toHaveBeenCalledWith(
       expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
       apiKey,
-      { mode: "custom-ca", certificateAuthority: Buffer.from(certificate, "utf8") }
+      { mode: "custom-ca", certificateAuthority: Buffer.from(certificate, "utf8"), servername: null }
     );
     expect(repository.decryptApiKeyForConnection).toHaveBeenCalledWith(deviceId);
     expect(repository.decryptDeviceCaBundle).toHaveBeenCalledWith(deviceId);
@@ -73,7 +74,7 @@ describe("DevicePfSenseClientFactory", () => {
     expect(buildClient).toHaveBeenCalledWith(
       expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
       apiKey,
-      { mode: "system" }
+      { mode: "system", servername: null }
     );
   });
 
