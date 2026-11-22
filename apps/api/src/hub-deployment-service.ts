@@ -91,8 +91,8 @@ export async function dispatchHubDeployment(
       const endpoint = selected.rows[0];
       const appliedUrl = new URL(result.appliedOrigin);
       const appliedPort = appliedUrl.port ? Number(appliedUrl.port) : 443;
-      const expectedHost = endpoint?.address?.toLowerCase().replace(/^\\[|\\]$/g, "") ?? "";
-      const actualHost = appliedUrl.hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+      const expectedHost = endpoint?.address?.toLowerCase().replace(/^\[|\]$/g, "") ?? "";
+      const actualHost = appliedUrl.hostname.toLowerCase().replace(/^\[|\]$/g, "");
       const supportedAddressType = endpoint?.method === "tailscale"
         ? endpoint.address_type === "magic_dns"
         : ["hostname", "ip"].includes(endpoint?.address_type ?? "");
