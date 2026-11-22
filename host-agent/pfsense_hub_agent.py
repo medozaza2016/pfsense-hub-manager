@@ -367,7 +367,7 @@ def verify_tailscale_endpoint(endpoint: dict[str, Any], config: dict[str, Any]) 
     port = endpoint.get("port")
     if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\.ts\.net", host):
         raise AgentError("TAILSCALE_MAGICDNS_REQUIRED")
-    if not isinstance(port, int) or not 1 <= port <= 65535:
+    if type(port) is not int or not 1 <= port <= 65535:
         raise AgentError("DEPLOYMENT_ENDPOINT_INVALID")
     dns_name, _ips, cert_domains = tailscale_identity(binary)
     if host != dns_name:
@@ -386,7 +386,7 @@ def verify_tailscale_endpoint(endpoint: dict[str, Any], config: dict[str, Any]) 
 def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     if set(request) != {"protocolVersion", "deploymentId", "desiredRevision"}:
         raise AgentError("REQUEST_INVALID")
-    if request["protocolVersion"] != PROTOCOL_VERSION or not isinstance(request["desiredRevision"], int) or request["desiredRevision"] < 1:
+    if type(request["protocolVersion"]) is not int or request["protocolVersion"] != PROTOCOL_VERSION or type(request["desiredRevision"]) is not int or request["desiredRevision"] < 1:
         raise AgentError("REQUEST_INVALID")
     try:
         deployment_id = str(uuid.UUID(request["deploymentId"]))
@@ -413,7 +413,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         raise AgentError("DEPLOYMENT_METHOD_UNSUPPORTED")
     address = endpoint.get("address")
     port = endpoint.get("port")
-    if not isinstance(address, str) or not isinstance(port, int) or not 1 <= port <= 65535:
+    if not isinstance(address, str) or type(port) is not int or not 1 <= port <= 65535:
         raise AgentError("DEPLOYMENT_ENDPOINT_INVALID")
 
     origin = format_origin(address, port)
