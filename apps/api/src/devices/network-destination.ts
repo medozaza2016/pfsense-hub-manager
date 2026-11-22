@@ -26,7 +26,8 @@ function ipv4Range(base: string, prefix: number): Ipv4Range {
   return { base: value, prefix };
 }
 
-// 100.64.0.0/10 is shared address space used by Tailscale and other private overlays, so it is intentionally allowed.\nconst forbiddenIpv4Ranges = [
+// 100.64.0.0/10 is shared address space used by Tailscale and other private overlays, so it is intentionally allowed.
+const forbiddenIpv4Ranges = [
   ipv4Range("0.0.0.0", 8),
   ipv4Range("127.0.0.0", 8),
   ipv4Range("169.254.0.0", 16),
