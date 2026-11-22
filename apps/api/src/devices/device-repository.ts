@@ -43,7 +43,7 @@ export const apiOriginSchema = z.string().trim().min(1).max(2048).url().transfor
   return url.origin;
 });
 
-const tlsServernameSchema = z.string().trim().min(1).max(253).nullable().optional().transform(value => value || null).refine(
+export const tlsServernameSchema = z.string().trim().min(1).max(253).nullable().optional().transform(value => value || null).refine(
   value => value === null || value.split(".").every(label => label.length >= 1 && label.length <= 63 && /^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(label)),
   "TLS server name must be a valid DNS hostname."
 );
