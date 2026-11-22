@@ -10,6 +10,7 @@ import {
 } from "./device-repository.js";
 import type { DevicePfSenseClientFactory } from "../pfsense/device-client-factory.js";
 import { classifyError } from "../pfsense/errors.js";
+import { normalizeDeviceCaBundle } from "../pfsense/../pfsense/tls-trust.js";
 
 interface AuthenticatedRequest extends FastifyRequest {
   admin?: AdminUser;
@@ -178,25 +179,34 @@ export async function registerDeviceAdminRoutes(
       return invalidBody(reply, "INVALID_DEVICE_TLS_TRUST", "Provide a valid PEM certificate bundle or null to restore operating-system trust.");
     }
 
+    let normalizedCertificateAuthority: string | null;
+    try {
+      normalizedCertificateAuthority = parsed.data.certificateAuthority === null
+        ? null
+        : normalizeDeviceCaBundle(parsed.data.certificateAuthority);
+    } catch {
+      return invalidBody(reply, "INVALID_DEVICE_TLS_TRUST", "The certificate bundle must contain valid, currently valid CA certificates in PEM format.");
+    }
+
     const actor = actorFor(request);
-    const updated = await devices.setDeviceCaBundle(deviceId, parsed.data.certificateAuthority);
+    const updated = await devices.setDeviceCaBundle(deviceId, normalizedCertificateAuthority);
     if (!updated) {
       return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
     }
     await appendAudit(pool, {
       actorId: actor.id,
       actorUsername: actor.username,
-      action: parsed.data.certificateAuthority === null ? "device.tls_trust.clear" : "device.tls_trust.update",
+      action: normalizedCertificateAuthority === null ? "device.tls_trust.clear" : "device.tls_trust.update",
       outcome: "success",
       targetType: "device",
       targetId: deviceId,
-      summary: parsed.data.certificateAuthority === null
+      summary: normalizedCertificateAuthority === null
         ? "Removed custom firewall TLS trust"
         : "Updated custom firewall TLS trust",
-      metadata: { customTrustConfigured: parsed.data.certificateAuthority !== null },
+      metadata: { customTrustConfigured: normalizedCertificateAuthority !== null },
       requestId: request.id
     });
-    return { data: { deviceId, customTrustConfigured: parsed.data.certificateAuthority !== null } };
+    return { data: { deviceId, customTrustConfigured: normalizedCertificateAuthority !== null } };
   });
 
   app.post("/api/v1/devices/:deviceId/connection-test", { preHandler: requireAdministrator }, async (request, reply) => {
@@ -206,6 +216,8 @@ export async function registerDeviceAdminRoutes(
     const actor = actorFor(request);
     const testedAt = new Date().toISOString();
     let client: Awaited<ReturnType<DevicePfSenseClientFactory["create"]>> = null;
+    let outcome: "reachable" | "unreachable" = "reachable";
+    let errorClass: ReturnType<typeof classifyError> | null = null;
 
     try {
       client = await clientFactory.create(deviceId);
@@ -218,36 +230,26 @@ export async function registerDeviceAdminRoutes(
       // A successful version GET proves authenticated API reachability only.
       // It does not establish support for every operation or edition.
       await client.get("version");
-      await appendAudit(pool, {
-        actorId: actor.id,
-        actorUsername: actor.username,
-        action: "device.connection_test",
-        outcome: "success",
-        targetType: "device",
-        targetId: deviceId,
-        summary: "Firewall connection test succeeded",
-        metadata: { operation: "version", outcome: "reachable" },
-        requestId: request.id
-      });
-      return { data: { deviceId, outcome: "reachable", errorClass: null, testedAt, operation: "version" } };
     } catch (error) {
-      const errorClass = classifyError(error);
-      await appendAudit(pool, {
-        actorId: actor.id,
-        actorUsername: actor.username,
-        action: "device.connection_test",
-        outcome: "failure",
-        targetType: "device",
-        targetId: deviceId,
-        summary: "Firewall connection test failed",
-        metadata: { operation: "version", outcome: "unreachable", errorClass },
-        requestId: request.id
-      });
-      return {
-        data: { deviceId, outcome: "unreachable", errorClass, testedAt, operation: "version" }
-      };
+      outcome = "unreachable";
+      errorClass = classifyError(error);
     } finally {
       if (client) await client.close().catch(() => undefined);
     }
-  });
+
+    await appendAudit(pool, {
+      actorId: actor.id,
+      actorUsername: actor.username,
+      action: "device.connection_test",
+      outcome: outcome === "reachable" ? "success" : "failure",
+      targetType: "device",
+      targetId: deviceId,
+      summary: outcome === "reachable"
+        ? "Firewall connection test succeeded"
+        : "Firewall connection test failed",
+      metadata: { operation: "version", outcome, errorClass },
+      requestId: request.id
+    });
+    return { data: { deviceId, outcome, errorClass, testedAt, operation: "version" } };
+  });;
 }
