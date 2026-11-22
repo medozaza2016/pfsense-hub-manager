@@ -99,19 +99,19 @@ def get_deployment(config: dict[str, Any], deployment_id: str, revision: int) ->
     return data
 
 
-def tailscale_identity(binary: str) -> tuple[str, set[str]]:
+def tailscale_identity(binary: str) -> tuple[str, set[str], set[str]]:
     try:
         status = json.loads(run_fixed([binary, "status", "--json"], timeout=10))
         self_info = status.get("Self") or {}
         dns_name = str(self_info.get("DNSName") or "").rstrip(".").lower()
-        ips = {str(value) for value in (self_info.get("TailscaleIPs") or [])}
+        ips = {str(value) for value in (self_info.get("TailscaleIPs") or [])}\n        cert_domains = {str(value).rstrip(".").lower() for value in (status.get("CertDomains") or [])}
     except Exception as exc:
         if isinstance(exc, AgentError):
             raise
         raise AgentError("TAILSCALE_STATUS_INVALID") from exc
     if not dns_name or not ips:
         raise AgentError("TAILSCALE_NOT_CONNECTED")
-    return dns_name, ips
+    return dns_name, ips, cert_domains
 
 
 def serve_status(binary: str) -> str:
