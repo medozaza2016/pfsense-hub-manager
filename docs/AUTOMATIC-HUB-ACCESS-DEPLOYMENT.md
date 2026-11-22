@@ -10,7 +10,7 @@ Implementation status on `feature/multi-site-onboarding`:
 - Tests added: host-agent unit tests, API dispatcher revision-lock tests, HTTPS protocol tests, and Tailscale-IP validation tests.
 - Not verified in this environment: test execution, API/web typecheck, production builds, Docker Compose validation, Linux installation, live Tailscale Serve, browser redirect, and rollback against a real tailnet. Do not treat source changes as production verification.
 
-The feature is partially operational for Linux Tailscale MagicDNS only after the host agent is installed and tailnet HTTPS certificates are already enabled.
+The code path is implemented for Linux Tailscale MagicDNS verification only, but it is **disabled by default**. The API and UI remain gated until the Linux host integration tests pass. Even after enabling the gate, the operator must preconfigure the private Serve route and enable tailnet HTTPS outside Hub Manager.
 
 The existing endpoint settings and desired/applied revision model remain the source of truth. Saving an endpoint is no longer intended to be an administrator attestation. A successful save must enqueue a deployment against the exact desired revision and return a deployment identifier and current status.
 
@@ -58,11 +58,11 @@ The agent must control only a fixed, documented configuration surface. It must n
 
 The Linux agent is installed with `host-agent/install-linux.sh` on a host with the project checked out at `/opt/pfsense-hub`. The installer provisions a root-only JSON configuration, a dedicated GID 2000 socket group, a restrictive socket directory, and a systemd service. The service drops all Linux capabilities and is filesystem-hardened. The API container receives only the socket directory as a read-only mount.
 
-The current agent does not invoke Docker or Compose and does not mutate Tailscale configuration. It verifies an operator-configured private Serve route for the Hub's existing loopback HTTP service. The installer requires the exact loopback and socket settings documented in DEPLOYMENT.md and fails if those settings or the group ID do not match.
+The current agent does not invoke Docker or Compose and does not mutate Tailscale configuration. It verifies an operator-configured private Serve route for the Hub's existing loopback HTTP service. The feature gate is HUB_ACCESS_DEPLOYMENT_ENABLED=false by default. Do not set it to true until the supported Linux host integration tests have passed and the external Serve route has been reviewed. The installer requires the exact loopback and socket settings documented in DEPLOYMENT.md and fails if those settings or the group ID do not match.
 
 ### Windows Docker Desktop development
 
-The production Linux agent does not run on Windows. Leave the agent token and socket empty for local development. The API reports `HOST_AGENT_NOT_CONFIGURED` if a deployment is requested without the Linux agent. The UI currently disables Local and Custom deployment and only permits a Tailscale MagicDNS selection. Windows development continues to support the frontend and API without the production agent; it does not provide automatic host deployment.
+The production Linux agent does not run on Windows. Leave the agent token and socket empty for local development. The API reports `HOST_AGENT_NOT_CONFIGURED` if a deployment is requested without the Linux agent. The UI keeps all deployment saves disabled while HUB_ACCESS_DEPLOYMENT_ENABLED is false. Once explicitly enabled after Linux integration tests, only Tailscale MagicDNS verification is supported; Local and Custom remain disabled. Windows development continues to support the frontend and API without the production agent; it does not provide automatic host deployment.
 
 ## Persistence and API contract
 
