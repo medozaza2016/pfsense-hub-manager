@@ -154,7 +154,9 @@ def has_funnel_handler(raw: str, host: str, port: int) -> bool:
         raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID") from exc
     if not isinstance(value, dict):
         raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
-    allow_funnel = value.get("AllowFunnel") or {}
+    if "AllowFunnel" not in value:
+        raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
+    allow_funnel = value.get("AllowFunnel")
     if not isinstance(allow_funnel, dict):
         raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
     return allow_funnel.get(f"{host}:{port}") is True
