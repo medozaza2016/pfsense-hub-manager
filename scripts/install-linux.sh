@@ -76,6 +76,7 @@ read -r -p "Confirm that you saved the recovery key securely [y/N]: " recovery_c
 
 install -d -m 0700 "$PROJECT_DIR/secrets" "$PROJECT_DIR/secrets/runtime"
 install -d -m 0755 "$PROJECT_DIR/certs" "$PROJECT_DIR/run"
+install -d -m 0755 "$PROJECT_DIR/run/host-agent"
 
 : > "$PROJECT_DIR/secrets/pfsense_api_key"
 printf '%s\n' "$APP_KEY" > "$PROJECT_DIR/secrets/runtime/app_encryption_key"
@@ -172,7 +173,7 @@ const metadata = fs.statSync(path);
 if (!metadata.isSocket() || (metadata.mode & 0o020) === 0) {
   throw new Error("Host Agent socket is missing or not group-writable.");
 }
-if (!process.getGroups().includes(2000)) {
+if (!process.getgroups().includes(2000)) {
   throw new Error("API process is missing Host Agent supplementary group 2000.");
 }
 const socket = net.createConnection({ path });
