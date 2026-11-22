@@ -1,10 +1,11 @@
 import {readFile} from "node:fs/promises";
+import {checkServerIdentity} from "node:tls";
 import type { LookupAddress, LookupOptions } from "node:dns";
 import {Agent,fetch} from "undici";
 import {z} from "zod";
 import type {AppConfig} from "../config.js";
 import {resolveSafeDeviceDestination} from "../devices/network-destination.js";
-import {PfSenseApiError} from "./errors.js";
+import {findUpstreamErrorCode,hasTlsFailure,PfSenseApiError} from "./errors.js";
 const envelope=z.object({code:z.number().optional(),status:z.string().optional(),response_id:z.string().optional(),message:z.string().optional(),data:z.unknown()}).passthrough();
 const routes={
  system:"/api/v2/status/system",gateways:"/api/v2/status/gateways",interfaces:"/api/v2/status/interfaces",
@@ -61,7 +62,12 @@ export class PfSenseClient{
    const ca=selectTlsCa(tlsTrust,legacyCa);
    return new Agent({connect:{
     ...(ca?{ca}:{}),
-    ...(tlsTrust?.servername ? { servername: tlsTrust.servername } : {}),
+    ...(tlsTrust?.servername ? {
+     servername: tlsTrust.servername,
+     // The URL host can be an IP while the certificate identifies the firewall by DNS.
+     // Keep SNI and certificate identity verification pinned to the same explicit name.
+     checkServerIdentity: (_hostname, certificate) => checkServerIdentity(tlsTrust.servername!, certificate)
+    } : {}),
     rejectUnauthorized:true,
     lookup:createPinnedLookup(base.hostname.startsWith("[") ? base.hostname.slice(1,-1) : base.hostname,destination)
    }});
@@ -71,7 +77,7 @@ export class PfSenseClient{
   const dispatcher=await this.dispatcher;
   let response;
   try{response=await fetch(new URL(routes[operation],this.base),{method:"GET",headers:{"X-API-Key":this.key,Accept:"application/json"},redirect:"error",signal:AbortSignal.timeout(this.config.PFSENSE_API_TIMEOUT_MS),dispatcher});}
-  catch(error){const message=error instanceof Error?error.message:"";if(/certificate|tls|ssl/i.test(message))throw new PfSenseApiError("Firewall TLS verification failed.","tls");if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError"))throw new PfSenseApiError("Firewall request timed out.","timeout");throw new PfSenseApiError("Firewall connection failed.","unknown");}
+  catch(error){if(hasTlsFailure(error))throw new PfSenseApiError("Firewall TLS verification failed.","tls",undefined,findUpstreamErrorCode(error));if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError"))throw new PfSenseApiError("Firewall request timed out.","timeout");throw new PfSenseApiError("Firewall connection failed.","unknown",undefined,findUpstreamErrorCode(error));}
   if(response.status===401)throw new PfSenseApiError("Firewall authentication failed.","authentication",401);
   if(response.status===403)throw new PfSenseApiError("Firewall denied the requested operation.","authorization",403);
   if(response.status===404)throw new PfSenseApiError("Firewall endpoint is unavailable.","unsupported",404);
