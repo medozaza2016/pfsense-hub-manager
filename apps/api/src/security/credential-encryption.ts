@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 const ALGORITHM = "aes-256-gcm" as const;
 const LEGACY_FORMAT_VERSION = 1 as const;
 const DEVICE_FORMAT_VERSION = 2 as const;
+const DEVICE_TLS_TRUST_FORMAT_VERSION = 3 as const;
 const LEGACY_AAD = Buffer.from("pfsense-hub-manager:credential:v1", "utf8");
 
 export interface EncryptedCredential {
@@ -15,6 +16,14 @@ export interface EncryptedCredential {
 
 export interface EncryptedDeviceCredential {
   version: typeof DEVICE_FORMAT_VERSION;
+  algorithm: typeof ALGORITHM;
+  nonce: string;
+  authTag: string;
+  ciphertext: string;
+}
+
+export interface EncryptedDeviceTlsTrust {
+  version: typeof DEVICE_TLS_TRUST_FORMAT_VERSION;
   algorithm: typeof ALGORITHM;
   nonce: string;
   authTag: string;
@@ -52,7 +61,7 @@ function assertEnvelope(envelope: { version: number; algorithm: string; nonce: s
   }
 }
 
-function encryptWithAad(plaintext: string, key: Buffer, aad: Buffer, version: 1 | 2): EncryptedCredential | EncryptedDeviceCredential {
+function encryptWithAad(plaintext: string, key: Buffer, aad: Buffer, version: 1 | 2 | 3): EncryptedCredential | EncryptedDeviceCredential | EncryptedDeviceTlsTrust {
   assertKey(key);
   assertPlaintext(plaintext);
   const nonce = randomBytes(12);
@@ -72,7 +81,7 @@ function decryptWithAad(
   envelope: { version: number; algorithm: string; nonce: string; authTag: string; ciphertext: string },
   key: Buffer,
   aad: Buffer,
-  version: 1 | 2
+  version: 1 | 2 | 3
 ): string {
   assertKey(key);
   assertEnvelope(envelope, version);
@@ -107,9 +116,26 @@ function deviceAad(deviceId: string): Buffer {
 }
 
 export function encryptDeviceCredential(plaintext: string, key: Buffer, deviceId: string): EncryptedDeviceCredential {
-  return encryptWithAad(plaintext, key, deviceAad(deviceId), DEVICE_FORMAT_VERSION) as EncryptedDeviceCredential;
+  const aad = Buffer.from(`pfsense-hub-manager:credential:v2:${deviceId.toLowerCase()}:api-key`, "utf8");
+  assertDeviceId(deviceId);
+  return encryptWithAad(plaintext, key, aad, DEVICE_FORMAT_VERSION) as EncryptedDeviceCredential;
 }
 
 export function decryptDeviceCredential(envelope: EncryptedDeviceCredential, key: Buffer, deviceId: string): string {
-  return decryptWithAad(envelope, key, deviceAad(deviceId), DEVICE_FORMAT_VERSION);
+  const aad = Buffer.from(`pfsense-hub-manager:credential:v2:${deviceId.toLowerCase()}:api-key`, "utf8");
+  assertDeviceId(deviceId);
+  return decryptWithAad(envelope, key, aad, DEVICE_FORMAT_VERSION);
+}
+
+function deviceTlsTrustAad(deviceId: string): Buffer {
+  assertDeviceId(deviceId);
+  return Buffer.from(`pfsense-hub-manager:credential:v3:${deviceId.toLowerCase()}:tls-ca`, "utf8");
+}
+
+export function encryptDeviceTlsTrust(plaintext: string, key: Buffer, deviceId: string): EncryptedDeviceTlsTrust {
+  return encryptWithAad(plaintext, key, deviceTlsTrustAad(deviceId), DEVICE_TLS_TRUST_FORMAT_VERSION) as EncryptedDeviceTlsTrust;
+}
+
+export function decryptDeviceTlsTrust(envelope: EncryptedDeviceTlsTrust, key: Buffer, deviceId: string): string {
+  return decryptWithAad(envelope, key, deviceTlsTrustAad(deviceId), DEVICE_TLS_TRUST_FORMAT_VERSION);
 }
