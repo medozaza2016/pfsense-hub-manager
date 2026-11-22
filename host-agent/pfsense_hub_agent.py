@@ -414,12 +414,11 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     origin = format_origin(address, port)
     _old_content, old_bind_address = read_bind_address(config)
     new_bind_address = resolve_bind_address(endpoint, config)
-    changed = False
+    changed = True
     try:
         if new_bind_address != old_bind_address:
-            changed = True
             write_bind_address(config, new_bind_address)
-            compose_web_recreate(config)
+        compose_web_recreate(config)
         verify_https_with_retries(origin)
         current = get_deployment(config, deployment_id, revision)
         if current.get("address") != address or current.get("port") != port:
