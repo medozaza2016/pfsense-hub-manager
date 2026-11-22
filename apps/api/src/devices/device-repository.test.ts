@@ -279,4 +279,22 @@ describe("DeviceRepository legacy bootstrap", () => {
     expect(query.mock.calls[3]?.[0]).toBe("ROLLBACK");
     expect(client.release).toHaveBeenCalledOnce();
   });
+
+  it("preserves the legacy unknown edition value", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: bootstrap.id, is_demo: false }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+    const client = makePoolClient(query);
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.ensureBootstrapDevice({ ...bootstrap, edition: "unknown" })).resolves.toBeUndefined();
+    expect(query.mock.calls[1]?.[1]).toEqual([
+      bootstrap.id, bootstrap.name, bootstrap.location, "unknown", bootstrap.apiBaseUrl
+    ]);
+  });
+
 });
