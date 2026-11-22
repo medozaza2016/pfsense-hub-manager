@@ -1,5 +1,4 @@
 import {readFile} from "node:fs/promises";
-import type { LookupFunction } from "node:dns";
 import {Agent,fetch} from "undici";
 import {z} from "zod";
 import type {AppConfig} from "../config.js";
@@ -13,9 +12,11 @@ const routes={
 } as const;
 export type PfSenseOperation=keyof typeof routes;
 
-function createPinnedLookup(expectedHostname: string, address: { address: string; family: 4 | 6 }): LookupFunction {
+type PinnedLookup = (hostname: string, options: { all?: boolean }, callback: (error: NodeJS.ErrnoException | null, address: string | Array<{address:string;family:number}>, family?: number) => void) => void;
+
+function createPinnedLookup(expectedHostname: string, address: { address: string; family: 4 | 6 }): PinnedLookup {
  const expected=expectedHostname.toLowerCase();
- return ((hostname: string, options: { all?: boolean }, callback: (error: NodeJS.ErrnoException | null, address: string | Array<{address:string;family:number}>, family?: number) => void) => {
+ return (hostname, options, callback) => {
   if(hostname.toLowerCase()!==expected){
    const error=Object.assign(new Error("Unexpected hostname lookup."),{code:"ENOTFOUND"});
    callback(error,"",0);
@@ -24,7 +25,7 @@ function createPinnedLookup(expectedHostname: string, address: { address: string
   const record={address:address.address,family:address.family};
   if(options?.all) callback(null,[record]);
   else callback(null,record.address,record.family);
- }) as LookupFunction;
+ };
 }
 
 export class PfSenseClient{
