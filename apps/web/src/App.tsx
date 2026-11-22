@@ -626,7 +626,7 @@ function HubSettingsPage(){
  };
  const endpoint=endpoints.find(item=>item.method===activeMethod)??defaultHubEndpoints[0];
  const addressLabel=endpoint.addressType==="magic_dns"?"Tailscale MagicDNS hostname":endpoint.addressType==="tailscale_ip"?"Tailscale IPv4 address":endpoint.addressType==="ip"?"IP address":activeMethod==="local"?"LAN hostname":"Hostname";
- const methodDeploymentSupported=activeMethod==="tailscale"&&endpoint.addressType==="magic_dns";
+ const methodDeploymentSupported=activeMethod==="tailscale"&&endpoint.addressType==="magic_dns"&&Boolean(endpoint.address?.trim())&&endpoint.httpsPort>=1&&endpoint.httpsPort<=65535;
  return <><div className="page-heading"><div><h1>Hub Settings</h1><p>Choose one access method for administrators to reach this Hub installation.</p></div></div>
   <form onSubmit={save} className="hub-settings-layout">
    <Panel title="Hub access">
