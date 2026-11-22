@@ -86,5 +86,53 @@ class DeploymentAgentTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "TAILSCALE_SERVE_ALREADY_CONFIGURED")
 
 
+
+    @patch.object(agent, "verify_https")
+    @patch.object(agent, "run_fixed", side_effect=["{}", ""])
+    @patch.object(agent, "serve_status", side_effect=["{}"])
+    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}))
+    @patch.object(agent, "get_deployment")
+    def test_applies_and_verifies_tailscale_serve(self, get_deployment, identity, serve_status, run_fixed, verify_https):
+        get_deployment.return_value = {
+            "deploymentId": self.request["deploymentId"],
+            "desiredRevision": 3,
+            "method": "tailscale",
+            "scheme": "https",
+            "addressType": "magic_dns",
+            "address": "hub.example.ts.net",
+            "port": 443,
+        }
+        result = agent.deploy(self.config, self.request)
+        self.assertEqual(result, {"state": "succeeded", "appliedOrigin": "https://hub.example.ts.net"})
+        verify_https.assert_called_once_with("https://hub.example.ts.net")
+        self.assertEqual(run_fixed.call_args_list[1].args[0], [
+            "/usr/bin/tailscale", "serve", "--bg", "--https=443", "http://127.0.0.1:8080"
+        ])
+
+    @patch.object(agent, "verify_https", side_effect=agent.AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED"))
+    @patch.object(agent, "run_fixed", side_effect=["{}", "", ""])
+    @patch.object(agent, "serve_status", side_effect=["{}", "{}"])
+    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}))
+    @patch.object(agent, "get_deployment")
+    def test_rolls_back_its_own_serve_endpoint_when_tls_probe_fails(self, get_deployment, identity, serve_status, run_fixed, verify_https):
+        get_deployment.return_value = {
+            "deploymentId": self.request["deploymentId"],
+            "desiredRevision": 3,
+            "method": "tailscale",
+            "scheme": "https",
+            "addressType": "magic_dns",
+            "address": "hub.example.ts.net",
+            "port": 443,
+        }
+        result = agent.deploy(self.config, self.request)
+        self.assertEqual(result, {
+            "state": "rolled_back",
+            "errorCode": "TLS_OR_ENDPOINT_VERIFICATION_FAILED",
+            "rollbackSucceeded": True,
+        })
+        self.assertEqual(run_fixed.call_args_list[2].args[0], [
+            "/usr/bin/tailscale", "serve", "--https=443", "off"
+        ])
+
 if __name__ == "__main__":
     unittest.main()
