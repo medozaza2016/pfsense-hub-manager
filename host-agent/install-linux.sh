@@ -151,8 +151,10 @@ chmod 2750 "$PROJECT_DIR/run/host-agent"
 systemctl daemon-reload
 systemctl enable --now pfsense-hub-deployment-agent.service
 
-echo "Host agent installed. Ensure .env contains:"
-echo "HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock"
-echo "HUB_DEPLOYMENT_AGENT_TOKEN=<same token used by the agent>"
-echo "HUB_AGENT_GID=2000"
-echo "Then recreate only the API container so its socket mount and group are active."
+if [[ "${HUB_AGENT_INSTALLER_MANAGED:-0}" == "1" ]]; then
+  echo "Host Agent installed and enabled for the Hub installer."
+else
+  echo "Host Agent installed and enabled."
+  echo "Recreate only the API container to apply its socket mount and supplementary group:"
+  echo "  cd /opt/pfsense-hub && docker compose up -d --no-deps api"
+fi

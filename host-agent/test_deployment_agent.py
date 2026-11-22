@@ -46,6 +46,14 @@ class DeploymentAgentTests(unittest.TestCase):
         }
         self.serve_status = SERVE_STATUS
 
+    def test_discovers_tailscale_cli_installed_after_agent_setup(self):
+        with patch.object(agent.shutil, "which", return_value="/usr/bin/tailscale") as which:
+            self.assertEqual(
+                agent.resolve_tailscale_binary({"tailscale_binary": ""}),
+                "/usr/bin/tailscale"
+            )
+        which.assert_called_once_with("tailscale")
+
     def loopback_bind(self):
         return patch.object(
             agent, "read_bind_address",

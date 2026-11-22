@@ -15,6 +15,7 @@ import json
 import os
 import re
 import socket
+import shutil
 import ssl
 import stat
 import tempfile
@@ -423,13 +424,21 @@ def has_funnel_handler(raw: str, host: str, port: int) -> bool:
     return allow_funnel.get(str(port)) is True or allow_funnel.get(f"{host}:{port}") is True
 
 
+def resolve_tailscale_binary(config: dict[str, Any]) -> str:
+    configured = config.get("tailscale_binary")
+    if isinstance(configured, str) and configured:
+        return configured
+    discovered = shutil.which("tailscale")
+    if discovered:
+        return discovered
+    raise AgentError("TAILSCALE_NOT_INSTALLED")
+
+
 def verify_tailscale_endpoint(endpoint: dict[str, Any], config: dict[str, Any]) -> tuple[str, bool]:
     _env_content, current_bind = read_bind_address(config)
     if current_bind != "127.0.0.1":
         raise AgentError("TAILSCALE_LOOPBACK_BINDING_REQUIRED")
-    binary = config.get("tailscale_binary") or ""
-    if not binary:
-        raise AgentError("TAILSCALE_NOT_INSTALLED")
+    binary = resolve_tailscale_binary(config)
     host = str(endpoint.get("address") or "").rstrip(".").lower()
     port = endpoint.get("port")
     if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\.ts\.net", host):
@@ -485,7 +494,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
             cleanup_failed = False
             if created_serve:
                 try:
-                    binary = config.get("tailscale_binary") or ""
+                    binary = resolve_tailscale_binary(config)
                     remove_owned_tailscale_serve_endpoint(
                         binary, str(endpoint.get("address") or "").rstrip(".").lower(),
                         int(endpoint.get("port") or 0), config["web_local_url"]
