@@ -100,3 +100,45 @@ The development session's recorded API test result was **52 tests passing across
 - Verify admin versus user authorization, disabled-account login rejection, last-active-admin protection, and audit outcomes.
 - Validate migrations and development seed idempotency against a disposable local database.
 - Do not treat the local Docker UI fix as evidence that firewall TLS trust, live multi-device collection, or production deployment has been validated.
+
+
+## Manager multi-device implementation status, November 21, 2026
+
+This section describes the manager application's current integration capability, separately from the historical live test against the first Plus firewall above.
+
+### Current manager implementation
+
+- The application has a PostgreSQL `managed_devices` inventory and a separate `device_credentials` table.
+- Migration `006_development_demo_sites.sql` adds an explicit `is_demo` marker for development sample devices.
+- The application includes an AES-256-GCM credential encryption helper and loads a 32-byte application encryption key at API startup.
+- The device inventory endpoint is `GET /api/v1/devices`.
+- Device detail, capability, and overview endpoints exist. Capability and overview collection are currently restricted to the single device ID configured by environment variables.
+- The pfSense client uses a fixed allowlist of eight GET operations and enforces TLS certificate verification, with optional private CA trust.
+- The current provider is not yet a multi-device provider. The presence of inventory rows, a credential table, and encryption primitives does not mean independent per-device connections are implemented.
+
+### Not yet implemented
+
+- Authenticated administrator endpoints to create, edit, enable, disable, and delete managed-device profiles.
+- Per-device credential encryption/decryption integrated with the device lifecycle and provider.
+- Per-device HTTPS origin and TLS CA/trust configuration.
+- Connection-test endpoint that targets an arbitrary registered real device using its own credential.
+- Per-device capability and compatibility persistence.
+- Independent collection for multiple real devices.
+- Background polling scheduler, bounded concurrency, retry/backoff, and continuous alert production.
+- A live data contract for the firewall-domain preview pages.
+
+### Security and compatibility constraints
+
+- Credentials must be encrypted before persistence using the application encryption key, with authenticated encryption and key-version metadata.
+- Plaintext credentials must never be returned by API responses, logged, placed in browser storage, or embedded in source, images, or environment files committed to Git.
+- Device URLs must be validated as HTTPS origins. Do not accept arbitrary paths, query strings, fragments, URL credentials, or non-HTTPS schemes.
+- Continue using explicit provider operations and a fixed upstream route allowlist. Do not create a generic proxy endpoint.
+- TLS certificate and hostname verification remain mandatory. A private CA may be supplied through a protected server-side configuration path. Do not add an insecure certificate bypass.
+- Demo devices must not be probed, opened as real firewall workspaces, or used as evidence of live integration.
+- Keep configuration-changing firewall operations disabled.
+
+### Verification status
+
+The first Plus firewall has a historical diagnostic record of eight successful GET calls, but that test used a self-signed certificate with temporary curl certificate bypass. The application client itself enforces TLS verification; successful trust validation from the manager remains pending. The installed REST API package version is not yet recorded. The second CE firewall remains intentionally deferred.
+
+No multi-device implementation or multi-device runtime validation is claimed by this document.
