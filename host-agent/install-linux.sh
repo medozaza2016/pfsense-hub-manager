@@ -51,6 +51,12 @@ for line in open(sys.argv[1], encoding="utf-8"):
 print(values.get("HUB_AGENT_API_PORT", "3001"))
 PY
 )"
+ENV_OWNER="$(stat -c '%u:%g' "$ENV_FILE")"
+ENV_MODE="$(stat -c '%a' "$ENV_FILE")"
+if [[ "$ENV_OWNER" != "0:0" ]] || (( (8#$ENV_MODE & 0022) != 0 )); then
+  echo ".env must be owned by root:root and not be group/world writable." >&2
+  exit 1
+fi
 for required_setting in \
   'HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock' \
   'HUB_AGENT_GID=2000' \
