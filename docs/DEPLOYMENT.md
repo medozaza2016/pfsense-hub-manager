@@ -60,16 +60,46 @@ Back up PostgreSQL and the runtime encryption key separately. Protect the recove
 - Windows host ACLs do not by themselves prove container-side access restrictions.
 - The eight upstream firewall routes remain a fixed read-only allowlist. No arbitrary proxy, command execution, or firewall configuration write operation exists.
 
-## GUI-managed Hub access settings, implemented desired-state workflow
+## GUI-managed Hub access settings and Linux host agent
 
-Administration → Hub Settings stores Local, Tailscale, and Hostname/IP endpoint preferences in PostgreSQL. Each endpoint has its own enabled state, address type, address, and HTTPS port. Migration `012_hub_access_endpoints.sql` copies the previous single-method preference into the new endpoint table.
+Administration → Hub Settings stores Local, Tailscale, and Hostname/IP endpoint preferences in PostgreSQL. Saving a selection creates a desired configuration revision and queues a deployment. The API communicates with a separate Linux host agent over a private Unix socket. The API container does not receive the Docker socket and does not execute host commands.
 
-Saving settings updates the **desired configuration revision** only. It does not change Docker's published host binding, install or configure Tailscale, configure DNS or a reverse proxy, or test reachability. The API's deployment-confirmation operation records an administrator attestation that an operator has applied the requested host changes. It does not perform or independently verify those changes.
+The first Linux agent implementation supports **Tailscale MagicDNS only**. It verifies that the selected MagicDNS name belongs to the connected host, refuses to overwrite any existing Tailscale Serve or Funnel configuration, configures Tailscale Serve to proxy HTTPS to the loopback-only web service, and verifies the endpoint using normal certificate-chain and hostname validation plus the application health endpoint. It never enables Funnel. If verification fails, it removes only the Serve endpoint it just created and reports whether rollback succeeded.
 
-The Compose web port is published on `127.0.0.1` by default. For a Tailscale-only host binding, `HUB_BIND_ADDRESS` must be deliberately set to the Tailscale IPv4 address assigned to the machine running Docker, followed by the required Compose service recreation. A Tailscale MagicDNS name is an alternative address to record in Hub Settings, not a host bind address. Do not use the pfSense firewall's Tailscale address for the Hub endpoint unless the Hub itself is running on that firewall.
+**LAN and Custom endpoints are not yet deployable.** They require an explicitly provisioned certificate and private-key lifecycle, including renewal and rollback. The agent rejects these methods rather than claiming HTTPS success or exposing the web service over plain HTTP. Tailscale IP addresses are also rejected for HTTPS because the automatically provisioned Tailscale certificate is issued for the MagicDNS name, not the IP address.
 
-Keep the current local binding until the host-side deployment procedure is deliberately performed and tested. Never use `0.0.0.0` as a convenience fallback, do not publish the API or PostgreSQL ports, and do not mount the Docker socket into the web or API container. See `HUB-ACCESS-CONFIGURATION.md` and DEC-025.
+Tailscale Serve requires HTTPS certificates to be enabled for the tailnet. The first Serve operation can return an interactive consent URL if this is not already enabled. The agent does not follow that URL or change tailnet-wide settings. Complete the Tailscale HTTPS prerequisite administratively before relying on automated deployment. See the [Tailscale Serve documentation](https://tailscale.com/docs/features/tailscale-serve) and [Serve CLI reference](https://tailscale.com/docs/reference/tailscale-cli/serve).
 
+### Linux host-agent installation
+
+The production project directory is /opt/pfsense-hub. The installer requires Linux, systemd, Python 3, Docker Compose, and the Tailscale CLI. It reads the deployment token from the project .env file without sourcing or executing that file, writes a root-only agent configuration, installs a systemd service, and creates a group-restricted Unix socket.
+
+Before running the installer:
+
+1. Set HUB_DEPLOYMENT_AGENT_TOKEN in the production .env file to a random secret of at least 32 characters.
+2. Keep HUB_AGENT_API_PORT=3001, HUB_AGENT_GID=2000, and HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock in that file.
+3. Ensure the project is checked out at /opt/pfsense-hub.
+
+Then run:
+
+```bash
+sudo /opt/pfsense-hub/host-agent/install-linux.sh
+```
+
+The installer does not enable Tailscale HTTPS, modify ACLs, configure Funnel, or change the currently running web binding. After installation, recreate only the API container so its Unix-socket mount and supplementary group are applied:
+
+```bash
+cd /opt/pfsense-hub
+docker compose up -d --no-deps api
+```
+
+Check the agent with systemctl status pfsense-hub-deployment-agent and inspect its logs with journalctl -u pfsense-hub-deployment-agent. Do not expose the API port beyond loopback. Do not mount the Docker socket into the API or web containers.
+
+### Local development and production boundary
+
+Windows 11 / Docker Desktop development does not run this Linux host agent. Leave HUB_DEPLOYMENT_AGENT_TOKEN and HUB_DEPLOYMENT_AGENT_SOCKET empty in local development. The API then fails a deployment request closed with HOST_AGENT_NOT_CONFIGURED; ordinary local development and the existing loopback web endpoint remain available.
+
+The automatic deployment workflow is not complete for all three access methods yet. LAN and Custom certificate provisioning, a safe TLS termination path for those methods, and their corresponding rollback tests remain outstanding. Do not use an HTTP URL as a substitute for verified HTTPS.
 
 ## Windows 11 local development workflow, current baseline
 
