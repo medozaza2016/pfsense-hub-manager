@@ -60,7 +60,7 @@ class DeploymentAgentTests(unittest.TestCase):
             "port": 443,
         }
         serve_status.return_value = "{}"
-        identity.return_value = ("hub.example.ts.net", {"100.64.0.2"})
+        identity.return_value = ("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"})
         with self.assertRaises(agent.AgentError) as caught:
             agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_ADDRESS_MISMATCH")
@@ -79,7 +79,7 @@ class DeploymentAgentTests(unittest.TestCase):
             "address": "hub.example.ts.net",
             "port": 443,
         }
-        identity.return_value = ("hub.example.ts.net", {"100.64.0.2"})
+        identity.return_value = ("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"})
         serve_status.return_value = '{"Web":{"hub.example.ts.net:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8080"}}}}}'
         with self.assertRaises(agent.AgentError) as caught:
             agent.deploy(self.config, self.request)
@@ -90,7 +90,7 @@ class DeploymentAgentTests(unittest.TestCase):
     @patch.object(agent, "verify_https")
     @patch.object(agent, "run_fixed", side_effect=["{}", ""])
     @patch.object(agent, "serve_status", side_effect=["{}"])
-    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}))
+    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
     def test_applies_and_verifies_tailscale_serve(self, get_deployment, identity, serve_status, run_fixed, verify_https):
         get_deployment.return_value = {
@@ -112,7 +112,7 @@ class DeploymentAgentTests(unittest.TestCase):
     @patch.object(agent, "verify_https", side_effect=agent.AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED"))
     @patch.object(agent, "run_fixed", side_effect=["{}", "", ""])
     @patch.object(agent, "serve_status", side_effect=["{}", "{}"])
-    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}))
+    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
     def test_rolls_back_its_own_serve_endpoint_when_tls_probe_fails(self, get_deployment, identity, serve_status, run_fixed, verify_https):
         get_deployment.return_value = {
@@ -137,7 +137,7 @@ class DeploymentAgentTests(unittest.TestCase):
 
     @patch.object(agent, "run_fixed", return_value='{"Web":{"hub.example.ts.net:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8080"}}}}}')
     @patch.object(agent, "serve_status", return_value="{}")
-    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}))
+    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
     def test_refuses_to_replace_existing_funnel_configuration(self, get_deployment, identity, serve_status, run_fixed):
         get_deployment.return_value = {
