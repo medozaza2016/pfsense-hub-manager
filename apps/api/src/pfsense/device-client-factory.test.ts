@@ -64,6 +64,37 @@ describe("DevicePfSenseClientFactory", () => {
     expect(repository.decryptDeviceCaBundle).toHaveBeenCalledWith(deviceId);
   });
 
+  it("preserves the legacy global CA for the configured bootstrap device when no device CA exists", async () => {
+    const repository = makeRepository({ listProfiles: async () => [profile()] });
+    const buildClient = vi.fn(() => ({} as PfSenseClient));
+    const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId } as AppConfig;
+    const factory = new DevicePfSenseClientFactory(bootstrapConfig, repository, buildClient);
+
+    await factory.create(deviceId);
+
+    expect(buildClient).toHaveBeenCalledWith(
+      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
+      apiKey,
+      { mode: "legacy-ca-file", servername: null }
+    );
+  });
+
+  it("does not apply the legacy global CA to unrelated managed devices", async () => {
+    const unrelatedId = "22222222-2222-4222-8222-222222222222";
+    const repository = makeRepository({ listProfiles: async () => [profile({ id: unrelatedId })] });
+    const buildClient = vi.fn(() => ({} as PfSenseClient));
+    const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId } as AppConfig;
+    const factory = new DevicePfSenseClientFactory(bootstrapConfig, repository, buildClient);
+
+    await factory.create(unrelatedId);
+
+    expect(buildClient).toHaveBeenCalledWith(
+      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
+      apiKey,
+      { mode: "system", servername: null }
+    );
+  });
+
   it("applies the stored TLS server name when the device uses system trust", async () => {
     const repository = makeRepository({ listProfiles: async () => [profile({ tlsServername: "firewall.example.test" })] });
     const buildClient = vi.fn(() => ({} as PfSenseClient));
