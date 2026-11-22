@@ -12,3 +12,4 @@ workspace/*
 .DS_Store
 certs/pfsense-ca.pem
 *.tsbuildinfo
+run/host-agent/
