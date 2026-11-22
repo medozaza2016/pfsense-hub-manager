@@ -63,7 +63,7 @@ On the existing working Debian 13 LXC, after updating to `a2dc653`, the followin
 
 The Node.js/npm development commands were not run on the production LXC. Node.js and npm are intentionally not host prerequisites; the application builds inside Docker.
 
-## 4. Clean Debian 13 installation
+## 5. Clean Debian 13 installation
 
 **Prepared baseline:** Debian GNU/Linux 13 (Trixie) Proxmox LXC template with administrator access, systemd, Docker Engine, Docker Compose v5, Git, OpenSSL, Python 3.13, iproute2, and Tailscale already installed.
 
@@ -95,7 +95,7 @@ The final installer output reported:
 
 The operator confirmed that the application encryption recovery key was saved. The value printed in the captured terminal transcript must be treated as exposed and must not be reused. This disposable test installation is not a source of key material for any retained environment. A fresh installation generates a new random key; normal restart, rebuild, or update does not rotate an existing key.
 
-## 5. Hub access and browser verification
+## 6. Hub access and browser verification
 
 The operator opened the Hub through an SSH local tunnel, selected Tailscale in **Administration → Hub Settings**, and saved the host's MagicDNS hostname on HTTPS port 443.
 
@@ -111,7 +111,7 @@ The browser was able to open the verified endpoint. The save action was subseque
 
 The Linux agent provisions only the fixed private Tailscale Serve route to the local Hub web service. It does not install or authenticate Tailscale, enable tailnet HTTPS, configure ACLs or DNS, or create Funnel. The Hub installer does not change an already prepared host's Tailscale identity.
 
-## 6. Scope that remains incomplete
+## 7. Scope that remains incomplete
 
 The following are not covered by the successful installation/access test and must not be represented as complete:
 
@@ -127,7 +127,7 @@ The following are not covered by the successful installation/access test and mus
 - Application encryption-key rotation is not implemented. Never replace the key while encrypted credentials or TLS trust material exist.
 - Full migration testing from a preserved existing-data copy, multi-device isolation with two real firewalls, and production security review remain outstanding.
 
-## 7. Local verification commands
+## 8. Local verification commands
 
 Run these on the Windows development workstation from the repository root:
 
@@ -148,6 +148,6 @@ The production Linux CT does not need Node.js or npm installed. Its first-instal
 
 No hosted CI workflow is used for this project by the current workflow decision. These are local, operator-run checks. Do not describe a skipped test as passed.
 
-## 8. Delivery boundary
+## 9. Delivery boundary
 
 This closeout records a successful feature-branch implementation and verification. It does not authorize a merge into `main`, a branch deletion, a production release, firewall write operations, or a change to the deferred second-firewall transport decision. Those require separate user direction.
