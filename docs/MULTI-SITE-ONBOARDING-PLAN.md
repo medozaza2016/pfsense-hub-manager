@@ -90,6 +90,7 @@ These are non-negotiable throughout the remaining work:
 
 - [x] Replace the preview-only Add Site action with the API-backed registration workflow.
 - [x] Collect name, optional location, edition, HTTPS API origin, API credential, and optional custom CA trust material.
+- [x] Organize the Add Site workflow into site information, API connection, and TLS trust sections; support importing `.pem`, `.crt`, and `.cer` CA certificate files (64 KB maximum) or pasting PEM text.
 - [x] Keep secret inputs write-only and clear them after successful registration.
 - [x] Add separate Test Connection behavior and display the classified outcome.
 - [x] Persist connection-test success/failure and timestamp in `poll_runs`; expose the latest result in device inventory.
