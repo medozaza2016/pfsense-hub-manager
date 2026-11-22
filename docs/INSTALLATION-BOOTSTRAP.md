@@ -1,8 +1,8 @@
 # Hub Installation and First-Run Bootstrap
 
-**Status:** Approved target workflow, documentation only
+**Status:** Approved target workflow, partially implemented on `feature/multi-site-onboarding`
 **Decision:** DEC-031
-**Implementation status:** Not implemented yet. The current Compose file, API configuration, and provisioning scripts still require a single environment-configured firewall. Do not treat the target steps below as executable instructions until the implementation milestone is merged and released.
+**Implementation status:** The current branch supports Hub startup without a configured firewall and GUI-based site onboarding. The Linux installer provisions the Host Agent as a standard component. Windows/Linux parity and full migration acceptance still require separate verification.
 
 ## 1. Core installation rule
 
@@ -68,16 +68,17 @@ The existing `scripts/setup-encryption-key.ps1` recovery behavior must be preser
 
 Production deployment targets Linux, initially the existing Proxmox LXC. The future Bash installer must provide equivalent behavior:
 
-1. Verify Linux, Docker Engine, and Docker Compose prerequisites.
-2. Detect existing application files, Compose resources, database state, and key files before making changes.
+1. Verify Linux, systemd, Docker Engine, Docker Compose, Python 3.10 or newer, and iproute2 prerequisites.
+2. Detect existing application files, Host Agent configuration/service, Compose containers, the PostgreSQL volume, and key files before making changes. Refuse to initialize over an existing database volume.
 3. Create required directories with restrictive permissions.
-4. Generate the database password locally.
-5. Generate the application encryption key with a cryptographically secure operating-system random generator.
-6. Install the runtime key with permissions limited to the backend runtime identity and provide a one-time recovery value without leaving it in shell history or routine logs.
-7. Write a Hub-only `.env` file with restrictive permissions.
-8. Validate Compose configuration before starting services.
-9. Preserve existing database volumes and application data during ordinary installation, update, restart, and recovery operations.
-10. Never prompt for a firewall UUID, firewall name, edition, API URL, API key, or firewall certificate during Hub installation.
+4. Generate the database password, application encryption key, and Host Agent bearer token locally.
+5. Present the one-time application encryption recovery key and require the operator to confirm it was saved.
+6. Install the runtime key with permissions limited to the backend runtime identity and write a root-only .env file containing the Host Agent socket/token configuration.
+7. Automatically invoke the standalone Host Agent installer, install its root-owned systemd service and group-restricted Unix socket, then validate Compose.
+8. Build and start web, API, and PostgreSQL; wait for each to become healthy.
+9. Verify API supplementary-group/socket access and a bearer-authenticated Host Agent request before setting HUB_ACCESS_DEPLOYMENT_ENABLED=true.
+10. Preserve existing database volumes and application data during ordinary updates, restart, and recovery. Never use volume deletion as an installation shortcut.
+11. Never prompt for a firewall UUID, firewall name, edition, API URL, API key, or firewall certificate during Hub installation.
 
 The Bash and PowerShell installers must implement the same logical workflow, validation gates, safe re-run behavior, and zero-firewall acceptance criteria. Platform-specific permission mechanisms may differ.
 
@@ -113,18 +114,11 @@ Do not rotate the application encryption key as part of this migration unless a 
 
 ## 8. Current implementation warning
 
-This document records the approved target design. It does **not** mean the current repository already supports it.
+This document records the approved target design and current partial implementation. The Compose file retains blank legacy single-firewall bootstrap fields and a compatibility API-key placeholder, but a fresh installation can start without registering a firewall. API startup no longer requires a populated firewall identity or API URL, and the manager supports GUI-based site registration with encrypted per-site credentials.
 
-As of the documentation baseline:
+The Linux Bash installer now provides one entry point for the Hub and its standard Host Agent. It refuses to overwrite existing secrets, agent configuration, containers, or the named PostgreSQL volume. It does not delete database state. The Host Agent remains a separate maintenance script internally, but normal Linux installation invokes it automatically.
 
-- `.env.example` still contains single-firewall identity and connection settings.
-- `compose.yaml` still requires those firewall settings and mounts a global pfSense API-key secret.
-- API configuration still requires a device UUID, name, edition, API URL, and API-key file.
-- API startup still provisions the environment-configured device.
-- The current site GUI does not yet complete the full per-site credential and connection lifecycle.
-- The existing Linux setup has no reviewed end-to-end Bash installer equivalent to the Windows key-provisioning script.
-
-Therefore, do not use a manually edited `.env` or the earlier one-off setup command as a substitute for the implementation. The current deployed installation must remain intact while the new flow is implemented and migration is designed.
+Remaining acceptance work includes a clean second-LXC installation, reboot/recovery validation, Windows/Linux workflow parity, and migration testing against an existing-data copy. Do not describe the product as production-ready until those checks are complete.
 
 ## 9. Acceptance criteria
 

@@ -47,7 +47,7 @@ Implementation now in this branch:
 - Migration 002 adds a per-device credential table containing ciphertext, nonce, authentication tag, algorithm, and key version. Plaintext credentials are not stored.
 - Database and encryption-key backups must be protected and restored separately. Losing the key makes encrypted credentials unrecoverable.
 - Docker Compose file secrets are mounted as files, not encrypted at rest. Windows host ACLs and container access controls are separate security boundaries and both require validation.
-- Key rotation, Linux production provisioning, credential-management API, and end-to-end container permission tests remain outstanding.
+- Linux production application-key provisioning and Host Agent installation are provided by the standard Linux installer on this feature branch. Application-key rotation and end-to-end container permission tests remain outstanding. Do not replace the runtime key while encrypted credentials exist.
 
 ## Incident response
 If a key or password is exposed, revoke or rotate it, update the protected secret store, review logs and repository history, assess other affected systems, and record remediation without copying the secret into the incident record.

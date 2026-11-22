@@ -68,7 +68,7 @@ Never commit firewall credentials, API keys, tokens, private keys, configuration
 
 ## Development and installation status
 
-See [Deployment](docs/DEPLOYMENT.md) for current implementation details and [Hub Installation and First-Run Bootstrap](docs/INSTALLATION-BOOTSTRAP.md) for the approved target workflow. **The zero-firewall Hub-only bootstrap is not implemented yet.** The current Compose/API implementation still requires one environment-configured firewall. Do not assume the target instructions are executable, and do not remove existing firewall configuration until the implementation and migration have been verified. The eight upstream GET operations remain behind a fixed allowlist; no firewall write routes or arbitrary proxy exist. Manager-user session authentication, `admin`/`user` roles, administrator user management, audit events, and persisted operational alerts are implemented. Full per-site credential lifecycle and independent multi-device collection remain future work.
+See [Deployment](docs/DEPLOYMENT.md) for current implementation details and [Hub Installation and First-Run Bootstrap](docs/INSTALLATION-BOOTSTRAP.md) for installation behavior and remaining acceptance work. The current feature branch supports a Hub-only start with no preconfigured firewall and GUI-based site registration. On Linux, `sudo bash scripts/install-linux.sh` installs both the Hub application and its standard Host Agent, verifies their connection, and enables GUI-managed access deployment only after health checks pass. The eight upstream GET operations remain behind a fixed allowlist; no firewall write routes or arbitrary proxy exist. Full production acceptance still requires a fresh-install/reboot drill and Windows/Linux parity verification.
 
 ## License
 
