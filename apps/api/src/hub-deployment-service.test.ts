@@ -129,4 +129,34 @@ describe("Hub deployment dispatcher", () => {
     expect(requestHostDeploymentMock).not.toHaveBeenCalled();
   });
 
+
+  it("rejects a host-agent origin that does not match the selected endpoint", async () => {
+    const dbQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null }) // BEGIN
+      .mockResolvedValueOnce({ rows: [{ desired_revision: 4 }], rowCount: 1 }) // locked state
+      .mockResolvedValueOnce({ rows: [{ method: "tailscale", address_type: "magic_dns", address: "hub.example.ts.net", https_port: 443 }], rowCount: 1 }) // selected endpoint
+      .mockResolvedValueOnce({ rows: [], rowCount: null }); // ROLLBACK
+    const db = { query: dbQuery, release: vi.fn() };
+    const poolQuery = vi.fn()
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1" }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    const pool = { query: poolQuery, connect: vi.fn().mockResolvedValue(db) } as unknown as import("pg").Pool;
+    requestHostDeploymentMock.mockResolvedValue({
+      state: "succeeded",
+      appliedOrigin: "https://unexpected.example.ts.net"
+    });
+
+    await dispatchHubDeployment(
+      pool,
+      { id: "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1", desired_revision: 4 },
+      { socketPath: "/run/pfsense-hub/agent.sock" }
+    );
+
+    expect(dbQuery.mock.calls[3]?.[0]).toBe("ROLLBACK");
+    expect(poolQuery.mock.calls[2]?.[0]).toContain("state='failed'");
+    expect(poolQuery.mock.calls[2]?.[1]).toContain("HOST_AGENT_ORIGIN_MISMATCH");
+    expect(db.release).toHaveBeenCalledOnce();
+  });
+
 });
