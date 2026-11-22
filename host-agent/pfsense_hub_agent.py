@@ -114,6 +114,8 @@ def serve_status(binary: str) -> str:
 
 
 def has_existing_serve_configuration(raw: str) -> bool:
+    if not raw.strip():
+        return False
     try:
         value = json.loads(raw)
     except Exception as exc:
@@ -124,6 +126,8 @@ def has_existing_serve_configuration(raw: str) -> bool:
 
 
 def has_serve_handler(raw: str, host: str, port: int, target: str) -> bool:
+    if not raw.strip():
+        return False
     try:
         value = json.loads(raw)
     except Exception as exc:
@@ -186,8 +190,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         raise AgentError("TAILSCALE_SERVE_ALREADY_CONFIGURED")
     funnel = run_fixed([binary, "funnel", "status", "--json"], timeout=10)
     try:
-        funnel_config = json.loads(funnel)
-    except Exception as exc:
+        funnel_config = json.loads(funnel) if funnel.strip() else {}\n    except Exception as exc:
         raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID") from exc
     if not isinstance(funnel_config, dict):
         raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
