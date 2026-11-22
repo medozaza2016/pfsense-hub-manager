@@ -13,7 +13,7 @@ Docker Compose runs the React/Vite web application served by Nginx, the Fastify 
 
 ## Fresh Linux host setup
 
-Use this procedure on a **new, empty Linux machine**. The commands below use Debian 13 and the current `feature/multi-site-onboarding` branch for the clean-install acceptance test. Do not use this procedure to overwrite an existing Hub installation. The installer deliberately refuses to replace existing secrets, agent configuration, containers, or the PostgreSQL volume.
+Use this procedure on a **new, empty Linux machine**. Debian 13 is the clean-install baseline. After this feature is merged, the standard release command uses `main`; before merge, the installer is available only on `feature/multi-site-onboarding` for acceptance testing. Do not use this procedure to overwrite an existing Hub installation. The installer deliberately refuses to replace existing secrets, agent configuration, containers, or the PostgreSQL volume.
 
 ### Prepared Proxmox LXC quick start (recommended)
 
@@ -88,7 +88,7 @@ The production installer and systemd Host Agent are pinned to `/opt/pfsense-hub`
 
 ```bash
 sudo install -d -o root -g root -m 0755 /opt
-sudo git clone --branch feature/multi-site-onboarding --single-branch https://github.com/medozaza2016/pfsense-hub-manager.git /opt/pfsense-hub
+sudo git clone --branch main --single-branch https://github.com/medozaza2016/pfsense-hub-manager.git /opt/pfsense-hub
 sudo git -c safe.directory=/opt/pfsense-hub -C /opt/pfsense-hub status --short --branch
 ```
 
