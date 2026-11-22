@@ -165,3 +165,46 @@ The current app imports the shared UI stylesheet from the frontend entry point. 
 **Runtime incident:** The source branch and shared component files were present and committed. The discrepancy was caused by a running Docker web container serving an older image. Rebuilding the web service incorporated the current source and corrected the UI. This was a stale-container-image issue, not a missing component implementation or a Git synchronization problem.
 
 Before merge, repeat typecheck, tests, production build, Compose validation, and a clean Docker rebuild on the final PR head. Verify desktop and mobile behavior in a browser; a successful image build alone does not replace browser validation.
+
+
+## Current main baseline and next frontend work, November 21, 2026
+
+The current baseline is `main`, after PR #5 was merged. Earlier references in this document to fetching, testing, or merging `feature/development-seed-data` are historical instructions for that completed increment and are no longer the active workflow.
+
+### Confirmed frontend data boundaries
+
+- Hub Overview, Sites, and Connectivity load the managed-device inventory from `GET /api/v1/devices`.
+- The inventory API does not make every returned record a live firewall. Seeded demo records are explicitly marked and must remain non-connectable.
+- The current live firewall provider is still configured through environment variables. The API does not yet provide a complete create/edit/credential lifecycle for arbitrary devices.
+- User Management, Audit Logs, and Alerts use manager API endpoints.
+- Remaining firewall-domain pages such as Monitoring, Interfaces, Firewall Rules, Aliases, NAT, Routing, Gateways, DHCP, DNS, Services, Certificates, and VPN contain preview fixtures where documented. These are not authoritative firewall state and do not issue firewall changes.
+- Site Settings does not yet persist per-device credentials or connection profiles. Its current edit affordance is a deferred placeholder.
+- Inventory refresh reloads manager inventory. It is not a firewall connectivity probe.
+- Alerts are persisted and have lifecycle actions, but the current producer is coupled to a requested device overview. This is not continuous background monitoring.
+
+### Next frontend increment: secure site onboarding
+
+Frontend implementation follows the backend contract in [Multi-site Onboarding Implementation Plan](MULTI-SITE-ONBOARDING-PLAN.md). Do not invent routes or frontend-only persistence.
+
+- [ ] Add a real Add Site workflow backed by the approved device registration API.
+- [ ] Collect device name, optional location, edition, HTTPS API origin, and credential input with clear validation.
+- [ ] Send credentials only to the authenticated backend over the manager API. Never persist credentials in browser storage, frontend state beyond the submission lifecycle, URL parameters, or logs.
+- [ ] Add a deliberate credential rotation flow. Do not return stored or decrypted credentials to the browser.
+- [ ] Add a connection-test action that displays classified outcomes such as reachable, TLS trust failure, authentication failure, authorization failure, timeout, unsupported API, and unknown error.
+- [ ] Distinguish configured, enabled, reachable, unreachable, and unknown states. A saved profile is not proof of connectivity.
+- [ ] Make demo records visibly distinct and non-actionable as real firewall targets.
+- [ ] Replace preview-only site settings with backend-backed settings only after the API is implemented and tested.
+- [ ] Keep all firewall configuration write actions disabled.
+
+### UI acceptance criteria
+
+1. An administrator can add a device without editing environment variables or running a shell command.
+2. A regular user cannot add, edit, enable, disable, or rotate device credentials.
+3. A successful save reports that the profile was saved, not that the firewall is reachable.
+4. A connection test reports the actual result and timestamp, and does not mutate firewall configuration.
+5. A failure for one device does not change the displayed state of another device.
+6. Secret values are never displayed again after submission.
+7. Desktop and mobile layouts are checked against the approved visual reference and existing design system.
+8. Loading, empty, validation, permission-denied, network-error, and partial-failure states are handled explicitly.
+
+The frontend milestone is not complete merely because the Add Site dialog renders. It is complete only when the GUI uses the real backend lifecycle and the acceptance criteria above pass.
