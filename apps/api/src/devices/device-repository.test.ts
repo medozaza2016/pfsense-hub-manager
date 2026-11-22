@@ -86,6 +86,7 @@ describe("DeviceRepository", () => {
       .mockResolvedValueOnce({ rows: [], rowCount: null })
       .mockResolvedValueOnce({ rows: [insertedRow], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: null });
     const client = makePoolClient(query);
     const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
@@ -102,7 +103,7 @@ describe("DeviceRepository", () => {
       isDemo: false
     });
     expect(query.mock.calls.map(call => String(call[0]).trim().split(/\s+/)[0])).toEqual([
-      "BEGIN", "INSERT", "INSERT", "COMMIT"
+      "BEGIN", "INSERT", "INSERT", "INSERT", "COMMIT"
     ]);
     const credentialInsert = query.mock.calls[2];
     const parameters = credentialInsert?.[1] as unknown[];
@@ -131,6 +132,7 @@ describe("DeviceRepository", () => {
       .mockResolvedValueOnce({ rows: [insertedRow], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: null });
     const client = makePoolClient(query);
     const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
@@ -143,9 +145,10 @@ describe("DeviceRepository", () => {
     });
     expect(result.tlsServername).toBe("firewall.example.test");
     expect(query.mock.calls.map(call => String(call[0]).trim().split(/\s+/)[0])).toEqual([
-      "BEGIN", "INSERT", "INSERT", "INSERT", "COMMIT"
+      "BEGIN", "INSERT", "INSERT", "INSERT", "INSERT", "COMMIT"
     ]);
     expect(String(query.mock.calls[3]?.[0])).toContain("device_tls_trust");
+    expect(String(query.mock.calls[4]?.[0])).toContain("poll_runs");
     expect(query.mock.calls[3]?.[1]).not.toContain(certificate);
   });
 
