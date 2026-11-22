@@ -62,8 +62,7 @@ export const updateDeviceProfileSchema = z.object({
   name: z.string().trim().min(1).max(120),
   location: z.string().trim().max(120).nullable().optional().transform(value => value || null),
   edition: z.enum(["plus", "ce"]),
-  apiBaseUrl: apiOriginSchema,
-  tlsServername: tlsServernameSchema
+  apiBaseUrl: apiOriginSchema
 }).strict();
 
 export type CreateDeviceInput = z.infer<typeof createDeviceSchema>;
@@ -229,7 +228,7 @@ export class DeviceRepository {
         `INSERT INTO managed_devices(id,name,location,edition,api_base_url,tls_servername,enabled,is_demo)
          VALUES($1,$2,$3,$4,$5,$6,true,false)
          RETURNING id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at`,
-        [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl, parsed.tlsServername]
+        [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl]
       );
       await client.query(
         `INSERT INTO device_credentials(device_id,algorithm,format_version,key_version,nonce,auth_tag,ciphertext)
@@ -255,7 +254,7 @@ export class DeviceRepository {
     const id = deviceIdSchema.parse(deviceId);
     const parsed = updateDeviceProfileSchema.parse(input);
     const result = await this.pool.query<DeviceRow>(
-      `UPDATE managed_devices SET name=$2,location=$3,edition=$4,api_base_url=$5,tls_servername=$6,updated_at=now()
+      `UPDATE managed_devices SET name=$2,location=$3,edition=$4,api_base_url=$5,updated_at=now()
        WHERE id=$1 AND is_demo=false
        RETURNING id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at`,
       [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl, parsed.tlsServername]
