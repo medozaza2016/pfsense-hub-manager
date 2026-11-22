@@ -23,18 +23,18 @@ The supplied OpenAPI 3.0 snapshot contains **267 paths, 694 operations, and 186 
 
 ## Currently verified Plus operations
 
-These eight GET calls returned HTTP 200 against the Netgate 2100 running pfSense Plus 26.07.2-RELEASE. They are wired into the backend's fixed read-only client allowlist. Endpoint-specific response mapping and automated upstream contract tests remain incomplete.
+These eight GET calls returned HTTP 200 against the Netgate 2100 running pfSense Plus 26.07.2-RELEASE. They are wired into the backend's fixed read-only client allowlist. The client now validates the response envelope and minimum per-operation data shape at runtime; malformed payloads are classified as `invalid_response` and recorded as failed polls. These schemas are defensive shape checks, not a complete version-pinned upstream contract or proof of CE compatibility.
 
 | Method | Path | Device | Backend | Frontend | Automated tests |
 |---|---|---|---|---|
-| GET | `/api/v2/status/system` | Verified | Implemented | Aggregate check | Not tested |
-| GET | `/api/v2/status/gateways` | Verified | Implemented | Not exposed | Not tested |
-| GET | `/api/v2/status/interfaces` | Verified | Implemented | Not exposed | Not tested |
-| GET | `/api/v2/status/services` | Verified | Implemented | Not exposed | Not tested |
-| GET | `/api/v2/system/version` | Verified | Implemented | Not exposed | Not tested |
-| GET | `/api/v2/diagnostics/arp_table` | Verified | Implemented | Not exposed | Not tested |
-| GET | `/api/v2/firewall/states` | Verified | Implemented | Not exposed | Not tested |
-| GET | `/api/v2/firewall/states/size` | Verified | Implemented | Not exposed | Not tested |
+| GET | `/api/v2/status/system` | Verified | Implemented | Aggregate check | Runtime shape tests |
+| GET | `/api/v2/status/gateways` | Verified | Implemented | Not exposed | Runtime shape tests |
+| GET | `/api/v2/status/interfaces` | Verified | Implemented | Not exposed | Runtime shape tests |
+| GET | `/api/v2/status/services` | Verified | Implemented | Not exposed | Runtime shape tests |
+| GET | `/api/v2/system/version` | Verified | Implemented | Not exposed | Runtime shape tests |
+| GET | `/api/v2/diagnostics/arp_table` | Verified | Implemented | Not exposed | Runtime shape tests |
+| GET | `/api/v2/firewall/states` | Verified | Implemented | Not exposed | Runtime shape tests |
+| GET | `/api/v2/firewall/states/size` | Verified | Implemented | Not exposed | Runtime shape tests |
 
 ## Generate the full inventory
 With the original JSON already committed at `docs/reference/pfsense-openapi.json`, run:
