@@ -142,7 +142,7 @@ describe("DeviceRepository", () => {
       certificateAuthority: certificate
     });
     expect(result.tlsServername).toBe("firewall.example.test");
-    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\\s+/)[0])).toEqual([
+    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\s+/)[0])).toEqual([
       "BEGIN", "INSERT", "INSERT", "INSERT", "COMMIT"
     ]);
     expect(String(query.mock.calls[3]?.[0])).toContain("device_tls_trust");
