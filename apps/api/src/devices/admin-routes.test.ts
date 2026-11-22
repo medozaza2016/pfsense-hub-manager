@@ -1,5 +1,8 @@
 import Fastify, { type FastifyRequest } from "fastify";
+import { connect as tlsConnect } from "node:tls";
 import { describe, expect, it, vi } from "vitest";
+const { tlsConnectMock } = vi.hoisted(() => ({ tlsConnectMock: vi.fn() }));
+vi.mock("node:tls", () => ({ connect: tlsConnectMock }));
 import type { Pool } from "pg";
 import type { AdminUser } from "../auth.js";
 import { DeviceRepository, type ManagedDeviceProfile } from "./device-repository.js";
@@ -44,7 +47,8 @@ function setup(actor: AdminUser = admin, overrides: {
   if (overrides.getError) client.get.mockRejectedValue(overrides.getError);
 
   const clientFactory = {
-    create: vi.fn(async () => client)
+    create: vi.fn(async () => client),
+    testConnection: vi.fn(async () => undefined)
   } as unknown as DevicePfSenseClientFactory & { create: ReturnType<typeof vi.fn> };
   const pool = { query: vi.fn(async () => ({ rows: [], rowCount: 1 })) } as unknown as Pool & { query: ReturnType<typeof vi.fn> };
 
@@ -58,6 +62,70 @@ function setup(actor: AdminUser = admin, overrides: {
 }
 
 describe("managed-device administrator routes", () => {
+
+  it("requires a successful authenticated TLS/API test before registration", async () => {
+    const state = setup(admin, {
+      client: {
+        get: vi.fn(async () => ({ data: { version: "ignored" } })),
+        close: vi.fn(async () => undefined)
+      }
+    });
+    state.clientFactory.testConnection.mockRejectedValueOnce(new PfSenseApiError("private TLS detail", "tls"));
+    await state.ready;
+    const response = await state.app.inject({
+      method: "POST",
+      url: "/api/v1/devices",
+      payload: {
+        name: "Branch Firewall",
+        edition: "ce",
+        apiBaseUrl: "https://192.168.10.1",
+        apiKey: "private-api-key"
+      }
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error).toMatchObject({ code: "CONNECTION_TEST_FAILED", errorClass: "tls" });
+    expect(response.body).not.toContain("private TLS detail");
+    expect(state.devices.create).not.toHaveBeenCalled();
+    await state.app.close();
+  });
+
+  it("exposes a write-free authenticated registration connection test", async () => {
+    const state = setup();
+    await state.ready;
+    const response = await state.app.inject({
+      method: "POST",
+      url: "/api/v1/devices/registration-test",
+      payload: {
+        apiBaseUrl: "https://192.168.10.1",
+        apiKey: "temporary-key",
+        tlsServername: "firewall.example.test"
+      }
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({ outcome: "reachable", operation: "version" });
+    expect(state.clientFactory.testConnection).toHaveBeenCalledWith(expect.objectContaining({
+      apiBaseUrl: "https://192.168.10.1",
+      apiKey: "temporary-key",
+      tlsServername: "firewall.example.test"
+    }));
+    expect(response.body).not.toContain("temporary-key");
+    expect(state.devices.create).not.toHaveBeenCalled();
+    await state.app.close();
+  });
+
+  it("denies TLS certificate discovery to regular users", async () => {
+    const state = setup(regularUser);
+    await state.ready;
+    const response = await state.app.inject({
+      method: "POST",
+      url: "/api/v1/devices/discover-certificate",
+      payload: { apiBaseUrl: "https://192.168.10.1" }
+    });
+    expect(response.statusCode).toBe(403);
+    expect(tlsConnectMock).not.toHaveBeenCalled();
+    await state.app.close();
+  });
+
   it("rejects regular users before creating a device", async () => {
     const state = setup(regularUser);
     await state.ready;
@@ -96,6 +164,7 @@ describe("managed-device administrator routes", () => {
     expect(response.statusCode).toBe(201);
     expect(response.json().data).toEqual(profile);
     expect(response.body).not.toContain("private-api-key");
+    expect(state.clientFactory.testConnection).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "private-api-key" }));
     expect(state.devices.create).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "private-api-key" }));
     expect(state.pool.query).toHaveBeenCalledOnce();
     const auditParams = state.pool.query.mock.calls[0]?.[1] as unknown[];
