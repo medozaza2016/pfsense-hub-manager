@@ -123,6 +123,27 @@ describe("DevicePfSenseClientFactory", () => {
     );
   });
 
+  it("does not apply the legacy CA when the bootstrap profile origin has changed", async () => {
+    const repository = makeRepository({
+      listProfiles: async () => [profile({ apiBaseUrl: "https://192.168.10.1" })]
+    });
+    const buildClient = vi.fn(() => ({} as PfSenseClient));
+    const bootstrapConfig = {
+      ...config,
+      PFSENSE_DEVICE_ID: deviceId,
+      PFSENSE_DEVICE_NAME: "Legacy Firewall"
+    } as AppConfig;
+    const factory = new DevicePfSenseClientFactory(bootstrapConfig, repository, buildClient);
+
+    await factory.create(deviceId);
+
+    expect(buildClient).toHaveBeenCalledWith(
+      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
+      apiKey,
+      { mode: "system", servername: null }
+    );
+  });
+
   it("does not apply the legacy global CA to unrelated managed devices", async () => {
     const unrelatedId = "22222222-2222-4222-8222-222222222222";
     const repository = makeRepository({ listProfiles: async () => [profile({ id: unrelatedId })] });
