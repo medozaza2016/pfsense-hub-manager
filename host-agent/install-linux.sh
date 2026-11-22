@@ -21,9 +21,21 @@ if [[ -e "$PROJECT_DIR/compose.override.yaml" ]]; then
   exit 1
 fi
 for file in "$ENV_FILE" "$AGENT_SOURCE" "$SERVICE_SOURCE"; do
-  [[ -f "$file" ]] || { echo "Required file not found: $file" >&2; exit 1; }
+  [[ -f "$file" && ! -L "$file" ]] || {
+    echo "Required regular, non-symlink file not found: $file" >&2
+    exit 1
+  }
 done
 for trusted_path in "$PROJECT_DIR" "$PROJECT_DIR/compose.yaml"; do
+  [[ ! -L "$trusted_path" ]] || {
+    echo "$trusted_path must not be a symbolic link." >&2
+    exit 1
+  }
+  if [[ "$trusted_path" == "$PROJECT_DIR" ]]; then
+    [[ -d "$trusted_path" ]] || { echo "$trusted_path must be a directory." >&2; exit 1; }
+  else
+    [[ -f "$trusted_path" ]] || { echo "$trusted_path must be a regular file." >&2; exit 1; }
+  fi
   [[ "$(stat -c '%u:%g' "$trusted_path")" == "0:0" ]] || {
     echo "$trusted_path must be owned by root:root before installing the privileged host agent." >&2
     exit 1
