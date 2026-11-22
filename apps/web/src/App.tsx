@@ -509,7 +509,7 @@ function HubSettingsPage(){
  const {notify}=useToast();
  const [endpoints,setEndpoints]=useState<HubAccessEndpoint[]>(defaultHubEndpoints);
  const [activeMethod,setActiveMethod]=useState<HubAccessMethod>("local");
- const [deployment,setDeployment]=useState<{status:string;desiredRevision:number;appliedRevision:number;deploymentId?:string;appliedOrigin?:string;errorCode?:string}>({status:"pending",desiredRevision:1,appliedRevision:0});
+ const [deployment,setDeployment]=useState<{status:string;desiredRevision:number;appliedRevision:number;deploymentId?:string;appliedOrigin?:string;previousAppliedOrigin?:string;errorCode?:string}>({status:"pending",desiredRevision:1,appliedRevision:0});
  const [busy,setBusy]=useState(true);
  const [loadFailed,setLoadFailed]=useState(false);
  const [saving,setSaving]=useState(false);
@@ -534,6 +534,7 @@ function HubSettingsPage(){
      appliedRevision:Number(current.appliedRevision),
      deploymentId:current.latest?.id,
      appliedOrigin:current.latest?.appliedOrigin??undefined,
+     previousAppliedOrigin:current.previousAppliedOrigin??undefined,
      errorCode:current.latest?.errorCode??undefined
     });
    }
@@ -630,6 +631,7 @@ function HubSettingsPage(){
      {deployment.errorCode&&<span>Safe error code: {deployment.errorCode}</span>}
     </div>
     <p className="hub-settings-note">Saving automatically requests the restricted host agent to apply the selected binding. The status above is updated from the API. The browser redirects only after the host agent verifies the new endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
+    {deployment.previousAppliedOrigin&&<p className="hub-settings-note">Last verified access: <a href={deployment.previousAppliedOrigin} target="_blank" rel="noreferrer">{deployment.previousAppliedOrigin}</a>. Keep this recovery address available while changing access settings.</p>}
    </Panel>
   </form>
  </>;
