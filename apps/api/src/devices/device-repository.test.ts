@@ -269,7 +269,7 @@ describe("DeviceRepository per-device TLS trust", () => {
 
     const result = await repository.decryptDeviceCaBundle(deviceId);
     expect(result).toContain("-----BEGIN CERTIFICATE-----");
-    expect(String(query.mock.calls[0]?.[0])).toContain("d.is_demo=false AND d.enabled=true");
+    expect(String(query.mock.calls[0]?.[0])).toContain("d.is_demo=false AND d.archived_at IS NULL");
   });
 
   it("returns null when no custom trust is configured or the device is disabled", async () => {
