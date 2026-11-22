@@ -14,7 +14,7 @@ import {
   DeviceRepository
 } from "./device-repository.js";
 import type { DevicePfSenseClientFactory } from "../pfsense/device-client-factory.js";
-import { classifyError, PfSenseApiError } from "../pfsense/errors.js";
+import { classifyError, findUpstreamErrorCode, PfSenseApiError } from "../pfsense/errors.js";
 import { normalizeDeviceCaBundle } from "../pfsense/tls-trust.js";
 import { resolveSafeDeviceDestination } from "./network-destination.js";
 import { createPinnedLookup } from "../pfsense/client.js";
@@ -197,7 +197,7 @@ export async function registerDeviceAdminRoutes(
       return { data: { outcome: "reachable", operation: "version", testedAt: new Date().toISOString() } };
     } catch (error) {
       const errorClass = classifyError(error);
-      const diagnosticCode = error instanceof PfSenseApiError ? error.diagnosticCode : undefined;
+      const diagnosticCode = error instanceof PfSenseApiError ? error.diagnosticCode ?? findUpstreamErrorCode(error) : findUpstreamErrorCode(error);
       request.log.warn({
         errorClass,
         ...(diagnosticCode ? { diagnosticCode } : {})
