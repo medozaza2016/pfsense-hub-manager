@@ -35,6 +35,7 @@ describe("device destination address policy", () => {
     "2001:db8::1",
     "2002::1",
     "2001:0000::1",
+    "2001:0020::1",
     "3fff::1"
   ])("rejects special-use or non-global destination %s", address => {
     expect(isAllowedDeviceAddress(address)).toBe(false);
