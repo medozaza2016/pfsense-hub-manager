@@ -40,19 +40,21 @@ class AgentError(Exception):
 
 
 def load_config() -> dict[str, Any]:
+    # Validate the configuration file itself before reading it. lstat rejects
+    # symlinks, and the root-only parent directory prevents unprivileged swaps.
     try:
+        metadata = CONFIG_PATH.lstat()
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_gid != 0 or metadata.st_mode & 0o077):
+            raise AgentError("AGENT_CONFIGURATION_PERMISSIONS_INVALID")
         raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except AgentError:
+        raise
     except Exception as exc:
         raise AgentError("AGENT_CONFIGURATION_UNAVAILABLE") from exc
     required = {"api_base_url", "api_token", "socket_path", "tailscale_binary", "docker_binary", "ip_binary", "project_dir", "compose_file", "env_file", "web_local_url"}
     if not isinstance(raw, dict) or not required.issubset(raw):
         raise AgentError("AGENT_CONFIGURATION_INVALID")
-    try:
-        metadata = CONFIG_PATH.stat()
-    except OSError as exc:
-        raise AgentError("AGENT_CONFIGURATION_UNAVAILABLE") from exc
-    if metadata.st_uid != 0 or metadata.st_mode & 0o077:
-        raise AgentError("AGENT_CONFIGURATION_PERMISSIONS_INVALID")
     parsed = urllib.parse.urlparse(raw["api_base_url"])
     if (parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1")
             or parsed.path not in ("", "/") or parsed.username or parsed.password
@@ -84,11 +86,12 @@ def load_config() -> dict[str, Any]:
         except Exception as exc:
             raise AgentError("AGENT_BINARY_UNAVAILABLE") from exc
     try:
-        project_stat = Path(raw["project_dir"]).stat()
-        compose_stat = Path(raw["compose_file"]).stat()
-        if (project_stat.st_uid != 0 or project_stat.st_mode & 0o022
+        project_stat = Path(raw["project_dir"]).lstat()
+        compose_stat = Path(raw["compose_file"]).lstat()
+        if (not stat.S_ISDIR(project_stat.st_mode) or project_stat.st_uid != 0
+                or project_stat.st_mode & 0o022
                 or not stat.S_ISREG(compose_stat.st_mode) or compose_stat.st_uid != 0
-                or compose_stat.st_mode & 0o022):
+                or compose_stat.st_gid != 0 or compose_stat.st_mode & 0o022):
             raise AgentError("AGENT_PROJECT_PERMISSIONS_INVALID")
     except AgentError:
         raise
@@ -136,7 +139,10 @@ def read_bind_address(config: dict[str, Any]) -> tuple[str, str]:
 def write_bind_address(config: dict[str, Any], address: str) -> None:
     path = Path(config["env_file"])
     try:
-        metadata = path.stat()
+        metadata = path.lstat()
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_gid != 0 or metadata.st_mode & 0o022):
+            raise AgentError("ENV_FILE_PERMISSIONS_INVALID")
         content = path.read_text(encoding="utf-8")
         mode = stat.S_IMODE(metadata.st_mode)
         lines = content.splitlines(keepends=True)
