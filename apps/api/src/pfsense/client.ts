@@ -111,19 +111,13 @@ const recordSchema=z.record(z.string(),z.unknown());
 const recordsSchema=z.array(recordSchema);
 const versionSchema=z.union([
  z.string().min(1),
- z.object({
-  release:z.string().min(1).optional(),
-  version:z.string().min(1).optional(),
-  [z.string()]:z.unknown()
- }).passthrough()
+ z.object({release:z.string().min(1)}).passthrough(),
+ z.object({version:z.string().min(1)}).passthrough()
 ]);
 const firewallStateSizeSchema=z.union([
  z.number().finite().nonnegative(),
- z.object({
-  size:z.number().finite().nonnegative().optional(),
-  states:z.number().finite().nonnegative().optional(),
-  [z.string()]:z.unknown()
- }).passthrough()
+ z.object({size:z.number().finite().nonnegative()}).passthrough(),
+ z.object({states:z.number().finite().nonnegative()}).passthrough()
 ]);
 const dataSchemas:Record<PfSenseOperation,z.ZodType>={
  system:recordSchema,
