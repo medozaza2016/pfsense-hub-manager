@@ -92,6 +92,32 @@ describe("managed-device administrator routes", () => {
     await state.app.close();
   });
 
+  it("returns and logs a safe TLS diagnostic code for registration failures", async () => {
+    const state = setup();
+    state.clientFactory.testConnection.mockRejectedValueOnce(
+      new PfSenseApiError("Firewall TLS verification failed.", "tls", undefined, "ERR_TLS_CERT_ALTNAME_INVALID")
+    );
+    await state.ready;
+    const response = await state.app.inject({
+      method: "POST",
+      url: "/api/v1/devices/registration-test",
+      payload: {
+        apiBaseUrl: "https://192.168.10.1",
+        apiKey: "temporary-key",
+        tlsServername: "firewall.example.test"
+      }
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error).toMatchObject({
+      code: "CONNECTION_TEST_FAILED",
+      errorClass: "tls",
+      diagnosticCode: "ERR_TLS_CERT_ALTNAME_INVALID"
+    });
+    expect(response.body).not.toContain("temporary-key");
+    expect(response.body).not.toContain("private TLS detail");
+    await state.app.close();
+  });
+
   it("exposes a write-free authenticated registration connection test", async () => {
     const state = setup();
     await state.ready;
