@@ -16,7 +16,7 @@ const config = {
 
 function makeProvider(client: Partial<PfSenseClient> | null, bootstrapApiKey: string | null = "bootstrap-secret", providerConfig: AppConfig = config) {
   const firewallClient = client === null ? null : {
-    get: vi.fn(async (_operation: PfSenseOperation) => ({ data: [] })),
+    get: vi.fn(async (operation: PfSenseOperation) => ({ data: operation === "system" ? {} : operation === "version" ? { release: "test" } : operation === "firewallStateSize" ? 0 : [] })),
     close: vi.fn(async () => undefined),
     ...client
   };
@@ -62,7 +62,7 @@ describe("PfSenseProvider multi-device polling", () => {
   it("collects the fixed eight read-only operations for any managed device and closes its client", async () => {
     const { provider, factory, pool } = makeProvider(null);
     const client = {
-      get: vi.fn(async (_operation: PfSenseOperation) => ({ data: [] })),
+      get: vi.fn(async (operation: PfSenseOperation) => ({ data: operation === "system" ? {} : operation === "version" ? { release: "test" } : operation === "firewallStateSize" ? 0 : [] })),
       close: vi.fn(async () => undefined)
     };
     vi.mocked(factory.create).mockResolvedValue(client as unknown as PfSenseClient);
@@ -108,6 +108,31 @@ describe("PfSenseProvider multi-device polling", () => {
 
     await expect(provider.collect("33333333-3333-4333-8333-333333333333", vi.fn())).resolves.toBeNull();
     expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it("records operation failures when an endpoint returns an unexpected data shape", async () => {
+    const { provider, factory, pool } = makeProvider(null);
+    const client = {
+      get: vi.fn(async (operation: PfSenseOperation) => ({
+        data: operation === "gateways" ? { unexpected: "object" } :
+          operation === "system" ? {} :
+          operation === "version" ? { release: "test" } :
+          operation === "firewallStateSize" ? 0 : []
+      })),
+      close: vi.fn(async () => undefined)
+    };
+    vi.mocked(factory.create).mockResolvedValue(client as unknown as PfSenseClient);
+    const onResult = vi.fn();
+
+    const result = await provider.collect("66666666-6666-4666-8666-666666666666", onResult);
+
+    expect(result?.failedOperations).toBe(1);
+    expect(onResult).toHaveBeenCalledWith("gateways", "failure", "invalid_response", expect.any(Number));
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO poll_runs"),
+      expect.arrayContaining(["failure", "invalid_response"])
+    );
+    expect(client.close).toHaveBeenCalledOnce();
   });
 
   it("records operation failures and still closes the client", async () => {
