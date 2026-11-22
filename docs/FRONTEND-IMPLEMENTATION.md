@@ -154,3 +154,14 @@ Do not merge to `main` until the local verification and visual acceptance pass a
 - User creation, user role/status changes, alert lifecycle actions (including bulk actions), audit loading errors, Hub settings saves, and inventory refresh/load feedback are wired to the global system.
 - Contextual inline validation and form errors remain in place where they help users correct a specific field or form. Toasts supplement these messages rather than replacing useful field-level guidance.
 - Use `const { notify } = useToast()` in any descendant component. Call `notify(message, "success" | "info" | "warning" | "error")`.
+
+
+## Shared UI components and latest local runtime diagnosis, November 21, 2026
+
+The shared UI implementation is present in `apps/web/src/components/ui.tsx` and `ui.css`, with the global notification provider in `ToastProvider.tsx`. The components include `DataTable`, `SearchField`, and `ListToolbar`. The table supports sorting, search, pagination, empty/loading states, optional row actions, selection, and a mobile-card renderer. The toolbar supports search, expandable filter controls, active-filter counts, and removable filter chips.
+
+The current app imports the shared UI stylesheet from the frontend entry point. Site inventory, user management, audit logs, and alerts use responsive mobile-card layouts where specified. On narrow viewports, the card renderer replaces the desktop table to avoid horizontal scrolling. Search and filters remain functional against the relevant page data.
+
+**Runtime incident:** The source branch and shared component files were present and committed. The discrepancy was caused by a running Docker web container serving an older image. Rebuilding the web service incorporated the current source and corrected the UI. This was a stale-container-image issue, not a missing component implementation or a Git synchronization problem.
+
+Before merge, repeat typecheck, tests, production build, Compose validation, and a clean Docker rebuild on the final PR head. Verify desktop and mobile behavior in a browser; a successful image build alone does not replace browser validation.
