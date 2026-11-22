@@ -81,7 +81,7 @@ class DeploymentAgentTests(unittest.TestCase):
             agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_SERVE_NOT_CONFIGURED")
 
-    @patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{"hub.example.ts.net:443":true}}')
+    @patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{"443":true}}')
     @patch.object(agent, "serve_status", return_value='{"Web":{"hub.example.ts.net:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8080"}}}}}')
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
