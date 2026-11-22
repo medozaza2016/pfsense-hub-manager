@@ -148,3 +148,8 @@ This document records confirmed architectural decisions. Proposals and open ques
 ### DEC-031, Manager-side managed-site lifecycle
 **Status:** Accepted, November 21, 2026  
 **Decision:** Administrators may create, view, edit, enable/disable, rotate credentials, update TLS trust, and archive manager-owned firewall connection profiles through the Hub Manager. These operations change only the Hub's inventory and encrypted connection material. They do not authorize configuration changes on pfSense. Site removal uses a non-destructive archive operation: disable the profile, mark it archived, and purge its encrypted API credential and custom TLS trust material. Retain polling history, operational alerts, and append-only audit events; resolve any active or acknowledged alerts when the site is archived. Archived sites are excluded from active inventory and cannot be used for polling or connection tests. Require an explicit typed confirmation at the UI and API boundary for archival. Replacement API credentials must pass an authenticated read-only version check using the profile's current TLS trust before they are stored. Demo records cannot be edited or archived through the administrator API.
+
+
+## Development sample firewall records
+
+The development seed process must not create synthetic firewall sites. Existing rows marked `is_demo=true` are archived by migration `011_archive_development_demo_sites.sql`, with polling disabled and database records retained for referential integrity. The Sites page is reserved for actual registered firewall profiles. Connectivity is a separate operational view of API-reported reachability, polling enabled state, and last connection check. Do not display invented latency, TLS diagnostics, or failure streaks.
