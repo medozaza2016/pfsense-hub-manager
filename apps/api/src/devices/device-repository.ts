@@ -6,8 +6,11 @@ import { isAllowedDeviceAddress } from "./network-destination.js";
 import {
   decryptCredential,
   decryptDeviceCredential,
-  encryptDeviceCredential
+  decryptDeviceTlsTrust,
+  encryptDeviceCredential,
+  encryptDeviceTlsTrust
 } from "../security/credential-encryption.js";
+import { normalizeDeviceCaBundle } from "../pfsense/tls-trust.js";
 
 const deviceIdSchema = z.string().uuid();
 const apiOriginSchema = z.string().trim().min(1).max(2048).url().transform((value, context) => {
@@ -83,6 +86,14 @@ interface DeviceRow {
 }
 
 interface CredentialRow {
+  format_version: number;
+  key_version: number;
+  nonce: Buffer;
+  auth_tag: Buffer;
+  ciphertext: Buffer;
+}
+
+interface TlsTrustRow {
   format_version: number;
   key_version: number;
   nonce: Buffer;
@@ -215,6 +226,67 @@ export class DeviceRepository {
       );
       return true;
     });
+  }
+
+  /**
+   * Stores a validated, device-bound custom trust bundle. Passing null removes
+   * the custom trust anchor and returns the device to system trust.
+   */
+  async setDeviceCaBundle(deviceId: string, pem: string | null): Promise<boolean> {
+    const id = deviceIdSchema.parse(deviceId);
+    const normalized = pem === null ? null : normalizeDeviceCaBundle(pem);
+    const encrypted = normalized === null ? null : encryptDeviceTlsTrust(normalized, this.encryptionKey, id);
+
+    return withTransaction(this.pool, async client => {
+      const device = await client.query<{ id: string }>(
+        "SELECT id FROM managed_devices WHERE id=$1 AND is_demo=false FOR UPDATE",
+        [id]
+      );
+      if (!device.rowCount) return false;
+
+      if (!encrypted) {
+        await client.query("DELETE FROM device_tls_trust WHERE device_id=$1", [id]);
+        return true;
+      }
+
+      await client.query(
+        `INSERT INTO device_tls_trust(device_id,algorithm,format_version,key_version,nonce,auth_tag,ciphertext)
+         VALUES($1,'aes-256-gcm',$2,1,$3,$4,$5)
+         ON CONFLICT(device_id) DO UPDATE SET algorithm=EXCLUDED.algorithm,format_version=EXCLUDED.format_version,
+           key_version=EXCLUDED.key_version,nonce=EXCLUDED.nonce,auth_tag=EXCLUDED.auth_tag,
+           ciphertext=EXCLUDED.ciphertext,updated_at=now()`,
+        [id, encrypted.version, Buffer.from(encrypted.nonce, "hex"), Buffer.from(encrypted.authTag, "hex"), Buffer.from(encrypted.ciphertext, "hex")]
+      );
+      return true;
+    });
+  }
+
+  /**
+   * Returns custom trust material only for an enabled, non-demo device.
+   * No row means the client must use the operating system trust store.
+   */
+  async decryptDeviceCaBundle(deviceId: string): Promise<string | null> {
+    const id = deviceIdSchema.parse(deviceId);
+    const result = await this.pool.query<TlsTrustRow>(
+      `SELECT t.format_version,t.key_version,t.nonce,t.auth_tag,t.ciphertext
+       FROM device_tls_trust t
+       JOIN managed_devices d ON d.id=t.device_id
+       WHERE t.device_id=$1 AND d.is_demo=false AND d.enabled=true`,
+      [id]
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    if (row.key_version !== 1 || row.format_version !== 3) {
+      throw new Error("Stored device TLS trust material uses an unsupported encryption version.");
+    }
+    const envelope = {
+      version: 3 as const,
+      algorithm: "aes-256-gcm" as const,
+      nonce: row.nonce.toString("hex"),
+      authTag: row.auth_tag.toString("hex"),
+      ciphertext: row.ciphertext.toString("hex")
+    };
+    return normalizeDeviceCaBundle(decryptDeviceTlsTrust(envelope, this.encryptionKey, id));
   }
 
   async decryptApiKeyForConnection(deviceId: string): Promise<string | null> {
