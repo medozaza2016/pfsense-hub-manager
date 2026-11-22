@@ -99,7 +99,8 @@ def tailscale_identity(binary: str) -> tuple[str, set[str], set[str]]:
         status = json.loads(run_fixed([binary, "status", "--json"], timeout=10))
         self_info = status.get("Self") or {}
         dns_name = str(self_info.get("DNSName") or "").rstrip(".").lower()
-        ips = {str(value) for value in (self_info.get("TailscaleIPs") or [])}\n        cert_domains = {str(value).rstrip(".").lower() for value in (status.get("CertDomains") or [])}
+        ips = {str(value) for value in (self_info.get("TailscaleIPs") or [])}
+        cert_domains = {str(value).rstrip(".").lower() for value in (status.get("CertDomains") or [])}
     except Exception as exc:
         if isinstance(exc, AgentError):
             raise
@@ -190,7 +191,8 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         raise AgentError("TAILSCALE_SERVE_ALREADY_CONFIGURED")
     funnel = run_fixed([binary, "funnel", "status", "--json"], timeout=10)
     try:
-        funnel_config = json.loads(funnel) if funnel.strip() else {}\n    except Exception as exc:
+        funnel_config = json.loads(funnel) if funnel.strip() else {}
+    except Exception as exc:
         raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID") from exc
     if not isinstance(funnel_config, dict):
         raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
