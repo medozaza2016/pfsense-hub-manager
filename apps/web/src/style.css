@@ -93,3 +93,6 @@
  .site-onboarding-form .onboarding-grid .field-wide{grid-column:auto}
  .onboarding-section{padding:13px 0}
 }
+
+.site-onboarding-form .field-label-row{display:flex;align-items:center;gap:7px;min-height:18px}
+.site-onboarding-form .field-label-row .field-optional{margin:0;font-size:10px;font-weight:500;color:#8391a5}
