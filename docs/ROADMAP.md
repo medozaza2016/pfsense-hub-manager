@@ -161,7 +161,7 @@ This is not a production release. The manager has no user login or role model ye
 
 ### Initial delivery
 - [ ] Show host CPU, memory, and disk usage where reliable host-side telemetry is available.
-- [ ] Show status and health for Web, API, PostgreSQL, and Code Server, including uptime and last health-check result where available.
+- [ ] Show status and health for Web, API, and PostgreSQL, including uptime and last health-check result where available.
 - [ ] Provide bounded, sanitized per-service log viewing.
 - [ ] Provide individual service start, stop, and restart operations.
 - [ ] Provide whole-stack start, stop, and restart operations.
@@ -182,7 +182,7 @@ This is an approved product scope, not an implemented feature. Implementation an
 
 ### System Monitoring and Recovery implementation sequence, November 21, 2026
 
-- [x] Approve the four-service monitoring scope and fixed-project boundary (DEC-026).
+- [x] Approve the three-service monitoring scope and fixed-project boundary (DEC-026).
 - [x] Approve `admin` and `user` visibility/operation permissions (DEC-027).
 - [x] Add database-backed `admin` / `user` roles. The additive migration defaults existing accounts to `admin` and includes the session schema.
 - [x] Include the database role in authenticated session, setup, and login responses.
@@ -353,7 +353,7 @@ Before merging the implementation branch, run API tests, web and API typechecks,
 
 ### Required implementation
 - [ ] Fresh Hub starts with zero registered firewalls and no firewall-specific environment variables or secret files.
-- [ ] Keep `.env.example` limited to Hub infrastructure settings. Keep the application encryption key and code-server password in protected secret files.
+- [ ] Keep `.env.example` limited to Hub infrastructure settings. Keep the application encryption key in a protected secret file.
 - [ ] Update Windows PowerShell and Linux Bash installation workflows to generate Hub secrets, protect the application encryption key, preserve a recovery copy, validate Compose, and detect existing state before writing.
 - [ ] Remove API startup dependencies on `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, `PFSENSE_EDITION`, `PFSENSE_API_BASE_URL`, and the global pfSense API-key secret.
 - [ ] Stop automatically inserting a firewall record during API startup.
