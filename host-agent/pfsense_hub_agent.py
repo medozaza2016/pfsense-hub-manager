@@ -9,7 +9,6 @@ an explicit certificate lifecycle is provisioned.
 """
 from __future__ import annotations
 
-import fcntl
 import http.client
 import json
 import os
@@ -199,6 +198,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_client(conn: socket.socket, config: dict[str, Any], lock_path: Path) -> None:
+    import fcntl
     try:
         conn.settimeout(120)
         data = bytearray()
