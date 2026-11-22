@@ -61,10 +61,13 @@ export class DevicePfSenseClientFactory {
     if (!apiKey) return null;
 
     const caBundle = await this.devices.decryptDeviceCaBundle(deviceId);
+    const configuredBootstrapOrigin = this.config.PFSENSE_API_BASE_URL
+      ? new URL(this.config.PFSENSE_API_BASE_URL).origin
+      : null;
     const legacyBootstrapDevice = this.config.PFSENSE_DEVICE_ID === profile.id &&
       Boolean(this.config.PFSENSE_DEVICE_NAME) &&
-      Boolean(this.config.PFSENSE_API_BASE_URL) &&
-      profile.apiBaseUrl === this.config.PFSENSE_API_BASE_URL;
+      configuredBootstrapOrigin !== null &&
+      profile.apiBaseUrl === configuredBootstrapOrigin;
     const tlsTrust: PfSenseTlsTrust = caBundle === null
       ? legacyBootstrapDevice
         ? { mode: "legacy-ca-file", servername: profile.tlsServername }
