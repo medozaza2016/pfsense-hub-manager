@@ -1,5 +1,5 @@
 import {readFile} from "node:fs/promises";
-import type { LookupFunction } from "node:dns";
+import type { LookupAddress, LookupOptions } from "node:dns";
 import {Agent,fetch} from "undici";
 import {z} from "zod";
 import type {AppConfig} from "../config.js";
@@ -13,7 +13,13 @@ const routes={
 } as const;
 export type PfSenseOperation=keyof typeof routes;
 
-export function createPinnedLookup(expectedHostname: string, address: { address: string; family: 4 | 6 }): LookupFunction {
+type PinnedLookup = (
+ hostname: string,
+ options: LookupOptions,
+ callback: (error: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void,
+) => void;
+
+export function createPinnedLookup(expectedHostname: string, address: { address: string; family: 4 | 6 }): PinnedLookup {
  const expected=expectedHostname.toLowerCase();
  return (hostname, options, callback) => {
   if(hostname.toLowerCase()!==expected){
