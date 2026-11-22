@@ -58,7 +58,11 @@ for required_setting in \
     exit 1
   }
 done
-grep -Eq '^HUB_BIND_ADDRESS=.+ /run/pfsense-hub "$PROJECT_DIR/run/host-agent"
+grep -Eq '^HUB_BIND_ADDRESS=.+$' "$ENV_FILE" || {
+  echo "Set HUB_BIND_ADDRESS to the current private or loopback host address in .env." >&2
+  exit 1
+}
+install -d -m 0750 "$CONFIG_DIR" /run/pfsense-hub "$PROJECT_DIR/run/host-agent"
 install -d -m 0755 /usr/local/libexec
 if ! getent group pfsense-hub-agent >/dev/null; then
   if getent group 2000 >/dev/null; then echo "GID 2000 is already assigned. Resolve this before installing." >&2; exit 1; fi
