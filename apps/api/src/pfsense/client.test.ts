@@ -152,6 +152,7 @@ describe("pfSense operation data validation",()=>{
   ["interfaces",null],
   ["services","running"],
   ["version",[]],
+  ["system",{}],
   ["version",{}],
   ["arpTable",{}],
   ["firewallStates",{entries:[]}],
