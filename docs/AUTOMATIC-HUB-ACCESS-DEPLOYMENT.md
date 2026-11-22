@@ -5,11 +5,12 @@
 This document defines the implementation contract for automatic application of the LAN, Tailscale, and Custom access method selected in Administration → Hub Settings.
 
 Implementation status on `feature/multi-site-onboarding`:
-- Implemented: deployment history migration, strict API-to-agent request/response schemas, bounded Unix-socket client, queued deployment creation in the same transaction as endpoint settings, deployment status/history API, bearer-authenticated and revision-scoped host configuration retrieval, loopback-only API publication for that retrieval path, fail-closed behavior when no agent socket is configured, frontend status polling/redirect after a verified success response, and a last-verified-origin recovery link.
-- Not implemented: Linux host agent, fixed host-side Compose wrapper, host socket/service installation, real host-side apply and rollback, end-to-end tests, and Windows host adapter.
-- Not verified: API/web typecheck, unit tests, production builds, Linux integration, and browser redirect behavior. Do not rebuild or deploy based on this partial implementation.
+- Implemented in code: strict API-to-agent protocol, bearer-authenticated revision-scoped configuration retrieval, loopback-only API publication, Unix-socket client, Linux systemd host agent and installer, root-owned agent configuration, restricted socket permissions, Tailscale MagicDNS identity and certificate-domain preflight, Tailscale Serve configuration, HTTPS certificate and health verification, rollback of the newly-created Serve endpoint on verification failure, API desired-revision serialization, frontend HTTPS-only redirect, previous-origin recovery link, and recent deployment history.
+- Deliberately unsupported: LAN and Custom deployment, Tailscale-IP HTTPS, and any method requiring a certificate lifecycle outside Tailscale Serve. The UI prevents unsupported methods from being queued. The agent also fails closed if it receives an unsupported request.
+- Tests added: host-agent unit tests, API dispatcher revision-lock tests, HTTPS protocol tests, and Tailscale-IP validation tests.
+- Not verified in this environment: test execution, API/web typecheck, production builds, Docker Compose validation, Linux installation, live Tailscale Serve, browser redirect, and rollback against a real tailnet. Do not treat source changes as production verification.
 
-The feature is not operational until the remaining host integration and verification described here are complete.
+The feature is partially operational for Linux Tailscale MagicDNS only after the host agent is installed and tailnet HTTPS certificates are already enabled.
 
 The existing endpoint settings and desired/applied revision model remain the source of truth. Saving an endpoint is no longer intended to be an administrator attestation. A successful save must enqueue a deployment against the exact desired revision and return a deployment identifier and current status.
 
@@ -18,13 +19,13 @@ The existing endpoint settings and desired/applied revision model remain the sou
 1. The authenticated administrator submits the complete three-endpoint configuration.
 2. The API validates the complete configuration, persists it transactionally, increments the desired revision, and creates a deployment record for that revision.
 3. The API submits only the deployment identifier and validated desired revision to the restricted host agent. The agent must independently retrieve the approved configuration from a narrowly authenticated API endpoint or another explicitly provisioned read-only source, then validate it. The API retrieval route is implemented with a dedicated bearer token and checks the deployment state and current desired revision. The Linux agent client for this route is not yet implemented. The agent must not be given unrestricted database or Docker access merely to obtain settings. It never accepts arbitrary shell commands, Compose arguments, file paths, service names, ports, or environment variable names.
-4. The agent serializes deployments with a host lock and snapshots the currently applied binding before making changes.
-5. The agent verifies the requested bind address is assigned to an eligible host interface. For the default local mode, it uses loopback. For a remote IP bind, the address must be assigned locally. A hostname is a reachability name, not a bind address. Do not bind to wildcard addresses.
-6. The agent changes only HUB_BIND_ADDRESS in the managed deployment environment file, validates the fixed Compose project configuration, and recreates only the web service. It must not restart the API, database, code-server, unrelated projects, or remove volumes.
-7. The agent probes the exact newly published HTTP origin and /health endpoint with a bounded timeout. The internal configuration response explicitly requires the HTTPS scheme and supplies the selected port. The agent must probe HTTPS, validate the certificate and hostname, and fail closed if TLS is unavailable. A port label in Hub Settings is not proof that TLS is configured.
-8. Only after the probe succeeds does the agent mark the revision applied. The API exposes the confirmed origin and deployment status to the browser.
-9. The browser navigates to the returned origin only after a successful status response. The Hub Settings page now displays the most recently successful applied origin as a recovery link. Browser reachability from the administrator's current device is still not proven by the host-side health probe.
-10. If apply or verification fails, the agent restores the previous environment value, recreates only the web service, verifies the previous origin, and records whether rollback succeeded. Never claim rollback succeeded without a successful recovery probe.
+4. The Linux agent serializes requests over one Unix-socket worker and a host lock. The API also holds a PostgreSQL desired-revision row lock for the duration of host verification, so a concurrent settings save cannot supersede an in-flight deployment.
+5. For Tailscale, the agent verifies the requested MagicDNS name exactly matches the connected host's DNSName and appears in the host's CertDomains. It refuses Tailscale IP addresses and refuses to overwrite existing Serve or Funnel configuration.
+6. The agent configures only `tailscale serve --bg --https=<port> http://127.0.0.1:8080`. It does not change Docker Compose bindings, restart containers, enable HTTPS for the tailnet, change ACLs, or enable Funnel.
+7. The agent probes the exact HTTPS origin and `/health` endpoint with normal certificate-chain and hostname verification. A port label in Hub Settings is not proof that TLS is configured.
+8. Only after the HTTPS probe succeeds does the agent return a verified origin. The API records the applied revision and exposes deployment status/history to the browser.
+9. The browser redirects only to an HTTPS origin returned by a successful deployment status response. The Hub Settings page shows the last verified origin as a recovery link. Host-side verification does not prove that the administrator's current client has working DNS or a route to the tailnet.
+10. If verification fails after the agent creates its Serve endpoint, it removes only that newly-created endpoint and verifies that Serve no longer reports it. It reports rollback success only after that check. Existing Serve/Funnel configuration is never reset or overwritten.
 
 ## TLS and Tailscale deployment model
 
@@ -32,8 +33,8 @@ The current web container's Nginx configuration listens on plain HTTP at contain
 
 TLS is mode-specific:
 
-- **Tailscale:** use an already-installed and authenticated Tailscale client on the Linux host, with Tailscale Serve configured to terminate HTTPS and proxy to the Hub's loopback-only HTTP listener. Tailscale manages the HTTPS certificate. The Hub host agent must not install, authenticate, reconfigure, or otherwise take ownership of Tailscale. It may validate the configured Serve endpoint and verify the exact HTTPS origin and health endpoint. It must not report success if Serve is absent, targets the wrong local service, or the HTTPS probe fails. The expected public origin is the selected MagicDNS hostname, not a Tailscale IP address, because certificate hostname validation must match the issued name.
-- **LAN and Custom:** these modes still require an explicitly configured TLS termination layer with a valid certificate and hostname/IP identity appropriate to the endpoint. A PEM upload or another trusted reverse proxy may be used, but neither is silently assumed to exist.
+- **Tailscale:** use an already-installed and authenticated Tailscale client on the Linux host. The agent configures one Tailscale Serve HTTPS proxy to the Hub's loopback-only HTTP listener. It checks that the selected MagicDNS name is the local node and is listed in `CertDomains` before making changes. Tailscale Serve terminates TLS using its automatically provisioned certificate. The agent does not install or authenticate Tailscale, enable tailnet HTTPS, change ACLs, or enable Funnel. It refuses any pre-existing Serve or Funnel configuration to avoid overwriting another service.
+- **LAN and Custom:** these modes still require an explicitly configured TLS termination layer with a valid certificate and hostname/IP identity appropriate to the endpoint. Certificate provisioning, renewal, and rollback are not implemented. These methods are disabled in the current UI and are not deployable.
 
 The API-to-agent contract requires an `https://` success origin and rejects plaintext success responses. For Tailscale mode, this origin is verified through Tailscale Serve. For LAN and Custom, it must be verified through their separately configured TLS termination layer. No mode may silently fall back to remote plaintext HTTP.
 
@@ -41,11 +42,11 @@ The agent must control only a fixed, documented configuration surface. It must n
 
 ## Host agent security boundary
 
-- Run the agent as a dedicated unprivileged service account with minimum rights needed to update this project's deployment file and invoke a fixed, root-owned wrapper for this Compose project.
-- The agent is a separate host process, not a container with /var/run/docker.sock mounted.
-- Expose a local Unix-domain socket on Linux with restrictive owner/group/mode. Only the API service identity may connect. The API container receives only the agent socket mount, never the Docker socket.
-- The agent accepts a strict, versioned JSON request with a deployment ID and revision. It loads trusted deployment root, Compose file, and environment file from root-owned fixed configuration. Reject unknown properties and stale revisions.
-- Permit exactly one project and one service recreation operation. No arbitrary command, path, Compose argument, image build, pull, volume, database restore, or unrelated container action is exposed.
+- Run the Linux agent as a root-owned systemd service because it controls the local Tailscale daemon. The service drops all Linux capabilities, uses systemd filesystem hardening, and is writable only to its socket and runtime-lock directories.
+- The agent is a separate host process, not a container with `/var/run/docker.sock` mounted. It does not invoke Docker or Compose.
+- Expose a local Unix-domain socket with a dedicated group, set-group-ID socket directory, and mode 0660. The API container receives that directory read-only and joins only the dedicated supplementary group. It never receives the Docker socket.
+- The agent accepts a strict, versioned JSON request containing only a deployment UUID and desired revision. It retrieves approved configuration from the loopback-only API endpoint using a root-owned bearer token. Unknown properties and stale revisions are rejected.
+- The only host command operations are fixed Tailscale status, Serve status, Funnel status, Serve configuration, and rollback invocations. The binary path and local web target come from root-owned configuration, never API input. No arbitrary shell, path, Docker argument, environment variable, or service name is accepted.
 - Validate every bind address against host interface assignments immediately before applying. Reject wildcard, multicast, unspecified, loopback for remote modes, and addresses not assigned to an eligible interface.
 - Use a process lock and compare-and-swap revision check to prevent overlapping or stale deployments.
 - Bound command duration, probe duration, retries, output size, and log retention. Redact environment values and never return secrets.
