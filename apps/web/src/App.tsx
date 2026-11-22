@@ -493,6 +493,7 @@ function AuthScreen({mode,onAuthenticated}:{mode:"loading"|"setup"|"login";onAut
  return <main className="auth-screen"><section className="auth-card"><div className="brand auth-brand"><div className="brand-mark">PF</div><div className="brand-name"><strong>pfSense Hub</strong><span>Manager</span></div></div>{mode==="loading"?<><h1>Checking administrator session</h1><p>Connecting to the local Hub service.</p></>:<><span className="eyebrow">{mode==="setup"?"FIRST-RUN SETUP":"SECURE ACCESS"}</span><h1>{mode==="setup"?"Create administrator":"Sign in to Hub Manager"}</h1><p>{mode==="setup"?"Create the first administrator account. There are no default credentials.":"Use your Hub Manager administrator credentials to continue."}</p><form onSubmit={submit}><label>Username<input autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} minLength={3} maxLength={64} required/></label><label>Password<input type="password" autoComplete={mode==="setup"?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)} minLength={mode==="setup"?14:1} maxLength={128} required/></label>{mode==="setup"&&<><label>Confirm password<input type="password" autoComplete="new-password" value={confirm} onChange={e=>setConfirm(e.target.value)} minLength={14} maxLength={128} required/></label><small className="auth-hint">Use at least 14 characters. Keep this password in a secure password manager.</small></>}{error&&<div className="auth-error" role="alert">{error}</div>}<button className="primary-button full-width" disabled={busy}>{busy?(mode==="setup"?"Creating account…":"Signing in…"):(mode==="setup"?"Create administrator":"Sign in")}</button></form></>}</section></main>;
 }
 type HubAccessMethod = "local" | "tailscale" | "hostname";
+type HubDeploymentHistoryItem = {id:string;desiredRevision:number;requestedMethod:HubAccessMethod;state:string;errorCode:string|null;createdAt:string};
 type HubAccessEndpoint = {
  method: HubAccessMethod;
  addressType: "magic_dns" | "tailscale_ip" | "hostname" | "ip" | null;
@@ -510,6 +511,7 @@ function HubSettingsPage(){
  const [endpoints,setEndpoints]=useState<HubAccessEndpoint[]>(defaultHubEndpoints);
  const [activeMethod,setActiveMethod]=useState<HubAccessMethod>("local");
  const [deployment,setDeployment]=useState<{status:string;desiredRevision:number;appliedRevision:number;deploymentId?:string;appliedOrigin?:string;previousAppliedOrigin?:string;errorCode?:string}>({status:"pending",desiredRevision:1,appliedRevision:0});
+ const [history,setHistory]=useState<HubDeploymentHistoryItem[]>([]);
  const [busy,setBusy]=useState(true);
  const [loadFailed,setLoadFailed]=useState(false);
  const [saving,setSaving]=useState(false);
@@ -570,6 +572,14 @@ function HubSettingsPage(){
   const timer=window.setInterval(()=>void poll(),1500);
   return()=>{active=false;window.clearInterval(timer);};
  },[deployment.deploymentId,deployment.status,notify]);
+ useEffect(()=>{
+  let active=true;
+  fetch("/api/v1/hub-settings/deployments?limit=10",{credentials:"same-origin"})
+   .then(async response=>{if(!response.ok)throw new Error("Unable to load deployment history.");return response.json();})
+   .then(result=>{if(active)setHistory(Array.isArray(result.data)?result.data:[]);})
+   .catch(()=>{if(active)setHistory([]);});
+  return()=>{active=false;};
+ },[deployment.status,deployment.desiredRevision]);
  function selectMethod(method:HubAccessMethod){
   setActiveMethod(method);
   setEndpoints(current=>current.map(endpoint=>({...endpoint,enabled:endpoint.method===method})));
@@ -632,6 +642,17 @@ function HubSettingsPage(){
     </div>
     <p className="hub-settings-note">Saving automatically requests the restricted host agent to apply the selected binding. The status above is updated from the API. The browser redirects only after the host agent verifies the new endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
     {deployment.previousAppliedOrigin&&<p className="hub-settings-note">Last verified access: <a href={deployment.previousAppliedOrigin} target="_blank" rel="noreferrer">{deployment.previousAppliedOrigin}</a>. Keep this recovery address available while changing access settings.</p>}
+   </Panel>
+   <Panel title="Recent deployments">
+    {history.length===0?<p className="hub-settings-note">No deployment history is available yet.</p>:<div className="hub-deployment-history">
+     {history.map(item=><div key={item.id} className="hub-deployment-history-row">
+      <strong>Revision {item.desiredRevision}</strong>
+      <span>{item.requestedMethod==="local"?"LAN":item.requestedMethod==="tailscale"?"Tailscale":"Custom"}</span>
+      <span>{item.state.replaceAll("_"," ")}</span>
+      <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time>
+      {item.errorCode&&<small>{item.errorCode}</small>}
+     </div>)}
+    </div>}
    </Panel>
   </form>
  </>;
