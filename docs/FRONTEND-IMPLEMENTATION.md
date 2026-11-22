@@ -1,4 +1,7 @@
-# Frontend implementation plan and coverage
+# Frontend implementation and coverage
+
+**Last reconciled:** November 22, 2026  
+**Active branch:** `feature/multi-site-onboarding`
 
 ## Visual authority
 
@@ -6,233 +9,81 @@ The approved source is the original **pfSense Hub Manager Redesign Mockup**, pre
 
 `/Projects/pfSense Hub Manager/mockups/pfsense-hub-manager-approved.png`
 
-The image is the binding visual specification. Desktop Hub Overview, Site Overview, and the supplied mobile arrangements must be reproduced one-to-one. See the root `AGENTS.md` for mandatory rules. Do not substitute generic styling or treat the reference as inspiration.
+The image is the binding visual specification. Preserve its light workspace, dark navy sidebar, restrained blue actions, status treatment, responsive navigation, and desktop/mobile composition. See the root `AGENTS.md` for mandatory visual and implementation rules.
 
-## Delivery boundary
+## Current implementation status
 
-This milestone is frontend-first. All pages, navigation, layouts, responsive behavior, preview states, and local interactions are built before additional API wiring.
-
-- Preview fixtures are demonstration data only and are labeled as such in the UI.
-- Preview actions modify local UI state only. They do not register devices, change firewall configuration, or claim that a live operation succeeded.
-- The existing Fastify API, PostgreSQL schema, provider, security boundary, and existing backend tests remain untouched by this frontend increment.
-- Backend integration will be resumed later, incrementally, against existing contracts and verified capabilities. Do not invent endpoints or broaden the read-only firewall permission scope.
-
-## Current frontend coverage
+The frontend is a React/TypeScript/Vite application. It uses the existing backend contracts and preserves the approved design system. The current feature branch includes both API-backed workflows and explicitly labeled preview areas; do not describe every visible page as live firewall data.
 
 ### Hub workspace
-- Hub Overview
-- Sites, including local search, status filtering, and preview-only Add Site
-- Connectivity
-- Alerts
-- Hub Settings
-- User Management
-- Audit Logs
-- Application Settings
 
-### Site workspace
-- Overview
-- Monitoring
-- Interfaces
-- Firewall Rules
-- Aliases
-- NAT
-- Routing
-- Gateways
-- DHCP
-- DNS
-- Services
-- Certificates
-- VPN
-- Compatibility
-- Site Settings
+- **Hub Overview, Sites, Connectivity:** load managed-device inventory from the authenticated `GET /api/v1/devices` API. Reachability is shown from recorded connection-check results, not inferred from the existence of a profile.
+- **Sites:** administrator Add Site flow, certificate discovery, independent fingerprint confirmation, pre-registration connection test, profile creation, edit, enable/disable, credential rotation, custom TLS trust set/remove, connection test, and typed archive flow are wired to administrator-only API routes.
+- **Alerts:** API-backed records and lifecycle actions, including bulk acknowledge/resolve behavior.
+- **User Management:** API-backed user listing, creation, role/status changes, and password reset flows.
+- **Audit Logs:** API-backed audit events with sanitized metadata.
+- **Hub Settings:** Local, Tailscale, and Custom access method tabs, deployment state, revision tracking, last-verified recovery address, and recent deployment history.
+- **Application Settings:** application preference/security UI; do not assume all settings imply external integrations or infrastructure provisioning.
 
-### Interaction foundation
-- Contextual Hub/Site navigation and Back to Hub
-- Responsive desktop sidebar and mobile drawer
-- Mobile bottom navigation
-- Search and status filters
-- Preview-only Add Site dialog
-- Local preference toggles
-- Page-level tables and row actions
-- Visible preview/demo boundary and feedback notices
+### Site workspace and data boundary
 
-## Validation still required
+The Site workspace contains Overview, Monitoring, Interfaces, Firewall Rules, Aliases, NAT, Routing, Gateways, DHCP, DNS, Services, Certificates, VPN, Compatibility, and Site Settings.
 
-The Windows validation run on November 21, 2026 passed the web TypeScript check and production Vite build as part of the root commands. Browser-based visual acceptance remains pending. Before treating the frontend milestone as complete:
+The Hub inventory and site registration/profile/connection lifecycle are API-backed. Several firewall-domain pages outside the currently implemented read-only overview still contain preview fixtures. Preview fixtures are not live firewall state and must remain visibly identified as preview data. No frontend action may imply a firewall configuration change.
 
-1. Run the application through the existing Docker Compose workflow.
-2. Compare desktop and mobile screenshots directly against the approved image.
-3. Exercise every navigation item, dialog, filter, toggle, and row action.
-4. Correct any visual or functional differences, then repeat the checks.
+### Site onboarding and lifecycle
 
-This document records implementation coverage, not a claim that visual acceptance or frontend completion has already passed.
+The Add Site workflow collects site name, optional location, edition, HTTPS API origin, API credential, optional TLS server name, and optional custom CA bundle. It can discover the certificate presented by the firewall before credentials are submitted. The administrator must independently confirm the displayed SHA-256 fingerprint before the authenticated pre-registration test proceeds.
 
+Registration repeats the authenticated read-only `version` request server-side. The backend generates the device UUID, encrypts API credentials and custom TLS trust, stores the profile and connection-check result, and returns no plaintext secret. Credentials and CA text are cleared after successful registration.
 
-## Data integration status, November 21, 2026
+Site Settings and inventory actions are backed by administrator-only API routes for non-secret profile edits, enable/disable, credential rotation, TLS trust updates, connection testing, and non-destructive archival. Credential and CA fields are write-only. Demo records cannot be used as live firewall workspaces or modified through the administrator lifecycle API.
 
-The Hub Overview, Sites, and Connectivity pages now load the managed-device inventory from the authenticated `GET /api/v1/devices` API. The frontend no longer initializes the Sites page from the old three hardcoded device cards.
+The API still exposes only the fixed eight-operation pfSense GET allowlist. Adding or editing a site does not authorize firewall configuration writes.
 
-- The API exposes `isDemo`, `enabled`, and an explicit `connectionState`.
-- Demo records are disabled, use reserved `.demo.invalid` endpoints, and remain `unknown`. They cannot be opened as live firewall workspaces and the device overview endpoint only accepts the configured real device ID.
-- The Hub Overview counts online, offline, and unknown records separately. It does not infer reachability from a database row.
-- The inventory refresh action reloads the API inventory. It does not contact a firewall.
-- Add Site remains a local preview action. Secure multi-site onboarding and credential storage are not implemented.
-- Per-site live polling, verified connection state for additional sites, and real telemetry remain unimplemented.
+## Hub Settings save interaction
 
-### Development demo-site seed
+Hub Settings provides Local, Tailscale, and Custom access tabs. Exactly one method is active at a time; each method retains its own endpoint values.
 
-Migration `006_development_demo_sites.sql` adds `managed_devices.is_demo` and a site count to the development seed-run ledger. The seed runner adds seven stable demo records under a separate seed key. This separate key is intentional: if the older development seed has already been run, the next seed invocation can add the seven demo sites without duplicating users, alerts, or audit events.
+When an administrator saves a valid endpoint, the API stores the desired revision and queues the Linux Host Agent deployment. The button itself then shows a circular spinner and phase-specific label, such as Saving, Applying, Validating, Verifying, or Restoring. The tabs and endpoint fields are disabled while deployment is active. The busy state remains until the deployment reaches a terminal state, rather than ending when the API merely accepts the request.
 
-The seed is additive and idempotent. It uses fixed UUIDs and `ON CONFLICT DO NOTHING`; it does not update or delete existing device rows, reset the database, or delete volumes. The demo records are disabled and use reserved `.invalid` endpoints. They are not real firewall devices.
+The UI shows endpoint verified/failed/rollback state, desired and applied revisions, safe error guidance, recent deployment history, and the last verified origin as a recovery link. It redirects only after a successful HTTPS origin is returned by the backend. A successful host-side probe does not guarantee that the administrator's device has DNS and routing to the new endpoint.
 
-After local code is updated, build the API before running the seed because the package script executes the compiled file:
+The user manually confirmed the updated progress animation in the browser after rebuilding the web service.
 
-```powershell
-docker compose up -d --build api
-docker compose exec -e NODE_ENV=development api npm run db:seed:dev
-```
+## Shared UI and interaction components
 
-Run only in the local development environment. The script requires `NODE_ENV=development` and `DATABASE_URL`, runs pending migrations, and refuses to seed without an active administrator. Do not run this against production.
+The reusable components in `apps/web/src/components/` include:
 
-## Reusable UI framework increment
-
-Branch: `feature/development-seed-data`
-
-The shared components in `apps/web/src/components/` provide the common listing experience:
-
-- `DataTable<T>`: typed columns, sorting, client-side search integration, pagination, 10/25/50/100 page sizes, loading and empty states, and optional row actions.
-- `ListToolbar`: consistent wide search, expandable filter section, active-filter count, removable filter chips, and clear-all behavior.
+- `DataTable<T>`: typed columns, sorting, client-side search integration, pagination, loading and empty states, optional row actions, selection, and responsive mobile-card rendering.
+- `ListToolbar`: search, expandable filter controls, active-filter counts, removable filter chips, and clear-all behavior.
 - `SearchField`, `PageHeader`, `EmptyState`, and `Feedback`: reusable presentation primitives.
-- `ui.css`: shared layout, typography, table, search, filter, pagination, loading, and responsive styles.
+- `ToastProvider`: application-wide success, info, warning, and error notifications. Inline validation remains alongside toasts where users need field-level correction.
 
-Adoption includes Sites, Connectivity, Alerts, User Management, Audit Logs, and the firewall data preview lists. Sites now uses a sortable table rather than a separate card-grid listing. Alerts uses the shared table instead of bespoke table markup. Domain-specific filters and row actions remain on their respective pages.
+Sorting and pagination are client-side over the rows returned by the API. Server-side pagination, URL-persisted filters, and large-inventory performance remain future work. Sites, User Management, and Alerts use mobile-card presentation where implemented. Other table views retain their current responsive behavior until explicitly migrated.
 
-### Pagination and filtering boundary
+## Preview and development data
 
-Sorting and pagination are functional in the browser over the rows returned to each page. They are not server-side pagination. The current API list endpoints return arrays, and Audit Logs is capped by its request limit. Server-side pagination, validated sort/filter query contracts, URL-persisted filters, and larger-dataset performance remain future work.
+Development demo-site records are marked with `is_demo=true`, disabled, and use reserved `.invalid` endpoints. They must never be presented as reachable production firewalls. Development seed commands are guarded by `NODE_ENV=development` and must not be run against production.
 
-### Validation still required
+The inventory refresh action reloads manager inventory. It is not a firewall connection test. A device's enabled state is not a reachability result. A successful explicit connection test records a timestamp and result in the backend.
 
-The changes are committed to the feature branch, but have not been built or tested in the user's Windows/Docker environment. Before merging:
+## Validation record
 
-1. Fetch and switch to `feature/development-seed-data`.
-2. Run root API/web type checks, tests, and production build.
-3. Start the existing Docker Compose stack without deleting volumes.
-4. Run the development seed once, then run it again to confirm the second run inserts no duplicate records.
-5. Confirm the seven demo sites appear as Unknown, disabled demo records, while the configured real device and the existing `ahmed` administrator remain unchanged.
-6. Test search, expandable filters, filter chips, sorting, pagination, page-size selection, row actions, and responsive behavior on each listing page.
-7. Compare desktop and mobile screenshots with the approved visual reference.
+The Windows local run on the feature branch reported:
 
-Do not merge to `main` until the local verification and visual acceptance pass and the user approves the merge.
+- `npm test`: 177 passed, 4 skipped (16 test files passed, 1 skipped). The four skipped cases are the Unix-domain-socket client tests intentionally skipped on Windows.
+- `npm run typecheck`: API and web checks passed.
+- `npm run build`: API build and web TypeScript/Vite production build passed.
 
+The clean Debian 13 install built the web image successfully. The user completed the Hub Settings Tailscale browser flow and saw **Endpoint verified** with desired revision 2 and applied revision 2. The subsequent Save-button progress animation was confirmed working in the browser.
 
-## Responsive record cards and bulk alert actions
+This is not a full visual acceptance pass for every screen, navigation item, modal, and viewport. Do not state that every page has been compared one-to-one against the approved mockup. Exact evidence and remaining gaps are in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 
-- The shared `DataTable` accepts an optional `mobileCard` renderer. At mobile breakpoints, opted-in lists render stacked record cards with the same page-level pagination and search results as the desktop table.
-- Sites, User Management, and Alerts use the card renderer on narrow screens. Other tables retain their existing responsive behavior until they are explicitly migrated.
-- Desktop keeps the sortable table layout. Mobile cards expose the key fields and page actions without requiring horizontal table scrolling.
-- Alerts supports selecting unresolved records, selecting all matching unresolved records, clearing selection, and confirming bulk acknowledge or resolve actions. Each selected alert is updated through the existing per-alert API endpoint, so each lifecycle change continues to be audited. Partial failures are reported rather than silently treated as success.
-- Selection is cleared when the alert search or filters change, preventing actions from unintentionally applying to records outside the current view.
-- The existing API endpoints are used, no bulk endpoint or database migration is introduced.
-- Local verification and browser testing at desktop, tablet, and phone widths remain required before merge.
+## Platform boundary
 
+Windows 11 with VS Code and Docker Desktop is the local development platform. It runs the frontend and API but does not run the production Linux systemd Host Agent. Automatic host access deployment is Linux-only. A Windows host deployment adapter is not implemented.
 
-## Mobile review refinements
+## Historical implementation notes
 
-- User cards use a fixed-size status switch in a dedicated access-control column. The switch must not inherit flexible action-button sizing on narrow screens.
-- Audit Logs now use mobile event cards with event name, UTC timestamp, outcome, actor, target, and summary. The desktop audit table remains unchanged.
-- Alert selection is presented in a dedicated leading selection column on desktop and at the leading edge of each mobile card.
-- The alert list has a persistent Select all control and a grouped bulk-action area. Acknowledge and Resolve are disabled when no eligible selected records exist. Individual desktop row actions remain grouped together at the trailing edge.
-
-
-## Global toast notification system
-
-- A single `ToastProvider` is mounted around the complete React application in `main.tsx`. Any page or shared component can call `useToast()`.
-- Toast types: success (3 seconds), info (4 seconds), warning (5 seconds), and error (7 seconds).
-- Notifications stack in a fixed global region, support manual dismissal, pause their timeout while hovered, and are announced with accessible status/alert roles.
-- The provider caps the visible stack at five notifications and is responsive on mobile.
-- User creation, user role/status changes, alert lifecycle actions (including bulk actions), audit loading errors, Hub settings saves, and inventory refresh/load feedback are wired to the global system.
-- Contextual inline validation and form errors remain in place where they help users correct a specific field or form. Toasts supplement these messages rather than replacing useful field-level guidance.
-- Use `const { notify } = useToast()` in any descendant component. Call `notify(message, "success" | "info" | "warning" | "error")`.
-
-
-## Shared UI components and latest local runtime diagnosis, November 21, 2026
-
-The shared UI implementation is present in `apps/web/src/components/ui.tsx` and `ui.css`, with the global notification provider in `ToastProvider.tsx`. The components include `DataTable`, `SearchField`, and `ListToolbar`. The table supports sorting, search, pagination, empty/loading states, optional row actions, selection, and a mobile-card renderer. The toolbar supports search, expandable filter controls, active-filter counts, and removable filter chips.
-
-The current app imports the shared UI stylesheet from the frontend entry point. Site inventory, user management, audit logs, and alerts use responsive mobile-card layouts where specified. On narrow viewports, the card renderer replaces the desktop table to avoid horizontal scrolling. Search and filters remain functional against the relevant page data.
-
-**Runtime incident:** The source branch and shared component files were present and committed. The discrepancy was caused by a running Docker web container serving an older image. Rebuilding the web service incorporated the current source and corrected the UI. This was a stale-container-image issue, not a missing component implementation or a Git synchronization problem.
-
-Before merge, repeat typecheck, tests, production build, Compose validation, and a clean Docker rebuild on the final PR head. Verify desktop and mobile behavior in a browser; a successful image build alone does not replace browser validation.
-
-
-## Current main baseline and next frontend work, November 21, 2026
-
-The current baseline is `main`, after PR #5 was merged. Earlier references in this document to fetching, testing, or merging `feature/development-seed-data` are historical instructions for that completed increment and are no longer the active workflow.
-
-### Confirmed frontend data boundaries
-
-- Hub Overview, Sites, and Connectivity load the managed-device inventory from `GET /api/v1/devices`.
-- The inventory API does not make every returned record a live firewall. Seeded demo records are explicitly marked and must remain non-connectable.
-- The current live firewall provider is still configured through environment variables. The API does not yet provide a complete create/edit/credential lifecycle for arbitrary devices.
-- User Management, Audit Logs, and Alerts use manager API endpoints.
-- Remaining firewall-domain pages such as Monitoring, Interfaces, Firewall Rules, Aliases, NAT, Routing, Gateways, DHCP, DNS, Services, Certificates, and VPN contain preview fixtures where documented. These are not authoritative firewall state and do not issue firewall changes.
-- Site Settings does not yet persist per-device credentials or connection profiles. Its current edit affordance is a deferred placeholder.
-- Inventory refresh reloads manager inventory. It is not a firewall connectivity probe.
-- Alerts are persisted and have lifecycle actions, but the current producer is coupled to a requested device overview. This is not continuous background monitoring.
-
-### Next frontend increment: secure site onboarding
-
-Frontend implementation follows the backend contract in [Multi-site Onboarding Implementation Plan](MULTI-SITE-ONBOARDING-PLAN.md). Do not invent routes or frontend-only persistence.
-
-- [x] Add a real Add Site workflow backed by the approved device registration API.
-- [x] Collect device name, optional location, edition, HTTPS API origin, and credential input with clear validation.
-- [x] Send credentials only to the authenticated backend over the manager API. Never persist credentials in browser storage, frontend state beyond the submission lifecycle, URL parameters, or logs.
-- [x] Add a deliberate credential rotation flow. The backend verifies a replacement with a read-only API request and never returns stored or decrypted credentials to the browser.
-- [x] Add the existing read-only connection-test action to onboarding. Additional classification and browser verification remain subject to the test pass.
-- [x] Distinguish configured, enabled, reachable, unreachable, and unknown states. A saved profile is not proof of connectivity.
-- [x] Make demo records visibly distinct and non-actionable as real firewall targets.
-- [x] Replace the site profile, credential rotation, and TLS trust controls with backend-backed manager API actions. Browser/runtime verification remains outstanding.
-- [x] Keep all firewall configuration write actions disabled.
-
-### UI acceptance criteria
-
-1. An administrator can add a device without editing environment variables or running a shell command.
-2. A regular user cannot add, edit, enable, disable, or rotate device credentials.
-3. A successful save reports that the profile was saved, not that the firewall is reachable.
-4. A connection test reports the actual result and timestamp, and does not mutate firewall configuration.
-5. A failure for one device does not change the displayed state of another device.
-6. Secret values are never displayed again after submission.
-7. Desktop and mobile layouts are checked against the approved visual reference and existing design system.
-8. Loading, empty, validation, permission-denied, network-error, and partial-failure states are handled explicitly.
-
-### Manager-side site lifecycle increment, November 21, 2026
-
-The feature branch now extends the existing Sites workspace and Site Settings rather than introducing a new design. The implemented controls are backed by administrator-only manager API routes:
-
-- [x] Edit a site's name, location, edition, and HTTPS API origin.
-- [x] Enable or disable manager-side site polling.
-- [x] Rotate an API credential only after a successful read-only authenticated version check. The credential is never returned to the browser.
-- [x] Set or clear encrypted custom TLS CA trust.
-- [x] Archive a site through a typed `ARCHIVE` confirmation. The API enforces the same literal confirmation, purges encrypted connection secrets, resolves active device alerts, and retains polling history, alert records, and audit history.
-- [x] Keep demo records non-actionable for edit and archive operations.
-- [x] Keep firewall configuration operations outside this lifecycle. No pfSense configuration write method was added.
-
-The API and UI changes are committed to `feature/multi-site-onboarding`. Local typecheck, test, production build, Docker Compose build, and browser validation remain outstanding and must be completed before treating this increment as verified.
-
-The frontend milestone is not complete merely because the Add Site dialog renders. It is complete only when the GUI uses the real backend lifecycle and the acceptance criteria above pass.
-
-
-## Hub access settings integration, November 21, 2026
-
-Hub Settings now uses a normalized endpoint collection instead of the legacy single-method preference:
-
-- Local, Tailscale, and Hostname/IP can be enabled together.
-- Each method stores its own address type, address, HTTPS port, and enabled state.
-- The API validates endpoint types and values, enforces one record per method, saves the full collection in a database transaction, and audits administrator changes.
-- Migration `012_hub_access_endpoints.sql` copies the legacy `hub_settings` value into the new table. Earlier migrations remain immutable.
-- Desired and administrator-confirmed deployment revisions are tracked separately. The confirmation action records an administrator attestation only.
-- The UI explicitly states that saving does not edit Docker Compose, change host port bindings, configure Tailscale/DNS/reverse proxy, or verify reachability.
-
-Local automated checks and browser acceptance for this increment remain pending.
+Earlier sections of this document described the frontend-first preview phase and the pre-onboarding `main` baseline. Those were accurate when written but are superseded by the current implementation status above. Retain those historical decisions only where they explain why some screens remain preview-only.
