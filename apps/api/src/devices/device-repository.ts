@@ -219,7 +219,7 @@ export class DeviceRepository {
     });
   }
 
-  async create(input: CreateDeviceInput, connectionCheckDurationMs = 0): Promise<ManagedDeviceProfile> {
+  async create(input: CreateDeviceInput, connectionCheckDurationMs: number): Promise<ManagedDeviceProfile> {
     const parsed = createDeviceSchema.parse(input);
     if (!Number.isSafeInteger(connectionCheckDurationMs) || connectionCheckDurationMs < 0 || connectionCheckDurationMs > 120_000) {
       throw new Error("Connection check duration is invalid.");
