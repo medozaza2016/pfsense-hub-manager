@@ -359,7 +359,7 @@ function UserManagement({currentUsername}:{currentUsername:string}){
    <label>Account status<select className="ui-select" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label>
   </ListToolbar>
   {error&&<div className="settings-message error" role="alert">{error}</div>}
-  {!methodDeploymentSupported&&<p className="hub-settings-note">Automated deployment is currently available only for a Tailscale MagicDNS hostname. LAN and Custom TLS deployment are not yet implemented.</p>}
+  {!deploymentEnabled?<p className="hub-settings-note">Automatic access verification is disabled until the Linux host integration tests pass. Do not enable this feature on the production host yet.</p>:!methodDeploymentSupported&&<p className="hub-settings-note">Automated verification is currently available only for a Tailscale MagicDNS hostname with an existing private Serve route. LAN and Custom TLS deployment are not implemented.</p>}
     {message&&<div className="settings-message" role="status">{message}</div>}
   <Panel title="Application users" action={<span className="subtle">{users.length} users</span>}>
    <DataTable rows={users.filter(u=>(roleFilter==="all"||u.role===roleFilter)&&(statusFilter==="all"||(statusFilter==="active"?u.isActive:!u.isActive)))} columns={columns} getRowId={u=>u.id} searchableText={u=>u.username+" "+u.role+" "+(u.isActive?"active":"disabled")} search={search} loading={busy} error="" emptyTitle="No users found" emptyDescription="Create a user or adjust the search." pageSize={25} actions={u=>isCurrentUser(u)?<span className="user-protected-label" title="Your own administrator account cannot be changed here">Protected</span>:<button type="button" role="switch" aria-checked={u.isActive} aria-label={(u.isActive?"Disable ":"Enable ")+u.username} className={"switch user-status-toggle "+(u.isActive?"on":"")} onClick={()=>setPendingStatusChange(u)}><i/></button>} mobileCard={u=><><div className="ui-mobile-record-head"><div className="ui-mobile-record-title"><strong>{u.username}</strong>{isCurrentUser(u)&&<span className="user-self-badge">You · Admin</span>}<small>Created {new Date(u.createdAt).toLocaleDateString()}</small></div><Status state={u.isActive?"online":"offline"} label={u.isActive?"Active":"Disabled"}/></div><div className="ui-mobile-record-meta"><div><span>Role</span><strong>{u.role==="admin"?"Administrator":"User"}</strong></div><div><span>Access</span><strong>{u.isActive?"Enabled":"Disabled"}</strong></div></div><div className="ui-mobile-record-actions user-mobile-actions"><label className="ui-mobile-role-field"><span>Change role</span><select className="ui-select ui-role-select" aria-label={"Role for "+u.username} value={u.role} disabled={isCurrentUser(u)} title={isCurrentUser(u)?"Your own administrator role is protected":undefined} onChange={e=>void changeUser(u,{role:e.target.value as "admin"|"user"})}><option value="admin">Admin</option><option value="user">User</option></select></label><div className="ui-user-toggle-wrap">{isCurrentUser(u)?<span className="user-protected-label">Protected</span>:<button type="button" role="switch" aria-checked={u.isActive} aria-label={(u.isActive?"Disable ":"Enable ")+u.username} title={u.isActive?"Disable account":"Enable account"} className={"user-status-toggle "+(u.isActive?"on":"")} onClick={()=>setPendingStatusChange(u)}><i/></button>}</div></div></>}/>
@@ -524,6 +524,7 @@ function HubSettingsPage(){
  const [activeMethod,setActiveMethod]=useState<HubAccessMethod>("local");
  const [deployment,setDeployment]=useState<{status:string;desiredRevision:number;appliedRevision:number;deploymentId?:string;appliedOrigin?:string;previousAppliedOrigin?:string;errorCode?:string}>({status:"pending",desiredRevision:1,appliedRevision:0});
  const [history,setHistory]=useState<HubDeploymentHistoryItem[]>([]);
+ const [deploymentEnabled,setDeploymentEnabled]=useState(false);
  const [busy,setBusy]=useState(true);
  const [loadFailed,setLoadFailed]=useState(false);
  const [saving,setSaving]=useState(false);
@@ -535,6 +536,7 @@ function HubSettingsPage(){
    return response.json();
   }).then(result=>{
    if(!active)return;
+   setDeploymentEnabled(result.data?.deploymentEnabled===true);
    const saved:HubAccessEndpoint[] = result.data?.endpoints ?? [];
    const merged=defaultHubEndpoints.map(fallback=>saved.find(item=>item.method===fallback.method)??fallback);
    const selected=merged.find(endpoint=>endpoint.enabled)?.method??"local";
@@ -626,7 +628,7 @@ function HubSettingsPage(){
  };
  const endpoint=endpoints.find(item=>item.method===activeMethod)??defaultHubEndpoints[0];
  const addressLabel=endpoint.addressType==="magic_dns"?"Tailscale MagicDNS hostname":endpoint.addressType==="tailscale_ip"?"Tailscale IPv4 address":endpoint.addressType==="ip"?"IP address":activeMethod==="local"?"LAN hostname":"Hostname";
- const methodDeploymentSupported=activeMethod==="tailscale"&&endpoint.addressType==="magic_dns"&&Boolean(endpoint.address?.trim())&&endpoint.httpsPort>=1&&endpoint.httpsPort<=65535;
+ const methodDeploymentSupported=deploymentEnabled&&activeMethod==="tailscale"&&endpoint.addressType==="magic_dns"&&Boolean(endpoint.address?.trim())&&endpoint.httpsPort>=1&&endpoint.httpsPort<=65535;
  return <><div className="page-heading"><div><h1>Hub Settings</h1><p>Choose one access method for administrators to reach this Hub installation.</p></div></div>
   <form onSubmit={save} className="hub-settings-layout">
    <Panel title="Hub access">
