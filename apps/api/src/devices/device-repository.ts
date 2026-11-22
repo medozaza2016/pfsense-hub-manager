@@ -53,7 +53,7 @@ export const createDeviceSchema = z.object({
   location: z.string().trim().max(120).nullable().optional().transform(value => value || null),
   edition: z.enum(["plus", "ce"]),
   apiBaseUrl: apiOriginSchema,
-  apiKey: z.string().min(1).max(4096),
+  apiKey: z.string().min(1).max(4096).refine(value => !/[\\r\\n]/.test(value), "API credentials cannot contain line breaks."),
   tlsServername: tlsServernameSchema,
   certificateAuthority: z.string().max(60 * 1024).optional()
 }).strict();
