@@ -42,31 +42,7 @@ IP_BIN="$(command -v ip)" || { echo "iproute2 is required." >&2; exit 1; }
 "$DOCKER_BIN" compose version >/dev/null
 TAILSCALE_BIN="$(command -v tailscale || true)"
 
-# Parse only literal KEY=value lines. Never source or execute the .env file.
-TOKEN="$(python3 - "$ENV_FILE" <<'PY'
-import sys
-values = {}
-for line in open(sys.argv[1], encoding="utf-8"):
-    line = line.strip()
-    if not line or line.startswith("#") or "=" not in line:
-        continue
-    key, value = line.split("=", 1)
-    values[key.strip()] = value.strip().strip('"').strip("'")
-print(values.get("HUB_DEPLOYMENT_AGENT_TOKEN", ""))
-PY
-)"
-API_PORT="$(python3 - "$ENV_FILE" <<'PY'
-import sys
-values = {}
-for line in open(sys.argv[1], encoding="utf-8"):
-    line = line.strip()
-    if not line or line.startswith("#") or "=" not in line:
-        continue
-    key, value = line.split("=", 1)
-    values[key.strip()] = value.strip().strip('"').strip("'")
-print(values.get("HUB_AGENT_API_PORT", "3001"))
-PY
-)"
+# Parse and validate secrets inside Python, never place the bearer token in process arguments.
 ENV_OWNER="$(stat -c '%u:%g' "$ENV_FILE")"
 ENV_MODE="$(stat -c '%a' "$ENV_FILE")"
 if [[ "$ENV_OWNER" != "0:0" ]] || (( (8#$ENV_MODE & 0022) != 0 )); then
@@ -105,9 +81,26 @@ else
   fi
 fi
 install -m 0755 "$AGENT_SOURCE" /usr/local/libexec/pfsense-hub-deployment-agent.py
-python3 - "$CONFIG_FILE" "$TOKEN" "$API_PORT" "$PROJECT_DIR" "$TAILSCALE_BIN" "$DOCKER_BIN" "$IP_BIN" <<'PY'
-import json, os, sys
-path, token, port, project, tailscale_binary, docker_binary, ip_binary = sys.argv[1:]
+/usr/bin/python3 - "$CONFIG_FILE" "$ENV_FILE" "$PROJECT_DIR" "$TAILSCALE_BIN" "$DOCKER_BIN" "$IP_BIN" <<'PY'
+import json, os, re, sys
+path, env_file, project, tailscale_binary, docker_binary, ip_binary = sys.argv[1:]
+values = {}
+with open(env_file, encoding="utf-8") as source:
+    for line in source:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key in values:
+            raise SystemExit(f"Duplicate environment setting: {key}")
+        values[key] = value.strip().strip('"').strip("'")
+token = values.get("HUB_DEPLOYMENT_AGENT_TOKEN", "")
+if not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", token):
+    raise SystemExit("Set HUB_DEPLOYMENT_AGENT_TOKEN to a 32 to 256 character URL-safe random token in .env.")
+port = values.get("HUB_AGENT_API_PORT", "3001")
+if not re.fullmatch(r"[0-9]{1,5}", port) or not 1 <= int(port) <= 65535:
+    raise SystemExit("HUB_AGENT_API_PORT must be a valid TCP port.")
 config = {
     "api_base_url": f"http://127.0.0.1:{port}",
     "api_token": token,
@@ -123,11 +116,10 @@ config = {
 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
 with os.fdopen(fd, "w", encoding="utf-8") as stream:
     json.dump(config, stream)
-    stream.write("\n")
+    stream.write("\\n")
 os.chown(path, 0, 0)
 os.chmod(path, 0o600)
-PY
-install -m 0644 "$SERVICE_SOURCE" /etc/systemd/system/pfsense-hub-deployment-agent.service
+PYinstall -m 0644 "$SERVICE_SOURCE" /etc/systemd/system/pfsense-hub-deployment-agent.service
 chown root:pfsense-hub-agent "$PROJECT_DIR/run/host-agent"
 chmod 2750 "$PROJECT_DIR/run/host-agent"
 systemctl daemon-reload
