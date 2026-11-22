@@ -4,9 +4,9 @@
 The agent accepts only deployment UUID/revision requests over a Unix socket.
 It never accepts shell commands, filesystem paths, Compose arguments, or env
 values from the API. It changes only HUB_BIND_ADDRESS in the fixed project .env
-and recreates only the fixed web service, or verifies an operator-managed
-Tailscale MagicDNS Serve endpoint. DNS, TLS termination, reverse proxies, and
-Tailscale configuration remain operator-managed.
+and recreates only the fixed web service, or configures and verifies one fixed
+Tailscale MagicDNS Serve route. DNS, TLS termination, reverse proxies, and
+tailnet policy remain operator-managed. The agent never configures Funnel.
 """
 from __future__ import annotations
 
@@ -327,9 +327,9 @@ def serve_status(binary: str) -> str:
     return run_fixed([binary, "serve", "status", "--json"], timeout=10)
 
 
-def has_serve_handler(raw: str, host: str, port: int, target: str) -> bool:
+def serve_endpoint_state(raw: str, host: str, port: int) -> tuple[bool, str | None]:
     if not raw.strip():
-        return False
+        return False, None
     try:
         value = json.loads(raw)
     except Exception as exc:
@@ -339,10 +339,61 @@ def has_serve_handler(raw: str, host: str, port: int, target: str) -> bool:
     web = value.get("Web") or {}
     if not isinstance(web, dict):
         raise AgentError("TAILSCALE_SERVE_STATUS_INVALID")
-    endpoint = web.get(f"{host}:{port}") or {}
+    key = f"{host}:{port}"
+    if key not in web:
+        return False, None
+    endpoint = web[key]
+    if not isinstance(endpoint, dict):
+        raise AgentError("TAILSCALE_SERVE_STATUS_INVALID")
     handlers = endpoint.get("Handlers") or {}
-    root_handler = handlers.get("/") or {}
-    return root_handler.get("Proxy") == target
+    if not isinstance(handlers, dict):
+        raise AgentError("TAILSCALE_SERVE_STATUS_INVALID")
+    if "/" not in handlers:
+        return True, None
+    root_handler = handlers["/"]
+    if not isinstance(root_handler, dict):
+        raise AgentError("TAILSCALE_SERVE_STATUS_INVALID")
+    proxy = root_handler.get("Proxy")
+    return True, proxy if isinstance(proxy, str) else None
+
+
+def has_serve_handler(raw: str, host: str, port: int, target: str) -> bool:
+    present, proxy = serve_endpoint_state(raw, host, port)
+    return present and proxy == target
+
+
+def remove_owned_tailscale_serve_endpoint(binary: str, host: str, port: int, target: str) -> None:
+    raw = serve_status(binary)
+    present, proxy = serve_endpoint_state(raw, host, port)
+    if present and proxy == target:
+        # Remove only the root handler installed by this agent, not other paths.
+        run_fixed([binary, "serve", f"--https={port}", "--set-path=/", "off"], timeout=20)
+
+
+def ensure_tailscale_serve_endpoint(binary: str, host: str, port: int, target: str) -> bool:
+    raw = serve_status(binary)
+    present, proxy = serve_endpoint_state(raw, host, port)
+    if present:
+        if proxy == target:
+            return False
+        # Never replace another administrator's handler or other Serve app.
+        raise AgentError("TAILSCALE_SERVE_CONFLICT")
+
+    try:
+        # This is the single fixed route the Hub is permitted to manage.
+        run_fixed([binary, "serve", "--bg", "--yes", f"--https={port}", target], timeout=20)
+        configured = serve_status(binary)
+        if not has_serve_handler(configured, host, port, target):
+            raise AgentError("TAILSCALE_SERVE_NOT_CONFIGURED")
+        return True
+    except AgentError:
+        # A CLI failure can occur after the daemon accepted the configuration.
+        # Remove only our exact root proxy if it was partially applied.
+        try:
+            remove_owned_tailscale_serve_endpoint(binary, host, port, target)
+        except AgentError as cleanup_error:
+            raise AgentError("TAILSCALE_SERVE_ROLLBACK_FAILED") from cleanup_error
+        raise
 
 
 def verify_https(origin: str) -> None:
@@ -372,7 +423,7 @@ def has_funnel_handler(raw: str, host: str, port: int) -> bool:
     return allow_funnel.get(str(port)) is True or allow_funnel.get(f"{host}:{port}") is True
 
 
-def verify_tailscale_endpoint(endpoint: dict[str, Any], config: dict[str, Any]) -> str:
+def verify_tailscale_endpoint(endpoint: dict[str, Any], config: dict[str, Any]) -> tuple[str, bool]:
     _env_content, current_bind = read_bind_address(config)
     if current_bind != "127.0.0.1":
         raise AgentError("TAILSCALE_LOOPBACK_BINDING_REQUIRED")
@@ -390,13 +441,11 @@ def verify_tailscale_endpoint(endpoint: dict[str, Any], config: dict[str, Any]) 
         raise AgentError("TAILSCALE_ADDRESS_MISMATCH")
     if host not in cert_domains:
         raise AgentError("TAILSCALE_HTTPS_NOT_ENABLED")
-    serve = serve_status(binary)
-    if not has_serve_handler(serve, host, port, config["web_local_url"]):
-        raise AgentError("TAILSCALE_SERVE_NOT_CONFIGURED")
     funnel = run_fixed([binary, "funnel", "status", "--json"], timeout=10)
     if has_funnel_handler(funnel, host, port):
         raise AgentError("TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
-    return format_origin(host, port)
+    created = ensure_tailscale_serve_endpoint(binary, host, port, config["web_local_url"])
+    return format_origin(host, port), created
 
 
 def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
@@ -421,24 +470,37 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         _old_content, old_bind_address = read_bind_address(config)
         validate_previous_bind_address(old_bind_address)
         changed = old_bind_address != "127.0.0.1"
+        created_serve = False
         try:
             if changed:
                 write_bind_address(config, "127.0.0.1")
                 compose_web_recreate(config)
-            origin = verify_tailscale_endpoint(endpoint, config)
+            origin, created_serve = verify_tailscale_endpoint(endpoint, config)
             verify_https_with_retries(origin)
             current = get_deployment(config, deployment_id, revision)
             if current.get("address") != endpoint.get("address") or current.get("port") != endpoint.get("port"):
                 raise AgentError("STALE_DEPLOYMENT")
             return {"state": "succeeded", "appliedOrigin": origin}
         except AgentError as failure:
+            cleanup_failed = False
+            if created_serve:
+                try:
+                    binary = config.get("tailscale_binary") or ""
+                    remove_owned_tailscale_serve_endpoint(
+                        binary, str(endpoint.get("address") or "").rstrip(".").lower(),
+                        int(endpoint.get("port") or 0), config["web_local_url"]
+                    )
+                except AgentError:
+                    cleanup_failed = True
             if not changed:
+                if cleanup_failed:
+                    raise AgentError("TAILSCALE_SERVE_ROLLBACK_FAILED") from failure
                 raise
             try:
                 write_bind_address(config, old_bind_address)
                 compose_web_recreate(config)
                 previous_origin = endpoint.get("previousAppliedOrigin")
-                if isinstance(previous_origin, str) and previous_origin.startswith("https://"):
+                if isinstance(previous_origin, str) and previous_origin.startswith("https://") and not cleanup_failed:
                     verify_https_with_retries(previous_origin)
                     return {
                         "state": "rolled_back",
@@ -447,13 +509,13 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
                     }
                 return {
                     "state": "failed",
-                    "errorCode": failure.code,
+                    "errorCode": "TAILSCALE_SERVE_ROLLBACK_FAILED" if cleanup_failed else failure.code,
                     "rollbackSucceeded": False
                 }
             except AgentError:
                 return {
                     "state": "failed",
-                    "errorCode": failure.code,
+                    "errorCode": "TAILSCALE_SERVE_ROLLBACK_FAILED" if cleanup_failed else failure.code,
                     "rollbackSucceeded": False
                 }
 

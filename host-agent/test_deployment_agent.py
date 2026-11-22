@@ -82,15 +82,51 @@ class DeploymentAgentTests(unittest.TestCase):
                 agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_HTTPS_NOT_ENABLED")
 
-    @patch.object(agent, "serve_status", return_value="")
+    @patch.object(agent, "verify_https_with_retries")
+    @patch.object(agent, "run_fixed", side_effect=['{"AllowFunnel":{}}', ""])
+    @patch.object(agent, "serve_status", side_effect=["{}", self.serve_status])
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
-    def test_requires_an_operator_configured_serve_route(self, get_deployment, identity, serve_status):
+    def test_configures_missing_private_serve_route_from_hub_settings(self, get_deployment, identity, serve_status, run_fixed, verify_https):
+        get_deployment.return_value = self.endpoint
+        with self.loopback_bind():
+            result = agent.deploy(self.config, self.request)
+        self.assertEqual(result, {"state": "succeeded", "appliedOrigin": "https://hub.example.ts.net"})
+        run_fixed.assert_any_call(
+            ["/usr/bin/tailscale", "serve", "--bg", "--yes", "--https=443", "http://127.0.0.1:8080"],
+            timeout=20
+        )
+        verify_https.assert_called_once_with("https://hub.example.ts.net")
+
+    @patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{}}')
+    @patch.object(agent, "serve_status", return_value='{"Web":{"hub.example.ts.net:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:9999"}}}}}')
+    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
+    @patch.object(agent, "get_deployment")
+    def test_refuses_to_replace_an_existing_serve_handler(self, get_deployment, identity, serve_status, run_fixed):
         get_deployment.return_value = self.endpoint
         with self.loopback_bind():
             with self.assertRaises(agent.AgentError) as caught:
                 agent.deploy(self.config, self.request)
-        self.assertEqual(caught.exception.code, "TAILSCALE_SERVE_NOT_CONFIGURED")
+        self.assertEqual(caught.exception.code, "TAILSCALE_SERVE_CONFLICT")
+        run_fixed.assert_called_once_with(
+            ["/usr/bin/tailscale", "funnel", "status", "--json"], timeout=10
+        )
+
+    @patch.object(agent, "verify_https_with_retries", side_effect=agent.AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED"))
+    @patch.object(agent, "run_fixed", side_effect=['{"AllowFunnel":{}}', "", ""])
+    @patch.object(agent, "serve_status", side_effect=["{}", self.serve_status, self.serve_status])
+    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
+    @patch.object(agent, "get_deployment")
+    def test_removes_only_agent_created_route_after_https_probe_failure(self, get_deployment, identity, serve_status, run_fixed, verify_https):
+        get_deployment.return_value = self.endpoint
+        with self.loopback_bind():
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.deploy(self.config, self.request)
+        self.assertEqual(caught.exception.code, "TLS_OR_ENDPOINT_VERIFICATION_FAILED")
+        run_fixed.assert_any_call(
+            ["/usr/bin/tailscale", "serve", "--https=443", "--set-path=/", "off"],
+            timeout=20
+        )
 
     @patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{"443":true}}')
     @patch.object(agent, "serve_status", return_value='{"Web":{"hub.example.ts.net:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8080"}}}}}')
