@@ -11,7 +11,8 @@ const schema = z.object({
  PFSENSE_API_TIMEOUT_MS:z.coerce.number().int().min(1000).max(60000).default(10000),
  HUB_DEPLOYMENT_AGENT_SOCKET:z.union([z.string().trim().min(1),z.literal("")]).optional(),
  HUB_DEPLOYMENT_AGENT_TOKEN:z.union([z.string().min(32).max(256),z.literal("")]).optional(),
- HUB_DEPLOYMENT_AGENT_API_PORT:z.coerce.number().int().min(1).max(65535).default(3001)
+ HUB_DEPLOYMENT_AGENT_API_PORT:z.coerce.number().int().min(1).max(65535).default(3001),
+ HUB_ACCESS_DEPLOYMENT_ENABLED:z.enum(["true","false"]).default("false").transform(value=>value==="true")
 });
 export type AppConfig=z.infer<typeof schema>;
 export function loadConfig(env:NodeJS.ProcessEnv=process.env):AppConfig {
