@@ -3,9 +3,10 @@
 
 The agent accepts only deployment UUID/revision requests over a Unix socket.
 It never accepts shell commands, filesystem paths, Compose arguments, or env
-values from the API. The first implementation deliberately supports only
-Tailscale MagicDNS with Tailscale Serve TLS. LAN/custom TLS are rejected until
-an explicit certificate lifecycle is provisioned.
+values from the API. It changes only HUB_BIND_ADDRESS in the fixed project .env
+and recreates only the fixed web service, or verifies an operator-managed
+Tailscale MagicDNS Serve endpoint. DNS, TLS termination, reverse proxies, and
+Tailscale configuration remain operator-managed.
 """
 from __future__ import annotations
 
@@ -166,7 +167,7 @@ def assigned_interface_addresses(config: dict[str, Any]) -> set[ipaddress.IPv4Ad
                 if not local:
                     continue
                 address = ipaddress.ip_address(local)
-                if not address.is_unspecified and not address.is_multicast:
+                if not address.is_unspecified and not address.is_multicast and not address.is_link_local:
                     addresses.add(address)
         return addresses
     except Exception as exc:
