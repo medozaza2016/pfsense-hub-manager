@@ -58,8 +58,8 @@ for required_setting in \
     exit 1
   }
 done
-if [[ "${#TOKEN}" -lt 32 ]]; then
-  echo "Set HUB_DEPLOYMENT_AGENT_TOKEN to a random value of at least 32 characters in .env first." >&2
+if [[ ! "$TOKEN" =~ ^[A-Za-z0-9_-]{32,256}$ ]]; then
+  echo "Set HUB_DEPLOYMENT_AGENT_TOKEN to a 32 to 256 character URL-safe random token in .env first (for example, generated with openssl rand -hex 32)." >&2
   exit 1
 fi
 if [[ ! "$API_PORT" =~ ^[0-9]{1,5}$ ]] || (( API_PORT < 1 || API_PORT > 65535 )); then
