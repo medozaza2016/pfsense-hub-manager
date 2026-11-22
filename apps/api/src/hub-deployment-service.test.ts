@@ -58,6 +58,7 @@ describe("Hub deployment dispatcher", () => {
     const dbQuery = vi.fn()
       .mockResolvedValueOnce({ rows: [], rowCount: null }) // BEGIN
       .mockResolvedValueOnce({ rows: [{ desired_revision: 4 }], rowCount: 1 }) // locked state
+      .mockResolvedValueOnce({ rows: [{ method: "tailscale", address_type: "magic_dns", address: "hub.example.ts.net", https_port: 443 }], rowCount: 1 }) // selected endpoint
       .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // deployment success
       .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // applied revision
       .mockResolvedValueOnce({ rows: [], rowCount: null }); // COMMIT
