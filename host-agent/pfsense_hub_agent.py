@@ -412,12 +412,44 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     if method == "tailscale":
         if endpoint.get("addressType") != "magic_dns":
             raise AgentError("TLS_METHOD_NOT_SUPPORTED_YET")
-        origin = verify_tailscale_endpoint(endpoint, config)
-        verify_https_with_retries(origin)
-        current = get_deployment(config, deployment_id, revision)
-        if current.get("address") != endpoint.get("address") or current.get("port") != endpoint.get("port"):
-            raise AgentError("STALE_DEPLOYMENT")
-        return {"state": "succeeded", "appliedOrigin": origin}
+        _old_content, old_bind_address = read_bind_address(config)
+        validate_previous_bind_address(old_bind_address)
+        changed = old_bind_address != "127.0.0.1"
+        try:
+            if changed:
+                write_bind_address(config, "127.0.0.1")
+                compose_web_recreate(config)
+            origin = verify_tailscale_endpoint(endpoint, config)
+            verify_https_with_retries(origin)
+            current = get_deployment(config, deployment_id, revision)
+            if current.get("address") != endpoint.get("address") or current.get("port") != endpoint.get("port"):
+                raise AgentError("STALE_DEPLOYMENT")
+            return {"state": "succeeded", "appliedOrigin": origin}
+        except AgentError as failure:
+            if not changed:
+                raise
+            try:
+                write_bind_address(config, old_bind_address)
+                compose_web_recreate(config)
+                previous_origin = endpoint.get("previousAppliedOrigin")
+                if isinstance(previous_origin, str) and previous_origin.startswith("https://"):
+                    verify_https_with_retries(previous_origin)
+                    return {
+                        "state": "rolled_back",
+                        "errorCode": failure.code,
+                        "rollbackSucceeded": True
+                    }
+                return {
+                    "state": "failed",
+                    "errorCode": failure.code,
+                    "rollbackSucceeded": False
+                }
+            except AgentError:
+                return {
+                    "state": "failed",
+                    "errorCode": failure.code,
+                    "rollbackSucceeded": False
+                }
 
     if method not in ("local", "hostname"):
         raise AgentError("DEPLOYMENT_METHOD_UNSUPPORTED")
