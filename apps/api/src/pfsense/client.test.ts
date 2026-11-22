@@ -4,7 +4,7 @@ import {checkServerIdentity} from "node:tls";
 import type {AddressInfo} from "node:net";
 import {Agent,fetch} from "undici";
 import {describe,expect,it,vi} from "vitest";
-import {createPinnedLookup,pfSenseOperations,selectTlsCa,validatePfSenseOperationData} from "./client.js";
+import {createPinnedLookup,pfSenseOperations,selectTlsCa,validatePfSenseOperationData,type PfSenseOperation} from "./client.js";
 import {PfSenseApiError} from "./errors.js";
 
 const testCertificate=readFileSync(new URL("./fixtures/firewall-test-cert.pem",import.meta.url));
@@ -131,7 +131,7 @@ describe("Undici pinned HTTPS integration",()=>{
 });
 
 describe("pfSense operation data validation",()=>{
- const valid:Record<string,unknown>={
+ const valid:Record<PfSenseOperation,unknown>={
   system:{status:"ok"},
   gateways:[],
   interfaces:[],
@@ -143,7 +143,7 @@ describe("pfSense operation data validation",()=>{
  };
 
  it.each(Object.entries(valid))("accepts the expected minimum %s data shape", (operation,data)=>{
-  expect(()=>validatePfSenseOperationData(operation as keyof typeof valid,data)).not.toThrow();
+  expect(()=>validatePfSenseOperationData(operation as PfSenseOperation,data)).not.toThrow();
  });
 
  it.each([
