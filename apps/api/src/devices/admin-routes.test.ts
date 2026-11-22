@@ -16,6 +16,7 @@ const profile: ManagedDeviceProfile = {
   location: "Branch",
   edition: "ce",
   apiBaseUrl: "https://192.168.10.1",
+  tlsServername: null,
   enabled: true,
   isDemo: false,
   createdAt: "2026-01-01T00:00:00.000Z",
