@@ -1,5 +1,6 @@
 import {readFileSync} from "node:fs";
 import {createServer} from "node:https";
+import {checkServerIdentity} from "node:tls";
 import type {AddressInfo} from "node:net";
 import {Agent,fetch} from "undici";
 import {describe,expect,it,vi} from "vitest";
@@ -81,13 +82,32 @@ describe("Undici pinned HTTPS integration",()=>{
    const dispatcher=new Agent({connect:{
     ca:testCertificate,
     rejectUnauthorized:true,
-    servername:"firewall.test"
+    servername:"firewall.test",
+    checkServerIdentity:(_hostname,certificate)=>checkServerIdentity("firewall.test",certificate)
    }});
    try{
     const response=await fetch(`https://127.0.0.1:${port}/`,{dispatcher});
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("connected");
    }finally{await dispatcher.close();}
+  });
+ });
+
+ it("rejects a trusted certificate when the explicit TLS server name does not match",async()=>{
+  await withTlsServer(async port=>{
+   const dispatcher=new Agent({connect:{
+    ca:testCertificate,
+    rejectUnauthorized:true,
+    servername:"wrong-firewall.test",
+    checkServerIdentity:(_hostname,certificate)=>checkServerIdentity("wrong-firewall.test",certificate)
+   }});
+   let failure:unknown;
+   try{
+    await fetch(`https://127.0.0.1:${port}/`,{dispatcher});
+   }catch(error){failure=error;}
+   finally{await dispatcher.close();}
+   expect(failure).toBeInstanceOf(Error);
+   expect((failure as Error&{cause?:{code?:string}}).cause?.code).toBe("ERR_TLS_CERT_ALTNAME_INVALID");
   });
  });
 
