@@ -296,14 +296,10 @@ export async function registerDeviceAdminRoutes(
     }
 
     const actor = actorFor(request);
-    const archived = await devices.archive(deviceId);
+    const archived = await devices.archive(deviceId, actor.id);
     if (!archived) {
       return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found or is already archived." } });
     }
-    const resolvedAlerts = await pool.query(
-      "UPDATE alerts SET status='resolved',resolved_at=now(),resolved_by=$2,last_seen_at=now() WHERE resource_type='device' AND resource_id=$1 AND status IN ('active','acknowledged')",
-      [deviceId, actor.id]
-    );
     await appendAudit(pool, {
       actorId: actor.id,
       actorUsername: actor.username,
@@ -312,7 +308,7 @@ export async function registerDeviceAdminRoutes(
       targetType: "device",
       targetId: deviceId,
       summary: "Archived managed firewall and purged its stored connection secrets",
-      metadata: { pollingHistoryRetained: true, alertsRetained: true, resolvedAlertCount: resolvedAlerts.rowCount ?? 0 },
+      metadata: { pollingHistoryRetained: true, alertsRetained: true, resolvedAlertCount: archived.resolvedAlertCount },
       requestId: request.id
     });
     return { data: { deviceId, archived: true, pollingHistoryRetained: true, alertsRetained: true, resolvedAlertCount: resolvedAlerts.rowCount ?? 0 } };
