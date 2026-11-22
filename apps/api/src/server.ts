@@ -102,8 +102,6 @@ app.addHook("preHandler", async (request, reply) => {
   if (adminOnly) await requireAdmin(request, reply);
 });
 
-await registerDeviceAdminRoutes(app, { devices, clientFactory, pool });
-
 app.addHook("onResponse", async (request, reply) => {
   const route = request.routeOptions.url ?? "unmatched";
   const start = (request as typeof request & { metricStart?: bigint }).metricStart ?? process.hrtime.bigint();
@@ -413,6 +411,8 @@ app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
   deviceUp.set({ device_id: deviceId }, failures === 0 ? 1 : 0);
   return reply.code(failures === 8 ? 502 : 200).send({ data: result?.results ?? {}, meta: { deviceId, outcome: failures === 0 ? "success" : "partial", failedOperations: failures, durationMs: Date.now() - started } });
 });
+await registerDeviceAdminRoutes(app, { devices, clientFactory, pool });
+
 app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: { code: "NOT_FOUND", message: "Route not found." } }));
 app.setErrorHandler((error, request, reply) => {
   request.log.error({ err: error }, "Request failed");
