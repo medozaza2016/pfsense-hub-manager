@@ -14,7 +14,8 @@ describe("host deployment protocol", () => {
   });
 
   it("accepts only a verified success origin", () => {
-    expect(parseHostDeploymentResult({ state: "succeeded", appliedOrigin: "http://192.0.2.10:8080" }).state).toBe("succeeded");
+    expect(parseHostDeploymentResult({ state: "succeeded", appliedOrigin: "https://hub.example.test:443" }).state).toBe("succeeded");
+    expect(() => parseHostDeploymentResult({ state: "succeeded", appliedOrigin: "http://192.0.2.10:8080" })).toThrow();
     expect(() => parseHostDeploymentResult({ state: "succeeded", appliedOrigin: "not-a-url" })).toThrow();
   });
 
