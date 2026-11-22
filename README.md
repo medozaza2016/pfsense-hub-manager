@@ -43,7 +43,7 @@ The integration must account for differences by pfSense edition, release, API pa
 
 ## Deployment and development environment
 
-Docker Compose runs the React/Vite web application, Fastify API, and PostgreSQL. The pfSense Hub application binds to `127.0.0.1:8080) by default. Use Tailscale Serve or an SSH tunnel for private workstation access. Do not expose the application directly to the public internet.
+Docker Compose runs the React/Vite web application, Fastify API, and PostgreSQL. The pfSense Hub application binds to `127.0.0.1:8080` by default. Use Tailscale Serve or an SSH tunnel for private workstation access. Do not expose the application directly to the public internet.
 
 ### New Linux machine installation
 
