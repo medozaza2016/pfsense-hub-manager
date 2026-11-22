@@ -249,8 +249,8 @@ export class DeviceRepository {
       authTag: row.auth_tag.toString("hex"),
       ciphertext: row.ciphertext.toString("hex")
     };
-    if (row.format_version === 1) return decryptCredential(envelope, this.encryptionKey);
-    if (row.format_version === 2) return decryptDeviceCredential(envelope, this.encryptionKey, id);
+    if (row.format_version === 1) return decryptCredential({ ...envelope, version: 1 }, this.encryptionKey);
+    if (row.format_version === 2) return decryptDeviceCredential({ ...envelope, version: 2 }, this.encryptionKey, id);
     throw new Error("Stored device credential uses an unsupported encryption format.");
   }
 }
