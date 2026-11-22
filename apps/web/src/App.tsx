@@ -631,7 +631,7 @@ function HubSettingsPage(){
  }
  const methodCopy:Record<HubAccessMethod,{title:string;description:string;placeholder:string}> = {
   local:{title:"LAN",description:"Select a LAN hostname or IP assigned to this host. A trusted HTTPS reverse proxy must already forward to this address on port 8080.",placeholder:"192.168.1.20"},
-  tailscale:{title:"Tailscale",description:"Use this Hub host's MagicDNS name. Configure Tailscale Serve separately to proxy to the Hub loopback service. The Linux agent verifies the route and HTTPS but does not change Tailscale settings.",placeholder:"hub.example-tailnet.ts.net"},
+  tailscale:{title:"Tailscale",description:"Use this Hub host's MagicDNS name. The Linux Host Agent verifies the host identity and HTTPS eligibility, then creates the fixed private Serve route to the Hub loopback service if it is missing. It will not replace a conflicting route or configure Funnel.",placeholder:"hub.example-tailnet.ts.net"},
   hostname:{title:"Custom",description:"Use a hostname or IP assigned to this host. DNS and a trusted HTTPS reverse proxy must already be configured to forward to this address on port 8080.",placeholder:"hub.example.com"}
  };
  const endpoint=endpoints.find(item=>item.method===activeMethod)??defaultHubEndpoints[0];
@@ -657,7 +657,7 @@ function HubSettingsPage(){
       <label>Port<input type="number" min="1" max="65535" value={endpoint.httpsPort} onChange={event=>updateEndpoint(activeMethod,{httpsPort:Number(event.target.value)})} disabled={busy}/></label>
      </div>
     </section>
-    {!deploymentEnabled?<p className="hub-settings-note">Automatic access verification is disabled until the Linux host integration tests pass. Do not enable this feature on the production host yet.</p>:!methodDeploymentSupported&&<p className="hub-settings-note">LAN and Custom require a hostname/IP assigned to this host plus an already-configured trusted HTTPS reverse proxy to the host address on port 8080. Tailscale requires an already-configured private Serve route. Hub Manager does not configure DNS, certificates, or reverse proxies.</p>}
+    {!deploymentEnabled?<p className="hub-settings-note">Automatic access verification is disabled until the Linux host integration tests pass. Do not enable this feature on the production host yet.</p>:!methodDeploymentSupported&&<p className="hub-settings-note">LAN and Custom require a hostname/IP assigned to this host plus an already-configured trusted HTTPS reverse proxy to the host address on port 8080. Tailscale requires the host to be connected and tailnet HTTPS certificates to be enabled. The Host Agent creates the fixed private Serve route if it is missing. Hub Manager does not configure DNS, issue certificates, or change tailnet ACLs.</p>}
     {message&&<div className="settings-message" role="status">{message}</div>}
     <div className="hub-settings-actions"><button className="primary-button" disabled={busy||saving||loadFailed||!methodDeploymentSupported}>{saving?"Saving…":"Save access method"}</button></div>
    </Panel>
@@ -667,7 +667,7 @@ function HubSettingsPage(){
      <span>Configuration revision {deployment.desiredRevision}, applied revision {deployment.appliedRevision}</span>
      {deployment.errorCode&&<><span>Safe error code: {deployment.errorCode}</span><span>{deploymentErrorCopy[deployment.errorCode]??"The host agent could not complete this deployment. Review the agent service logs."}</span></>}
     </div>
-    <p className="hub-settings-note">Saving automatically requests the restricted host agent to verify the selected HTTPS endpoint. For Tailscale, the private Serve route must already be configured outside Hub Manager. For LAN/Custom, the agent binds the web service to the selected private host address. For Tailscale, it restores the loopback binding when switching from LAN/Custom. It does not configure Tailscale, DNS, certificates, or reverse proxies. The browser redirects only after the host agent verifies the endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
+    <p className="hub-settings-note">Saving automatically requests the restricted host agent to apply and verify the selected HTTPS endpoint. For Tailscale, the agent checks the Hub host identity and HTTPS certificate eligibility, restores the loopback binding when needed, and creates the fixed private Serve route if missing. It refuses conflicting Serve routes and does not configure Funnel, ACLs, DNS, or tailnet certificates. For LAN/Custom, the agent binds the web service to the selected private host address and verifies the operator-managed HTTPS reverse proxy. The browser redirects only after the host agent verifies the endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
     {deployment.previousAppliedOrigin&&<p className="hub-settings-note">Last verified access: <a href={deployment.previousAppliedOrigin} target="_blank" rel="noreferrer">{deployment.previousAppliedOrigin}</a>. Keep this recovery address available while changing access settings.</p>}
    </Panel>
    <Panel title="Recent deployments">
