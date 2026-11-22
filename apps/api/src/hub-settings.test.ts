@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hubAccessEndpointsSchema } from "./hub-settings.js";
+import { deploymentConfirmationSchema, hubAccessEndpointsSchema } from "./hub-settings.js";
 
 const endpoint = (overrides: Record<string, unknown> = {}) => ({
   method: "local",
@@ -45,5 +45,14 @@ describe("Hub access endpoint validation", () => {
     expect(hubAccessEndpointsSchema.safeParse({ endpoints: [
       endpoint({ httpsPort: 70000 })
     ] }).success).toBe(false);
+  });
+});
+
+describe("Hub deployment confirmation validation", () => {
+  it("requires an explicit confirmation for the exact positive revision", () => {
+    expect(deploymentConfirmationSchema.safeParse({ confirmation: "APPLIED", expectedRevision: 1 }).success).toBe(true);
+    expect(deploymentConfirmationSchema.safeParse({ confirmation: "APPLIED" }).success).toBe(false);
+    expect(deploymentConfirmationSchema.safeParse({ confirmation: "APPLIED", expectedRevision: 0 }).success).toBe(false);
+    expect(deploymentConfirmationSchema.safeParse({ confirmation: "APPLIED", expectedRevision: 1, extra: true }).success).toBe(false);
   });
 });
