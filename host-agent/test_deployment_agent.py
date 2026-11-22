@@ -235,5 +235,14 @@ class DeploymentAgentTests(unittest.TestCase):
             agent.resolve_bind_address(endpoint, self.config)
         self.assertEqual(caught.exception.code, "HOST_BIND_PUBLIC_ADDRESS_NOT_ALLOWED")
 
+
+    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=192.168.1.20\\n", "192.168.1.20"))
+    @patch.object(agent, "get_deployment")
+    def test_requires_loopback_binding_for_operator_managed_tailscale_serve(self, get_deployment, read_bind):
+        get_deployment.return_value = self.endpoint
+        with self.assertRaises(agent.AgentError) as caught:
+            agent.deploy(self.config, self.request)
+        self.assertEqual(caught.exception.code, "TAILSCALE_LOOPBACK_BINDING_REQUIRED")
+
 if __name__ == "__main__":
     unittest.main()
