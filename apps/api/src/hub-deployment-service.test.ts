@@ -20,6 +20,23 @@ describe("Hub deployment dispatcher", () => {
     expect(query.mock.calls[1]?.[1]).toContain("HOST_AGENT_NOT_CONFIGURED");
   });
 
+  it("fails closed when the configured socket path is an empty string", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1" }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    const pool = { query } as unknown as import("pg").Pool;
+
+    await dispatchHubDeployment(
+      pool,
+      { id: "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1", desired_revision: 4 },
+      { socketPath: "" }
+    );
+
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls[1]?.[0]).toContain("state='failed'");
+    expect(query.mock.calls[1]?.[1]).toContain("HOST_AGENT_NOT_CONFIGURED");
+  });
+
   it("does not dispatch a deployment that was already claimed", async () => {
     const query = vi.fn().mockResolvedValueOnce({ rowCount: 0, rows: [] });
     const pool = { query } as unknown as import("pg").Pool;
