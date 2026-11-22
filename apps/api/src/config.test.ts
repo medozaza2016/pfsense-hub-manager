@@ -10,6 +10,8 @@ describe("configuration validation",()=>{
  it("accepts a complete HTTPS configuration",()=>{expect(loadConfig(valid).PORT).toBe(3000);});
  it("rejects HTTP firewall origins",()=>{expect(()=>loadConfig({...valid,PFSENSE_API_BASE_URL:"http://firewall.example.test"})).toThrow(/HTTPS/);});
  it("rejects missing required settings",()=>{expect(()=>loadConfig({})).toThrow(/Invalid application configuration/);});
+ it("accepts an unset agent token for local development",()=>{expect(loadConfig({...valid,HUB_DEPLOYMENT_AGENT_TOKEN:"",HUB_DEPLOYMENT_AGENT_SOCKET:""}).HUB_DEPLOYMENT_AGENT_TOKEN).toBe("");});
+ it("rejects a short host-agent token",()=>{expect(()=>loadConfig({...valid,HUB_DEPLOYMENT_AGENT_TOKEN:"too-short"})).toThrow(/Invalid application configuration/);});
  it("loads exactly 32 bytes from a 64-character hexadecimal key file",async()=>{
   directory=await mkdtemp(join(tmpdir(),"pfsense-key-"));const path=join(directory,"key");await writeFile(path,"ab".repeat(32));
   expect((await loadEncryptionKey(path)).length).toBe(32);
