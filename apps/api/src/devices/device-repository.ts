@@ -288,21 +288,25 @@ export class DeviceRepository {
    * Archives a real device without deleting its polling history or audit trail.
    * Encrypted connection material is purged in the same transaction.
    */
-  async archive(deviceId: string): Promise<boolean> {
+  async archive(deviceId: string, actorId: string): Promise<{ resolvedAlertCount: number } | null> {
     const id = deviceIdSchema.parse(deviceId);
     return withTransaction(this.pool, async client => {
       const device = await client.query<{ id: string }>(
         "SELECT id FROM managed_devices WHERE id=$1 AND is_demo=false AND archived_at IS NULL FOR UPDATE",
         [id]
       );
-      if (!device.rowCount) return false;
+      if (!device.rowCount) return null;
       await client.query(
         "UPDATE managed_devices SET enabled=false,archived_at=now(),updated_at=now() WHERE id=$1",
         [id]
       );
       await client.query("DELETE FROM device_credentials WHERE device_id=$1", [id]);
       await client.query("DELETE FROM device_tls_trust WHERE device_id=$1", [id]);
-      return true;
+      const resolvedAlerts = await client.query(
+        "UPDATE alerts SET status='resolved',resolved_at=now(),resolved_by=$2,last_seen_at=now() WHERE resource_type='device' AND resource_id=$1 AND status IN ('active','acknowledged') RETURNING id",
+        [id, actorId]
+      );
+      return { resolvedAlertCount: resolvedAlerts.rowCount ?? 0 };
     });
   }
 
