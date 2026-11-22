@@ -11,6 +11,8 @@ describe("configuration validation",()=>{
  it("rejects HTTP firewall origins",()=>{expect(()=>loadConfig({...valid,PFSENSE_API_BASE_URL:"http://firewall.example.test"})).toThrow(/HTTPS/);});
  it("rejects missing required settings",()=>{expect(()=>loadConfig({})).toThrow(/Invalid application configuration/);});
  it("accepts an unset agent token for local development",()=>{expect(loadConfig({...valid,HUB_DEPLOYMENT_AGENT_TOKEN:"",HUB_DEPLOYMENT_AGENT_SOCKET:""}).HUB_DEPLOYMENT_AGENT_TOKEN).toBe("");});
+ it("keeps automatic Hub access deployment disabled by default",()=>{expect(loadConfig(valid).HUB_ACCESS_DEPLOYMENT_ENABLED).toBe(false);});
+ it("enables Hub access deployment only for the explicit true value",()=>{expect(loadConfig({...valid,HUB_ACCESS_DEPLOYMENT_ENABLED:"true"}).HUB_ACCESS_DEPLOYMENT_ENABLED).toBe(true);expect(loadConfig({...valid,HUB_ACCESS_DEPLOYMENT_ENABLED:"false"}).HUB_ACCESS_DEPLOYMENT_ENABLED).toBe(false);});
  it("rejects a short host-agent token",()=>{expect(()=>loadConfig({...valid,HUB_DEPLOYMENT_AGENT_TOKEN:"too-short"})).toThrow(/Invalid application configuration/);});
  it("loads exactly 32 bytes from a 64-character hexadecimal key file",async()=>{
   directory=await mkdtemp(join(tmpdir(),"pfsense-key-"));const path=join(directory,"key");await writeFile(path,"ab".repeat(32));
