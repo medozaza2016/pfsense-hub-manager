@@ -306,7 +306,8 @@ def verify_https(origin: str) -> None:
     request = urllib.request.Request(origin + "/health", headers={"User-Agent": "pfSense-Hub-Deployment-Agent/1"})
     try:
         with urllib.request.urlopen(request, timeout=8, context=context) as response:
-            if response.status != 200 or response.read(128).strip() != b"ok":
+            expected_url = origin.rstrip("/") + "/health"
+            if response.geturl() != expected_url or response.status != 200 or response.read(128).strip() != b"ok":
                 raise AgentError("ENDPOINT_HEALTH_CHECK_FAILED")
     except AgentError:
         raise
