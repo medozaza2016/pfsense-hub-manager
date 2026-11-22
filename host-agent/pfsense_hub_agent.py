@@ -71,6 +71,29 @@ def load_config() -> dict[str, Any]:
         raise AgentError("AGENT_IP_BINARY_INVALID")
     if raw["project_dir"] != "/opt/pfsense-hub" or raw["compose_file"] != "/opt/pfsense-hub/compose.yaml" or raw["env_file"] != "/opt/pfsense-hub/.env":
         raise AgentError("AGENT_PROJECT_PATH_INVALID")
+    for binary_key in ("docker_binary", "ip_binary", "tailscale_binary"):
+        binary_path = raw[binary_key]
+        if not binary_path:
+            continue
+        try:
+            binary_stat = Path(binary_path).stat()
+            if not stat.S_ISREG(binary_stat.st_mode) or binary_stat.st_uid != 0 or binary_stat.st_mode & 0o022 or not os.access(binary_path, os.X_OK):
+                raise AgentError("AGENT_BINARY_PERMISSIONS_INVALID")
+        except AgentError:
+            raise
+        except Exception as exc:
+            raise AgentError("AGENT_BINARY_UNAVAILABLE") from exc
+    try:
+        project_stat = Path(raw["project_dir"]).stat()
+        compose_stat = Path(raw["compose_file"]).stat()
+        if (project_stat.st_uid != 0 or project_stat.st_mode & 0o022
+                or not stat.S_ISREG(compose_stat.st_mode) or compose_stat.st_uid != 0
+                or compose_stat.st_mode & 0o022):
+            raise AgentError("AGENT_PROJECT_PERMISSIONS_INVALID")
+    except AgentError:
+        raise
+    except Exception as exc:
+        raise AgentError("AGENT_PROJECT_UNAVAILABLE") from exc
     if raw["web_local_url"] != "http://127.0.0.1:8080":
         raise AgentError("AGENT_WEB_TARGET_INVALID")
     return raw
