@@ -76,7 +76,7 @@ The production project directory is /opt/pfsense-hub. The installer requires Lin
 
 Before running the installer:
 
-1. Set HUB_DEPLOYMENT_AGENT_TOKEN in the production .env file to a random secret of at least 32 characters.
+1. Generate a URL-safe token with openssl rand -hex 32, then set HUB_DEPLOYMENT_AGENT_TOKEN in the production .env file to that value. Do not paste the token into chat or source control.
 2. Keep HUB_AGENT_API_PORT=3001, HUB_AGENT_GID=2000, and HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock in that file.
 3. Ensure the project is checked out at /opt/pfsense-hub.
 
