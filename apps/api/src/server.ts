@@ -336,6 +336,7 @@ app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
   const admin = (request as typeof request & { admin?: AdminUser }).admin;
   const db = await pool.connect();
   let revision = 1;
+  let appliedRevision = 0;
   try {
     await db.query("BEGIN");
     await db.query("DELETE FROM hub_access_endpoints");
@@ -351,7 +352,7 @@ app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
       [admin?.id ?? null]
     );
     revision = Number(state.rows[0]?.desiredRevision ?? 1);
-    var appliedRevision = Number(state.rows[0]?.appliedRevision ?? 0);
+    appliedRevision = Number(state.rows[0]?.appliedRevision ?? 0);
     await db.query("COMMIT");
   } catch (error) {
     try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
