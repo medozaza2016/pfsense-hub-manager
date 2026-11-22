@@ -86,6 +86,7 @@ const ipv6Prefixes = {
   teredo: 0x20010000000000000000000000000000n,
   benchmarking: 0x20010002000000000000000000000000n,
   orchid: 0x20010010000000000000000000000000n,
+  orchidV2: 0x20010020000000000000000000000000n,
   documentation: 0x20010db8000000000000000000000000n,
   sixToFour: 0x20020000000000000000000000000000n,
   documentationV2: 0x3fff0000000000000000000000000000n
@@ -112,6 +113,7 @@ export function isAllowedDeviceAddress(input: string): boolean {
       inIpv6Prefix(numeric, ipv6Prefixes.teredo, 32) ||
       inIpv6Prefix(numeric, ipv6Prefixes.benchmarking, 48) ||
       inIpv6Prefix(numeric, ipv6Prefixes.orchid, 28) ||
+      inIpv6Prefix(numeric, ipv6Prefixes.orchidV2, 28) ||
       inIpv6Prefix(numeric, ipv6Prefixes.documentation, 32) ||
       inIpv6Prefix(numeric, ipv6Prefixes.sixToFour, 16) ||
       inIpv6Prefix(numeric, ipv6Prefixes.documentationV2, 20)
