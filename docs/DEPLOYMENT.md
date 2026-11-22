@@ -4,10 +4,94 @@
 Docker Compose runs the React/Vite web application served by Nginx, the Fastify API, and PostgreSQL. PostgreSQL is not published to the LXC host. The API has a loopback-only host publication on port 3001 for the local deployment agent; it is not reachable from LAN or public interfaces. The application UI binds to 127.0.0.1 by default. On Linux production, Tailscale Serve can provide tailnet-only HTTPS in front of this loopback service. Do not bind the UI directly to a Tailscale IP or use 0.0.0.0, and do not publish the application UI or API directly to the public internet.
 
 ## Prerequisites
-- Docker Engine and Docker Compose plugin.
-- Node.js 22 only if running application development scripts outside containers.
+- Debian 13 (Trixie) or another supported systemd-based Linux host. Debian 13 is the documented clean-install baseline.
+- Docker Engine and the Docker Compose v2 plugin.
+- Git, OpenSSL, Python 3.10 or newer, iproute2, and standard system account utilities (including `groupadd` and `getent`).
 - A secure location outside the server for the application encryption recovery key.
 - A pfSense API key is needed only when you register a firewall through Administration → Add Site.
+- Node.js and npm are **not** required on the Linux production host. The application runs inside Docker containers.
+
+## Fresh Linux host setup
+
+Use this procedure on a **new, empty Linux machine**. The commands below use Debian 13 and the current `feature/multi-site-onboarding` branch for the clean-install acceptance test. Do not use this procedure to overwrite an existing Hub installation. The installer deliberately refuses to replace existing secrets, agent configuration, containers, or the PostgreSQL volume.
+
+### 1. Install host prerequisites
+
+Connect over SSH using an account with sudo access:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl git openssl python3 iproute2 passwd
+```
+
+The `passwd` package supplies the `groupadd` utility on a standard Debian installation. Run the preflight as root so the root command search path includes administrative tools under `/usr/sbin`. This avoids a misleading `groupadd` missing result when checking from a restricted non-root PATH:
+
+```bash
+sudo bash -lc '
+set -e
+for cmd in git docker openssl python3 systemctl ip groupadd getent stat install; do
+  command -v "$cmd" >/dev/null || { echo "MISSING: $cmd"; exit 1; }
+done
+python3 -c "import sys; assert sys.version_info >= (3, 10)"
+docker compose version
+docker info >/dev/null
+echo "Linux host prerequisites: ready"
+'
+```
+
+### 2. Install Docker Engine and Compose (only if not already installed)
+
+If `sudo docker info` and `sudo docker compose version` already work, skip this section. Otherwise, install Docker Engine from Docker's official Debian apt repository:
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/debian
+Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+sudo docker run --rm hello-world
+```
+
+Use Docker's [official Debian installation guide](https://docs.docker.com/engine/install/debian/) for supported architectures, package conflicts, and troubleshooting. Do not add the operator account to the `docker` group just to avoid `sudo`, membership in that group grants root-equivalent control over the host.
+
+### 3. Clone the project into the required protected location
+
+The production installer and systemd Host Agent are pinned to `/opt/pfsense-hub`. Clone the repository as root so the project directory and trusted Host Agent files are root-owned:
+
+```bash
+sudo install -d -o root -g root -m 0755 /opt
+sudo git clone --branch feature/multi-site-onboarding --single-branch https://github.com/medozaza2016/pfsense-hub-manager.git /opt/pfsense-hub
+sudo git -c safe.directory=/opt/pfsense-hub -C /opt/pfsense-hub status --short --branch
+```
+
+Confirm that the reported branch is `feature/multi-site-onboarding`. Do not clone into a home directory and do not change the project ownership to the SSH user. If `/opt/pfsense-hub` already exists, stop and inspect it instead of deleting it to force the clone.
+
+### 4. Run the single Hub installer
+
+```bash
+sudo bash /opt/pfsense-hub/scripts/install-linux.sh
+```
+
+The installer will display the one-time application encryption recovery key. Save it in a password manager and confirm the prompt. Do not paste this key into chat, email, source control, or a support log. The installer then creates protected configuration, installs and enables the Host Agent service, builds the application, waits for PostgreSQL/API/web health checks, verifies the API-to-agent socket and authentication handshake, and enables GUI-managed Hub access only after those checks pass.
+
+Tailscale is optional and is not installed or authenticated by this command. The Hub initially binds to `127.0.0.1:8080`. From an administrator workstation, an SSH tunnel can provide private access:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 ahmed@<linux-host-address>
+```
+
+Then open `http://127.0.0.1:8080` on that workstation. Replace `ahmed` and the host address with the account and address used for SSH. Do not publish the Hub UI or API directly to the internet.
 
 ## First-time setup
 For Linux production, use one installation command from the repository checkout at /opt/pfsense-hub:
