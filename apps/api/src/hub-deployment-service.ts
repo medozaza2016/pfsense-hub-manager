@@ -80,6 +80,23 @@ export async function dispatchHubDeployment(
     );
 
     if (result.state === "succeeded") {
+      const selected = await db.query<{
+        method: string;
+        address_type: string | null;
+        address: string | null;
+        https_port: number;
+      }>(
+        "SELECT method,address_type,address,https_port FROM hub_access_endpoints WHERE enabled=true"
+      );
+      const endpoint = selected.rows[0];
+      const appliedUrl = new URL(result.appliedOrigin);
+      const appliedPort = appliedUrl.port ? Number(appliedUrl.port) : 443;
+      if (!endpoint || endpoint.method !== "tailscale" || endpoint.address_type !== "magic_dns"
+          || !endpoint.address || appliedUrl.protocol !== "https:"
+          || appliedUrl.hostname.toLowerCase() !== endpoint.address.toLowerCase()
+          || appliedPort !== Number(endpoint.https_port)) {
+        throw new Error("HOST_AGENT_ORIGIN_MISMATCH");
+      }
       await db.query(
         `UPDATE hub_access_deployments SET state='succeeded',applied_origin=$2,
             rollback_succeeded=NULL,finished_at=now(),updated_at=now() WHERE id=$1`,
