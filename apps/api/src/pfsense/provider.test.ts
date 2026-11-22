@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import type { AppConfig } from "../config.js";
 import type { DeviceRepository } from "../devices/device-repository.js";
+import { validatePfSenseOperationData } from "./client.js";
 import type { PfSenseClient, PfSenseOperation } from "./client.js";
 import type { DevicePfSenseClientFactory } from "./device-client-factory.js";
 import { PfSenseProvider } from "./provider.js";
@@ -113,12 +114,14 @@ describe("PfSenseProvider multi-device polling", () => {
   it("records operation failures when an endpoint returns an unexpected data shape", async () => {
     const { provider, factory, pool } = makeProvider(null);
     const client = {
-      get: vi.fn(async (operation: PfSenseOperation) => ({
-        data: operation === "gateways" ? { unexpected: "object" } :
-          operation === "system" ? {} :
+      get: vi.fn(async (operation: PfSenseOperation) => {
+        const data = operation === "gateways" ? { unexpected: "object" } :
+          operation === "system" ? { status: "ok" } :
           operation === "version" ? { release: "test" } :
-          operation === "firewallStateSize" ? 0 : []
-      })),
+          operation === "firewallStateSize" ? 0 : [];
+        validatePfSenseOperationData(operation, data);
+        return { data };
+      }),
       close: vi.fn(async () => undefined)
     };
     vi.mocked(factory.create).mockResolvedValue(client as unknown as PfSenseClient);
