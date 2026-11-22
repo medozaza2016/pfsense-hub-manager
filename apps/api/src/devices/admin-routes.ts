@@ -214,6 +214,14 @@ export async function registerDeviceAdminRoutes(
     if (!deviceId) return;
 
     const actor = actorFor(request);
+    const profile = await devices.getProfile(deviceId);
+    if (!profile || profile.isDemo) {
+      return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+    }
+    if (!profile.enabled) {
+      return reply.code(409).send({ error: { code: "DEVICE_DISABLED", message: "Enable this firewall before testing its connection." } });
+    }
+
     const testedAt = new Date().toISOString();
     let client: Awaited<ReturnType<DevicePfSenseClientFactory["create"]>> = null;
     let outcome: "reachable" | "unreachable" = "reachable";
@@ -223,7 +231,7 @@ export async function registerDeviceAdminRoutes(
       client = await clientFactory.create(deviceId);
       if (!client) {
         return reply.code(409).send({
-          error: { code: "DEVICE_UNAVAILABLE", message: "The device is missing, disabled, a demo device, or has no usable credential." }
+          error: { code: "DEVICE_UNAVAILABLE", message: "The device has no usable encrypted API credential." }
         });
       }
 
