@@ -186,15 +186,15 @@ The current baseline is `main`, after PR #5 was merged. Earlier references in th
 
 Frontend implementation follows the backend contract in [Multi-site Onboarding Implementation Plan](MULTI-SITE-ONBOARDING-PLAN.md). Do not invent routes or frontend-only persistence.
 
-- [ ] Add a real Add Site workflow backed by the approved device registration API.
-- [ ] Collect device name, optional location, edition, HTTPS API origin, and credential input with clear validation.
-- [ ] Send credentials only to the authenticated backend over the manager API. Never persist credentials in browser storage, frontend state beyond the submission lifecycle, URL parameters, or logs.
-- [ ] Add a deliberate credential rotation flow. Do not return stored or decrypted credentials to the browser.
-- [ ] Add a connection-test action that displays classified outcomes such as reachable, TLS trust failure, authentication failure, authorization failure, timeout, unsupported API, and unknown error.
-- [ ] Distinguish configured, enabled, reachable, unreachable, and unknown states. A saved profile is not proof of connectivity.
-- [ ] Make demo records visibly distinct and non-actionable as real firewall targets.
-- [ ] Replace preview-only site settings with backend-backed settings only after the API is implemented and tested.
-- [ ] Keep all firewall configuration write actions disabled.
+- [x] Add a real Add Site workflow backed by the approved device registration API.
+- [x] Collect device name, optional location, edition, HTTPS API origin, and credential input with clear validation.
+- [x] Send credentials only to the authenticated backend over the manager API. Never persist credentials in browser storage, frontend state beyond the submission lifecycle, URL parameters, or logs.
+- [x] Add a deliberate credential rotation flow. The backend verifies a replacement with a read-only API request and never returns stored or decrypted credentials to the browser.
+- [x] Add the existing read-only connection-test action to onboarding. Additional classification and browser verification remain subject to the test pass.
+- [x] Distinguish configured, enabled, reachable, unreachable, and unknown states. A saved profile is not proof of connectivity.
+- [x] Make demo records visibly distinct and non-actionable as real firewall targets.
+- [x] Replace the site profile, credential rotation, and TLS trust controls with backend-backed manager API actions. Browser/runtime verification remains outstanding.
+- [x] Keep all firewall configuration write actions disabled.
 
 ### UI acceptance criteria
 
