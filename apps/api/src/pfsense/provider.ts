@@ -31,17 +31,22 @@ export class PfSenseProvider {
     private readonly factory: DevicePfSenseClientFactory,
     private readonly devices: DeviceRepository,
     private readonly config: AppConfig,
-    private readonly bootstrapApiKey: string,
+    private readonly bootstrapApiKey: string | null,
     private readonly pool: Pool
   ) {}
 
   async ensureDevice(): Promise<void> {
+    if (this.bootstrapApiKey === null) return;
+    const { PFSENSE_DEVICE_ID, PFSENSE_DEVICE_NAME, PFSENSE_API_BASE_URL } = this.config;
+    if (!PFSENSE_DEVICE_ID || !PFSENSE_DEVICE_NAME || !PFSENSE_API_BASE_URL) {
+      throw new Error("Legacy firewall bootstrap configuration is incomplete.");
+    }
     await this.devices.ensureBootstrapDevice({
-      id: this.config.PFSENSE_DEVICE_ID,
-      name: this.config.PFSENSE_DEVICE_NAME,
+      id: PFSENSE_DEVICE_ID,
+      name: PFSENSE_DEVICE_NAME,
       location: this.config.PFSENSE_DEVICE_LOCATION,
       edition: this.config.PFSENSE_EDITION,
-      apiBaseUrl: this.config.PFSENSE_API_BASE_URL,
+      apiBaseUrl: PFSENSE_API_BASE_URL,
       apiKey: this.bootstrapApiKey
     });
   }

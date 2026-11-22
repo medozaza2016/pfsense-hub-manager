@@ -15,14 +15,16 @@ import { hubAccessEndpointsSchema } from "./hub-settings.js";
 import { dispatchHubDeployment } from "./hub-deployment-service.js";
 
 const config = loadConfig();
-const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
+const bootstrapApiKey = config.PFSENSE_DEVICE_ID
+  ? await loadApiKey(config.PFSENSE_API_KEY_FILE)
+  : null;
 const encryptionKey = await loadEncryptionKey(config.APP_ENCRYPTION_KEY_FILE);
 const deploymentAgentToken = config.HUB_DEPLOYMENT_AGENT_TOKEN ?? null;
 const pool = createPool(config);
 await migrate(pool);
 const devices = new DeviceRepository(pool, encryptionKey);
 const clientFactory = new DevicePfSenseClientFactory(config, devices);
-const provider = new PfSenseProvider(clientFactory, devices, config, apiKey, pool);
+const provider = new PfSenseProvider(clientFactory, devices, config, bootstrapApiKey, pool);
 await provider.ensureDevice();
 const app = Fastify({
   logger: { level: config.NODE_ENV === "production" ? "info" : "debug", redact: ["req.headers.x-api-key", "req.headers.authorization", "req.headers.cookie"] },

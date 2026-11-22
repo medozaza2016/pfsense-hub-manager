@@ -53,7 +53,9 @@ export class PfSenseClient{
  private readonly base:URL;
  private readonly dispatcher:Promise<Agent>;
  constructor(private readonly config:AppConfig,private readonly key:string,tlsTrust?:PfSenseTlsTrust){
-  const base=new URL(config.PFSENSE_API_BASE_URL);
+  const baseUrl=config.PFSENSE_API_BASE_URL;
+  if(!baseUrl) throw new Error("A firewall HTTPS origin is required to create a pfSense client.");
+  const base=new URL(baseUrl);
   this.base=base;
   this.dispatcher=(async()=>{
    const destination=await resolveSafeDeviceDestination(base.hostname);

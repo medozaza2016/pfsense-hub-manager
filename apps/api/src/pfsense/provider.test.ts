@@ -14,7 +14,7 @@ const config = {
   PFSENSE_API_BASE_URL: "https://192.168.10.1"
 } as AppConfig;
 
-function makeProvider(client: Partial<PfSenseClient> | null) {
+function makeProvider(client: Partial<PfSenseClient> | null, bootstrapApiKey: string | null = "bootstrap-secret", providerConfig: AppConfig = config) {
   const firewallClient = client === null ? null : {
     get: vi.fn(async (_operation: PfSenseOperation) => ({ data: [] })),
     close: vi.fn(async () => undefined),
@@ -28,7 +28,7 @@ function makeProvider(client: Partial<PfSenseClient> | null) {
     listProfiles: vi.fn(async () => [])
   } as unknown as DeviceRepository;
   const pool = { query: vi.fn(async () => ({ rows: [], rowCount: 1 })) } as unknown as Pool;
-  const provider = new PfSenseProvider(factory, devices, config, "bootstrap-secret", pool);
+  const provider = new PfSenseProvider(factory, devices, providerConfig, bootstrapApiKey, pool);
   return { provider, factory, devices, pool, firewallClient };
 }
 
@@ -44,6 +44,19 @@ describe("PfSenseProvider multi-device polling", () => {
       apiBaseUrl: config.PFSENSE_API_BASE_URL,
       apiKey: "bootstrap-secret"
     });
+  });
+
+  it("starts without creating a firewall when no GUI registration has happened yet", async () => {
+    const emptyConfig = {
+      PFSENSE_DEVICE_ID: undefined,
+      PFSENSE_DEVICE_NAME: undefined,
+      PFSENSE_DEVICE_LOCATION: "",
+      PFSENSE_EDITION: "unknown",
+      PFSENSE_API_BASE_URL: undefined
+    } as AppConfig;
+    const { provider, devices } = makeProvider(null, null, emptyConfig);
+    await expect(provider.ensureDevice()).resolves.toBeUndefined();
+    expect(devices.ensureBootstrapDevice).not.toHaveBeenCalled();
   });
 
   it("collects the fixed eight read-only operations for any managed device and closes its client", async () => {
