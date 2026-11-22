@@ -184,6 +184,16 @@ describe("per-device TLS trust selection",()=>{
   expect(selectTlsCa(undefined,legacyCa)).toBe(legacyCa);
  });
 
+ it("loads the legacy CA file only for the explicit legacy bootstrap trust mode",()=>{
+  const legacyCa=Buffer.from("legacy-global-ca");
+  expect(selectTlsCa({mode:"legacy-ca-file"},legacyCa)).toBe(legacyCa);
+ });
+
+ it("does not apply the legacy CA file to explicitly configured system trust",()=>{
+  const legacyCa=Buffer.from("legacy-global-ca");
+  expect(selectTlsCa({mode:"system"},legacyCa)).toBeUndefined();
+ });
+
  it("rejects an empty or oversized device CA bundle",()=>{
   expect(()=>selectTlsCa({mode:"custom-ca",certificateAuthority:Buffer.alloc(0)})).toThrow(/trust bundle is invalid/);
   expect(()=>selectTlsCa({mode:"custom-ca",certificateAuthority:Buffer.alloc(64*1024+1)})).toThrow(/trust bundle is invalid/);
