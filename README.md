@@ -2,7 +2,7 @@
 
 A centralized management and monitoring platform for multiple pfSense firewalls, designed to support mixed **pfSense Plus** and **pfSense CE** environments.
 
-> **Project status:** Initial application foundation scaffolded. GitHub CI passed the initial application checks and image builds. The four-service Compose stack now includes browser-based VS Code through code-server. Updated-stack CI and live deployment/runtime validation on the Proxmox LXC remain pending.
+> **Project status (November 21, 2026):** The active development branch contains the responsive Hub/Site UI, shared search/filter/table components, API-backed User Management, Audit Logs and Alerts, development-only seed data, and a four-service local Compose environment. The local Windows Docker web container was serving a stale image; rebuilding the web service loaded the current source and restored the expected search/filter and mobile-card UI. The feature branch is synchronized with origin. Merge to `main` is pending documentation closeout and pull-request review.
 
 ## Why this project exists
 
@@ -68,8 +68,20 @@ Never commit firewall credentials, API keys, tokens, private keys, configuration
 
 ## Development
 
-See [Deployment](docs/DEPLOYMENT.md). Copy .env.example to .env, create the local API key and code-server password files described there, and configure a trusted CA if required. Run docker compose config, then docker compose up -d --build. The initial application UI and VS Code editor are exposed only on localhost ports 8080 and 8443 respectively. The eight upstream GET operations are implemented behind a fixed allowlist; no write routes or arbitrary proxy exist. Manager-user authentication and multi-device administration remain future work.
+See [Deployment](docs/DEPLOYMENT.md). Copy .env.example to .env, create the local API key and code-server password files described there, and configure a trusted CA if required. Run docker compose config, then docker compose up -d --build. The initial application UI and VS Code editor are exposed only on localhost ports 8080 and 8443 respectively. The eight upstream GET operations are implemented behind a fixed allowlist; no write routes or arbitrary proxy exist. Manager-user session authentication, `admin`/`user` roles, administrator user management, audit events, and persisted operational alerts are implemented. Multi-device onboarding and a fully live multi-site dashboard remain future work.
 
 ## License
 
 Not yet selected. Do not assume this project is open source until a license is explicitly chosen.
+
+
+## Current development baseline, November 21, 2026
+
+- **Development workstation:** Windows 11, VS Code, Docker Desktop, local development.
+- **Branch:** `feature/development-seed-data`, synchronized with `origin/feature/development-seed-data` at commit `06e8d0f49433654d37b7d9c8c8135ab96da17283`. The branch contains 91 commits ahead of `main` at the recorded comparison point.
+- **Frontend:** Shared UI primitives provide searchable data tables, list toolbars, expandable filters, pagination, and responsive mobile record cards. The recent local issue was a stale running Docker web image, not missing source files or a broken Git branch. Rebuilding the web service resolved the visible UI discrepancy.
+- **Administration:** User Management, Audit Logs, and Alerts use backend APIs. Role enforcement is server-side. Development seed data is guarded to development mode and is transactional/idempotent.
+- **Verification:** The recent development session recorded 52 passing API tests. The current local Docker rebuild resolved the stale-frontend symptom. Re-run typecheck, tests, production build, Compose validation, and a clean container rebuild on the final PR head before merge.
+- **Not complete:** The wider Hub/Site dashboard still contains preview data, alert generation is tied to the device overview request rather than a background scheduler, live CE integration is deferred, and production TLS trust, backup/restore, retention, and release hardening remain open.
+
+Use `docs/ROADMAP.md` as the authoritative next-step sequence and `docs/FRONTEND-IMPLEMENTATION.md` for UI implementation boundaries.
