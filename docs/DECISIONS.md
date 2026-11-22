@@ -137,5 +137,5 @@ This document records confirmed architectural decisions. Proposals and open ques
 
 
 ### DEC-029, Main-branch development workflow after feature closeout
-**Status:** Accepted by the current development instruction  
+**Status:** Implemented, PR #5 merged to main on November 21, 2026  
 **Decision:** Complete and review the current implementation on `feature/development-seed-data` through a pull request into `main`. After a successful merge, use the updated `main` branch as the sole working branch for upcoming development. Do not continue feature development on the merged branch. Preserve a PR-based merge and verify the local Windows working tree is clean and tracks `origin/main` before starting the next task.
