@@ -76,3 +76,15 @@ Do not mount the Docker socket into the web or API container. Do not provide arb
 - No container receives unrestricted Docker socket access.
 - A failed apply cannot silently remove the last working local access path.
 - No API or database port is published externally.
+
+## Current implementation status, November 21, 2026
+
+The current development branch implements the PostgreSQL endpoint schema, migration `012_hub_access_endpoints.sql`, authenticated read access, administrator-only endpoint replacement, revision tracking, audit events, and the Administration → Hub Settings interface.
+
+The endpoint save API replaces the submitted endpoint collection in one database transaction and increments `desired_revision`. The client must submit the complete desired collection, including disabled methods, because omitted methods are removed. A successful save means only that the desired values were persisted.
+
+The deployment-confirmation API sets `applied_revision` equal to `desired_revision` after an administrator submits the explicit `APPLIED` confirmation. This is an audited operator attestation, not an automated host apply and not a connectivity probe. Until a separately reviewed host-side apply workflow exists, leave the deployment state pending. Do not click the confirmation action merely because settings were saved.
+
+For the current Windows Docker Desktop development setup, the Hub web service is published on `127.0.0.1:8080` by default. The Tailscale endpoint, when configured, refers to the Tailscale IPv4 address or MagicDNS hostname of the Windows machine running Docker Desktop, not the pfSense firewall's Tailscale address. Saving that endpoint does not change the Compose port binding. Remote access remains unavailable until an operator deliberately changes the host binding to the Hub host's Tailscale interface and verifies access from another authorized tailnet device.
+
+Current automated unit coverage validates endpoint shape, address/type compatibility, required remote addresses, duplicate methods, IP syntax, and port range. Route-level persistence, revision, authorization, and audit integration tests, plus end-to-end reachability verification and a host-side apply/rollback workflow, remain required before this feature is considered complete.
