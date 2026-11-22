@@ -1,195 +1,160 @@
 # Multi-site Onboarding and Connection Management
 
-**Status:** Planned milestone, documentation baseline only  
-**Baseline:** `main`, November 21, 2026  
-**Documentation branch:** `docs/hub-bootstrap-and-installation-flow`  
-**Implementation branch:** Not created  
+**Status:** Core implementation delivered; verification recorded; wider product acceptance remains open  
+**Implementation branch:** `feature/multi-site-onboarding`  
+**Last reconciled:** November 22, 2026  
 **Scope:** Read-only firewall connectivity and managed-device lifecycle
 
 ## 1. Objective
 
-Make each registered pfSense firewall an independently configured managed device. An administrator must be able to register a firewall through the GUI, store its API credential securely, test its connection, and view its compatibility and connection state without editing application environment variables.
+Make each registered pfSense firewall an independently configured managed device. Administrators will register devices through the Hub, store credentials encrypted at rest, test connectivity, and inspect compatibility without editing application environment variables for each additional firewall.
 
-The current application is not yet a true multi-firewall manager. The inventory API can return multiple database records, but the active provider's capabilities and overview collection are still tied to the single environment-configured device ID. This milestone closes that gap.
+The implementation is deliberately limited to secure, read-only pfSense API access. Firewall configuration changes, arbitrary upstream proxying, and remote command execution are out of scope.
 
-## 2. Hub bootstrap requirement
+## 2. Current implementation state
 
-The Hub installation and firewall registration are separate lifecycles. A fresh Hub must initialize with zero managed devices. No firewall UUID, name, edition, API origin, API key, or firewall CA certificate may be required by `.env`, Docker Compose, or either platform installer. The Hub first provisions infrastructure, database, application encryption key, and administrator setup. A firewall is added later through the authenticated Sites GUI.
+The following reflects the code on `feature/multi-site-onboarding`, not the earlier `main` baseline.
 
-The backend generates a random UUID when a site is registered. This UUID identifies the Hub's managed-device row only. It is not supplied by pfSense, is not a Hub installation identifier, and must not be derived from a serial number or credential. Do not create a placeholder firewall record during installation. See [Hub Installation and First-Run Bootstrap](INSTALLATION-BOOTSTRAP.md) for the Windows PowerShell and Linux Bash target workflows and migration safeguards.
+### 2.1 Implemented
 
-## 3. Current verified starting point
+- PostgreSQL-backed managed-device profiles with UUIDs, display name, location, edition, HTTPS API origin, enabled state, and demo marker.
+- Separate `device_credentials` storage using AES-256-GCM encrypted envelopes.
+- Device-bound credential encryption using versioned authenticated additional data.
+- Device-bound custom TLS trust storage in migration `008_device_tls_trust.sql`, encrypted separately from API credentials.
+- Per-device TLS server-name override persisted by migration `009_device_tls_servername.sql`, for firewalls addressed by IP whose certificate is issued to a DNS hostname.
+- Custom CA bundle validation, including size and certificate-count limits, PEM/X.509 validation, and certificate validity checks.
+- Repository methods for profile listing and retrieval, create, update, enable/disable, credential rotation, custom CA set/remove, and controlled decryption for backend connections.
+- A per-device client factory that selects the device's own HTTPS origin, decrypted API key, explicit system or custom-CA trust mode, and optional TLS server name.
+- Administrator-only TLS certificate discovery that validates the HTTPS origin, applies the same safe-destination policy and pinned DNS lookup, and reports the presented certificate subject, issuer, DNS/IP SANs, SHA-256 fingerprint, and validity dates. Certificate discovery does not send an API key or establish trust.
+- A write-free pre-registration connection test that verifies TLS and authenticates using only the fixed `version` GET operation. The registration endpoint repeats this test server-side and refuses to persist a device when it fails.
+- Atomic registration of the managed-device profile, encrypted API credential, optional encrypted custom CA trust, TLS server name, and successful `version` connection-check history.
+- Explicit TLS certificate and hostname verification, DNS destination validation and pinned resolution, redirect rejection, bounded response size, request timeout, and classified API errors.
+- A fixed allowlist of eight pfSense GET operations. No write operations are exposed by the client.
+- Multi-device provider collection, with per-operation poll history and isolated failure handling.
+- Device inventory, detail, capabilities, and overview read routes.
+- Existing admin authentication, audit infrastructure, and demo-device restrictions remain in place.
+- Legacy environment-configured firewall bootstrap persists its profile and encrypted credential without overwriting an existing profile or a credential rotated through the manager.
 
-The current `main` implementation includes:
+### 2.2 Current API behavior and limitations
 
-- React, TypeScript, and Vite frontend.
-- Fastify and TypeScript manager API.
-- PostgreSQL with a `managed_devices` table and poll-run persistence.
-- A `device_credentials` table with fields for AES-256-GCM envelope metadata.
-- An AES-256-GCM credential encryption/decryption helper.
-- Application encryption-key file loading and validation.
-- A fixed pfSense API client allowlist containing eight GET operations.
-- Device inventory, detail, capability, and overview API routes.
-- API-backed user management, audit logs, and persisted alerts.
-- Development-only demo devices marked with `is_demo`.
+- All `/api/v1/` routes other than the explicitly public version and authentication routes require a valid session.
+- Device inventory and detail are available to authenticated users. Device capability and overview routes also require authentication and reject demo devices. Overview rejects disabled devices.
+- Administrator-only lifecycle routes have now been added for device creation, non-secret profile updates, enable/disable, credential rotation, custom CA set/remove, and explicit connection testing:
+  - `POST /api/v1/devices/discover-certificate` (administrator-only TLS certificate inspection)
+  - `POST /api/v1/devices/registration-test` (administrator-only pre-registration authenticated test)
+  - `POST /api/v1/devices` (re-tests connectivity server-side before saving)
+  - `PATCH /api/v1/devices/:deviceId`
+  - `PATCH /api/v1/devices/:deviceId/enabled`
+  - `PUT /api/v1/devices/:deviceId/credential`
+  - `PUT /api/v1/devices/:deviceId/tls-trust`
+  - `POST /api/v1/devices/:deviceId/connection-test`
+- Route tests cover administrator enforcement, credential non-disclosure, profile secret rejection, pre-registration test success/failure, and safe certificate discovery. The Windows API suite was run locally: 177 tests passed and 4 platform-specific Unix-socket tests were skipped. API/web typechecks and production builds also passed.
+- A fresh Hub installation does not require populated legacy `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, or `PFSENSE_API_BASE_URL` values or a real bootstrap API key. The Compose file retains blank compatibility settings and an empty API-key secret placeholder. The optional legacy bootstrap path remains available for an existing single-firewall deployment.
+- The capabilities response currently reports the fixed operation list as supported/tested. This is an implementation declaration, not proof that every endpoint has been verified against every pfSense edition or release. Do not interpret it as a live compatibility test.
+- The inventory derives `connectionState` and `lastConnectionCheckAt` from the latest persisted `version` operation in `poll_runs`. Explicit connection tests record success or failure in the existing history table, so status survives refresh without a new migration. Devices with no recorded check remain `unknown`; demo devices remain unverified.
+- The Add Site workflow is connected to the API. It collects the site name, optional location, edition, HTTPS API origin, API credential, optional TLS server name, and optional custom CA bundle. It can discover and display the presented certificate before credentials are submitted. The administrator must confirm the displayed SHA-256 fingerprint against a trusted independent source before the pre-registration test can proceed. Credentials and CA material are cleared after successful registration.
+- The pre-registration connection test uses only the `version` GET operation. The server repeats that test during registration, then persists the profile, encrypted trust material, and successful `poll_runs` entry in one database transaction. The post-registration dialog still allows a fresh connection test.
+- TLS trust persistence, server-name persistence, and lifecycle logic have unit-test coverage. The clean Debian 13 installation completed and ran the repository's migrations on a fresh PostgreSQL volume. This confirms clean-start migration execution, not migration of a preserved existing-data database or a two-firewall live test.
 
-These are foundations, not a completed multi-device lifecycle. Credential encryption is not yet integrated into registration and provider selection. Capability and overview routes currently accept only the environment-configured device ID.
+## 3. Security invariants
 
-## 4. Functional scope
+These are non-negotiable throughout the remaining work:
 
-### 3.1 Managed-device profile
+1. Never return plaintext API credentials, private keys, CA contents, or encrypted credential envelopes to the browser.
+2. Keep application encryption key material outside PostgreSQL and source control. Fail closed when it is unavailable or invalid.
+3. Bind encrypted credentials and TLS trust material to the device identity and their distinct purposes.
+4. Enforce HTTPS origins without URL credentials, paths, query strings, or fragments.
+5. Preserve strict TLS verification for every API request. Custom CA trust must be explicit and device-scoped. Certificate discovery may inspect an untrusted peer only in a separate credential-free TLS handshake, with safe destination validation and independent fingerprint confirmation.
+6. Preserve DNS destination validation and pinned lookup. Validate every resolved address and do not weaken SSRF protections.
+7. Use only the fixed eight-operation GET allowlist. Never accept caller-supplied upstream paths or arbitrary URLs.
+8. Enforce administrator authorization server-side for device lifecycle mutations and connection tests.
+9. Audit lifecycle actions without recording credentials, CA material, or other secrets.
+10. Keep demo devices clearly identified and incapable of obtaining live clients.
+11. Keep firewall configuration writes, apply/reboot actions, arbitrary shell execution, and Docker socket access out of scope.
 
-A real managed-device record should include:
+## 4. Remaining implementation sequence
 
-- Application-generated UUID.
-- Display name.
-- Optional location label.
-- Edition: `plus`, `ce`, or `unknown`.
-- HTTPS API origin and port.
-- Enabled/disabled state.
-- Connection state: `unknown`, `reachable`, or `unreachable`.
-- Last connection-test time and last successful contact.
-- Detected firewall release, API package version, and architecture when available.
-- Capability/compatibility status with an explanation.
-- Credential reference and key version, never plaintext credential material.
+### Phase A: Admin-only device lifecycle API
 
-Do not use a firewall serial number, Netgate account ID, or API key as the application's device identifier.
+- [x] Add strict API request schemas and normalized response DTOs.
+- [x] Add administrator-only routes to create a device, update its non-secret profile, enable/disable it, rotate its credential, and set/remove its custom CA bundle.
+- [x] Keep credential and CA inputs write-only. Never include them in response bodies, logs, or audit metadata.
+- [x] Validate UUIDs, request bodies, HTTPS origins, and CA material. Return consistent validation and not-found errors.
+- [x] Audit successful lifecycle actions and connection-test outcomes with safe metadata.
+- [x] Add route-level tests for authentication, authorization, demo-device protection, invalid input, and secret redaction.
 
-### 3.2 Administrator workflows
+### Phase B: Explicit connection test
 
-The Hub Sites area should support:
+- [x] Add administrator-only connection-test endpoints using the selected device's own client factory.
+- [x] Use only the fixed read-only operation allowlist. A successful `version` request establishes basic authenticated reachability only, not full compatibility.
+- [x] Return normalized results with classified outcomes and timestamps. Do not expose raw upstream responses, credentials, internal exception details, or arbitrary headers.
+- [x] Classify the connection errors that the client can reliably identify, including network, timeout, TLS, authentication, authorization, unsupported, rate-limit, remote-server, and invalid-response classes. Exact differentiation remains dependent on upstream error information.
+- [x] Ensure disabled and demo devices cannot be tested.
+- [x] Audit test outcomes without recording secret material.
 
-1. Add a site with name, location, edition, HTTPS API origin, and API credential.
-2. Validate inputs before submission.
-3. Save the profile and encrypted credential through the manager API.
-4. Test the connection explicitly.
-5. Show the classified connection result and timestamp.
-6. Edit non-secret profile fields.
-7. Rotate a credential by submitting a new value. Existing credentials must never be returned to the browser.
-8. Enable or disable a device without deleting its history.
-9. Show compatibility and capability status independently from basic network reachability.
+### Phase C: Frontend integration
 
-Deletion, credential recovery, and destructive history retention behavior require separate review before they are added.
+- [x] Replace the preview-only Add Site action with the API-backed registration workflow.
+- [x] Collect name, optional location, edition, HTTPS API origin, API credential, and optional custom CA trust material.
+- [x] Organize the Add Site workflow into site information, API connection, and TLS trust sections; support importing `.pem`, `.crt`, and `.cer` CA certificate files (60 KB maximum) or pasting PEM text.
+- [x] Keep secret inputs write-only and clear them after successful registration.
+- [x] Add separate Test Connection behavior and display the classified outcome.
+- [x] Persist connection-test success/failure and timestamp in `poll_runs`; expose the latest result in device inventory.
+- [x] Discover the presented TLS certificate with safe destination validation and pinned DNS resolution.
+- [x] Require an authenticated read-only connection test before registration, and repeat it server-side before persistence.
+- [x] Persist optional TLS server name and custom CA trust atomically with the new device.
+- [x] Add edit, enable/disable, credential rotation, custom TLS trust set/remove, and archive controls for administrators.
+- [x] Distinguish configured, enabled, reachable, and compatible states. Do not treat these as interchangeable.
+- [x] Clearly label demo devices and prevent demo actions from being presented as live firewall operations.
+- [x] Preserve the existing visual system and responsive behavior with loading, validation, permission, TLS, timeout, and partial-failure states.
 
-### 3.3 Connection test
+### Phase D: Deployment and operational verification
 
-A connection test must use the selected device's own URL, credential, TLS trust configuration, and provider instance. It must use only approved read-only operations.
+- [x] Execute the full migration chain during a clean Debian 13 installation. Existing-data migration and schema-diff validation remain outstanding.
+- [ ] Complete a dedicated encrypted credential/custom CA round-trip, wrong-key, tamper, and restore test against a disposable database.
+- [ ] Verify the legacy bootstrap path preserves an existing manager-rotated credential and profile before migrating an existing installation.
+- [ ] Verify independent device behavior with two real test devices when the user is ready to connect the second firewall.
+- [x] Verify Docker Compose configuration, production build, and Linux deployment. The clean installer and all three container health checks passed.
+- [x] Document encryption-key backup/recovery requirements. A backup/restore drill and key rotation procedure remain outstanding; never replace the key without a separately tested data migration plan.
 
-The result must distinguish at least:
+## 5. Deferred decisions and scope
 
-- Reachable and authenticated.
-- DNS or network failure.
-- Connection timeout.
-- TLS certificate or hostname validation failure.
-- Authentication failure.
-- Authorization failure.
-- Unsupported endpoint or API package.
-- Rate limit or remote server error.
-- Invalid response or schema mismatch.
-- Disabled device or invalid configuration.
+- Transport choice and network path for the second pfSense CE firewall. The user has explicitly deferred this decision.
+- Connecting the second firewall until the user is ready.
+- Background polling scheduler, retries/backoff, and concurrency controls.
+- Continuous alert generation and notification delivery beyond the existing request-triggered polling behavior.
+- Replacing all preview pages with live data.
+- Firewall configuration changes, apply/reboot, and any non-GET operation.
+- Device deletion and destructive history-retention behavior.
+- Production backup/restore and disaster-recovery completion.
 
-A saved profile is not proof of reachability. A successful test is not proof that all API operations or write capabilities are supported.
+## 6. Acceptance criteria
 
-## 5. Backend implementation sequence
+The core onboarding implementation is present on this branch. The remaining release/acceptance criteria are:
 
-### Phase A, schema and service boundary
+1. An administrator can register multiple real-device profiles through the GUI without adding environment variables for each additional firewall.
+2. Each device uses its own encrypted credential, HTTPS origin, TLS trust configuration, and optional verified TLS server name.
+3. Registration is blocked unless TLS verification and an authenticated `version` GET succeed. Certificate discovery itself never establishes trust.
+4. No secret material is returned to the browser or recorded in logs/audit metadata.
+5. Lifecycle mutations, certificate discovery, and connection tests are administrator-only and covered by automated tests.
+6. Connection tests return accurate, classified outcomes without exposing raw upstream errors.
+7. One device's failure does not prevent another device's inventory or test.
+8. Disabled and demo devices cannot obtain live clients or be tested.
+9. TLS verification, DNS validation, pinned lookup, and the fixed GET allowlist remain enforced.
+10. The legacy first-firewall bootstrap remains compatible until an intentional migration away from it is implemented.
+11. API tests (177 passed, 4 skipped on Windows), API/web typechecks, production build, Compose validation, clean Linux installation, and browser Tailscale acceptance are recorded in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
+12. The second firewall can be added when the user chooses the transport and is ready to connect it.
+13. No firewall configuration-changing operation is introduced.
 
-- [ ] Review the current migrations and device/provider types before changing schema.
-- [ ] Define validated create/update input schemas and response DTOs.
-- [ ] Define explicit service methods for register, update, enable/disable, rotate credential, get profile, and test connection.
-- [ ] Add migration changes only where existing columns cannot represent the required state. Preserve existing device IDs, poll history, audit records, and credentials.
-- [ ] Add repository/service tests for validation, authorization, duplicate handling, demo-device restrictions, and transaction behavior.
+## 7. Branch and delivery workflow
 
-### Phase B, credential lifecycle
+Continue on `feature/multi-site-onboarding`. Do not switch to, commit to, or merge into `main` without explicit user approval. Keep changes incremental, inspect the current code before editing, run the relevant tests, and report exact verification results. A pull request or merge requires separate user approval.
 
-- [ ] Integrate the existing AES-256-GCM helper into credential registration and rotation.
-- [ ] Persist only nonce, authentication tag, ciphertext, algorithm, format version, and key version.
-- [ ] Bind ciphertext to the intended device and purpose using authenticated additional data, with a reviewed versioning/migration strategy.
-- [ ] Decrypt only inside the backend connection boundary, only when a request requires it.
-- [ ] Avoid returning credential metadata that exposes secrets or encryption internals unnecessarily.
-- [ ] Ensure decryption/key failures fail closed and produce sanitized operational errors.
-- [ ] Test wrong key, tampered ciphertext, malformed envelope, and missing key behavior.
-- [ ] Define key provisioning, permissions, recovery, and rotation requirements consistently with DEC-024.
 
-### Phase C, per-device provider
+## 8. Hub access endpoint settings and deployment
 
-- [ ] Replace the single environment-configured provider assumption with a provider factory or equivalent per-device adapter boundary.
-- [ ] Resolve device metadata and its encrypted credential server-side.
-- [ ] Construct a client for the selected device using an HTTPS origin and verified TLS.
-- [ ] Support private CA trust only through protected server-side configuration. Never disable certificate verification.
-- [ ] Keep the eight existing GET operations as an explicit allowlist.
-- [ ] Preserve per-operation timeouts, classified failures, response limits, and runtime validation.
-- [ ] Ensure one device's failure cannot prevent requests to another device.
-- [ ] Keep environment-based configuration available only as a documented bootstrap/migration path until the existing first firewall has been safely represented in the database.
+Migration `012_hub_access_endpoints.sql` introduces `hub_access_endpoints`, with one retained record for each of Local, Tailscale, and Custom. Exactly one method is selected as active. Each method retains its own address type, address, HTTPS port, and audit attribution. Existing `hub_settings` data is copied forward and the old table is retained for compatibility.
 
-### Phase D, manager API
+Migration `014_hub_access_deployments.sql` adds revision-scoped deployment history. The API persists the desired endpoint configuration, creates a deployment record, and dispatches only a deployment ID and desired revision over the restricted Unix socket. The Linux Host Agent retrieves the approved configuration from the loopback API and applies the fixed host operation. The API records the applied revision only after the agent returns a verified HTTPS origin. This is an actual host deployment and endpoint probe, not an administrator attestation.
 
-The following are proposed manager-facing API capabilities. Final route names and contracts must be checked against the existing API specification and code before implementation.
-
-- [ ] List and retrieve managed-device profiles with secrets omitted.
-- [ ] Create a managed-device profile and encrypted credential, administrator only.
-- [ ] Update non-secret profile fields, administrator only.
-- [ ] Enable or disable a device, administrator only.
-- [ ] Rotate a device credential, administrator only.
-- [ ] Test a device connection using the selected device's own provider, administrator only unless a later read-only permission is explicitly approved.
-- [ ] Return normalized connection and compatibility status, never raw credentials.
-- [ ] Audit profile creation, edits, enable/disable, credential rotation, and connection-test outcomes without recording secret material.
-- [ ] Return consistent validation and classified operational errors.
-
-Do not implement a generic arbitrary pfSense proxy or accept caller-supplied upstream endpoint paths.
-
-## 6. Frontend implementation sequence
-
-- [ ] Replace the current preview-only Add Site action with a real API-backed form.
-- [ ] Validate required name, edition, HTTPS origin, and credential fields.
-- [ ] Keep credential fields write-only. Clear secret input state after submission and never prefill it from the server.
-- [ ] Add a separate Test Connection action and display the returned classified result and timestamp.
-- [ ] Show profile state separately from reachability and compatibility.
-- [ ] Add edit, enable/disable, and credential rotation controls for administrators.
-- [ ] Keep regular-user controls hidden or disabled according to the final authorization contract, while relying on backend authorization as the actual security boundary.
-- [ ] Keep seeded demo sites clearly labeled and non-actionable as live devices.
-- [ ] Ensure loading, validation, empty, permission, timeout, TLS, authentication, and partial-failure states are accessible and responsive.
-
-## 7. Security requirements
-
-- No plaintext credentials in PostgreSQL, source control, browser storage, URLs, logs, audit metadata, or API responses.
-- Encryption key remains outside PostgreSQL and outside the repository. The backend must fail closed if the key is unavailable or invalid.
-- Enforce HTTPS origins, reject URL credentials, paths, query strings, fragments, and non-HTTPS protocols.
-- Verify TLS certificates and hostnames. Do not introduce an insecure bypass.
-- Enforce administrator authorization server-side for profile and credential mutations.
-- Use fixed upstream operation allowlists and bounded request/response sizes and timeouts.
-- Never mount the Docker socket into web or API containers.
-- Never add arbitrary shell execution or arbitrary host operations.
-- Keep all firewall configuration-changing operations disabled.
-- Audit administrative lifecycle actions with sanitized metadata.
-
-## 8. Explicitly deferred
-
-- Selection of the firewall-to-hub transport method.
-- Connecting the second pfSense CE firewall until the user is ready.
-- Background polling scheduler, retry/backoff, and concurrency controls.
-- Continuous alert generation and notification delivery.
-- Replacing all firewall preview pages with live data.
-- Any firewall configuration write, apply, reboot, or arbitrary upstream API operation.
-- Production backup/restore, retention, and disaster-recovery completion.
-
-## 9. Acceptance criteria
-
-The milestone is complete only when all of the following are demonstrated:
-
-1. An administrator registers at least two real-device profiles without changing environment variables.
-2. Each device uses its own credential and HTTPS origin.
-3. Credentials are encrypted at rest and never returned to the browser.
-4. Connection tests report accurate, classified results.
-5. A failure on one device does not affect the other device's inventory or connection test.
-6. Disabled devices are not polled or tested unless explicitly re-enabled.
-7. Demo devices cannot be treated as real devices.
-8. Authorization and audit behavior are covered by automated tests.
-9. TLS verification remains enabled, including private CA trust tests.
-10. Existing first-firewall integration behavior is preserved or migrated safely.
-11. API tests, typechecks, production builds, migration tests, Compose validation, and browser acceptance pass.
-12. Documentation records the exact verification results and all remaining limitations.
-
-## 10. Branch and delivery workflow
-
-This documentation-only update is being prepared on `docs/hub-bootstrap-and-installation-flow` from current `main`. Review and merge its pull request into `main` before implementation. After the documentation merge, create a fresh implementation branch from updated `main`, only when the user authorizes it. Do not reuse `feature/multi-site-onboarding` without reviewing its state. This documentation pass changes no application source, Compose configuration, `.env.example`, or installer scripts.
+For Tailscale, the active endpoint must be the local host's MagicDNS hostname and the agent may provision only the fixed private Serve proxy to `http://127.0.0.1:8080`. It will not replace a conflicting handler or configure Funnel, DNS, ACLs, or tailnet HTTPS. LAN and Custom require an operator-managed trusted reverse proxy. See [Automatic Hub Access Deployment](AUTOMATIC-HUB-ACCESS-DEPLOYMENT.md) and [Hub Access Configuration](HUB-ACCESS-CONFIGURATION.md) for the complete implementation and verification record.

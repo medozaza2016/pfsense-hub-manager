@@ -30,6 +30,12 @@ Track each dimension independently. An operation can be specified but unknown on
 
 Eight GET operations returned HTTP 200 from the manager LXC: `/api/v2/status/system`, `/api/v2/status/gateways`, `/api/v2/status/interfaces`, `/api/v2/status/services`, `/api/v2/system/version`, `/api/v2/diagnostics/arp_table`, `/api/v2/firewall/states`, and `/api/v2/firewall/states/size`. See `INTEGRATION-STATUS.md`.
 
+## Current adapter contract checks, November 22, 2026
+
+The pfSense client validates the common API envelope and a minimum operation-specific `data` shape for each of the eight approved read-only operations. Structurally malformed payloads are rejected as `invalid_response`; the provider records the operation as a failed poll rather than counting it as successful. Automated tests cover valid and malformed examples for every operation.
+
+These checks are intentionally minimal and do not claim a full upstream schema contract. Field names and semantics remain release/package-dependent until sanitized responses from each supported release and API package version are captured and reviewed. The first Plus device's exact REST API package version remains unrecorded, and the second CE firewall has not been connected.
+
 ## Verification workflow
 1. Pin the OpenAPI source and checksum.
 2. Record target firewall edition, release, architecture, and package version.

@@ -5,16 +5,6 @@ import { hashPassword } from "../auth.js";
 import { migrate } from "./migrate.js";
 
 export const DEVELOPMENT_SEED_KEY = "development-sample-data-v1";
-export const DEVELOPMENT_SITE_SEED_KEY = "development-demo-sites-v1";
-export const DEVELOPMENT_SITE_SEEDS = [
-  { id: "d0000000-0000-4000-8000-000000000001", name: "New York Office", location: "New York, NY", edition: "plus" },
-  { id: "d0000000-0000-4000-8000-000000000002", name: "New Jersey Office", location: "Passaic, NJ", edition: "ce" },
-  { id: "d0000000-0000-4000-8000-000000000003", name: "Warehouse", location: "Newark, NJ", edition: "plus" },
-  { id: "d0000000-0000-4000-8000-000000000004", name: "West Coast Office", location: "Los Angeles, CA", edition: "ce" },
-  { id: "d0000000-0000-4000-8000-000000000005", name: "European Office", location: "London, UK", edition: "plus" },
-  { id: "d0000000-0000-4000-8000-000000000006", name: "Remote Branch", location: "Chicago, IL", edition: "unknown" },
-  { id: "d0000000-0000-4000-8000-000000000007", name: "Disaster Recovery", location: "Dallas, TX", edition: "ce" }
-] as const;
 const USERNAMES = Array.from({ length: 9 }, (_, index) => `demo.user${String(index + 1).padStart(2, "0")}`);
 const ALERT_TITLES = [
   "Firewall connectivity interrupted", "Gateway latency elevated", "Repeated authentication failures",
@@ -88,28 +78,12 @@ export async function runDevelopmentSeed(pool: pg.Pool): Promise<{ usersInserted
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock($1)", [741928364]);
     const previous = await client.query("SELECT seed_key FROM development_seed_runs WHERE seed_key=$1", [DEVELOPMENT_SEED_KEY]);
-    const previousSites = await client.query("SELECT seed_key FROM development_seed_runs WHERE seed_key=$1", [DEVELOPMENT_SITE_SEED_KEY]);
-    if (previous.rowCount && previousSites.rowCount) {
+    if (previous.rowCount) {
       await client.query("COMMIT");
       return { usersInserted: 0, sitesInserted: 0, alertsInserted: 0, auditEventsInserted: 0, skipped: true };
     }
 
-    let sitesInserted = 0;
-    if (!previousSites.rowCount) {
-      for (const site of DEVELOPMENT_SITE_SEEDS) {
-        const inserted = await client.query(
-          `INSERT INTO managed_devices(id,name,location,edition,api_base_url,enabled,is_demo)
-           VALUES($1,$2,$3,$4,$5,false,true)
-           ON CONFLICT(id) DO NOTHING RETURNING id`,
-          [site.id, site.name, site.location, site.edition, `https://${site.id}.demo.invalid`]
-        );
-        sitesInserted += inserted.rowCount ?? 0;
-      }
-      await client.query(
-        `INSERT INTO development_seed_runs(seed_key,sites_inserted) VALUES($1,$2)`,
-        [DEVELOPMENT_SITE_SEED_KEY, sitesInserted]
-      );
-    }
+    const sitesInserted = 0;
 
     if (previous.rowCount) {
       await client.query("COMMIT");
@@ -148,10 +122,10 @@ export async function runDevelopmentSeed(pool: pg.Pool): Promise<{ usersInserted
         `INSERT INTO alerts(
           deduplication_key,severity,title,message,source,resource_type,resource_id,status,
           first_seen_at,last_seen_at,occurrence_count,acknowledged_at,acknowledged_by,resolved_at,resolved_by
-        ) VALUES($1,$2,$3,$4,'development-seed','site',$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        ) VALUES($1,$2,$3,$4,'development-seed','site',NULL,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           `development-seed:${String(alert.index).padStart(3, "0")}`, alert.severity, alert.title, alert.message,
-          `seed-site-${String(((alert.index - 1) % DEVELOPMENT_SITE_SEEDS.length) + 1).padStart(2, "0")}`, alert.status,
+          alert.status,
           alert.firstSeenAt, alert.lastSeenAt, alert.occurrenceCount,
           acknowledged ? new Date(alert.firstSeenAt.getTime() + 1800000) : null,
           acknowledged ? actor.id : null,
@@ -203,10 +177,10 @@ async function main(): Promise<void> {
   try {
     await migrate(pool);
     const result = await runDevelopmentSeed(pool);
-    if (result.skipped && result.sitesInserted === 0) {
+    if (result.skipped) {
       console.log("Development seed already applied. No records were changed.");
     } else {
-      console.log(`Development seed complete: ${result.usersInserted} users, ${result.sitesInserted} demo sites, ${result.alertsInserted} alerts, ${result.auditEventsInserted} audit events inserted.`);
+      console.log(`Development seed complete: ${result.usersInserted} users, ${result.alertsInserted} alerts, ${result.auditEventsInserted} audit events inserted. No sample firewall sites are created.`);
       if (result.usersInserted > 0) {
         console.log("Seeded users have random unknown passwords. Set passwords through User Management before attempting to sign in.");
       }

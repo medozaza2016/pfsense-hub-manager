@@ -1,22 +1,30 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { loadConfig, loadApiKey, loadEncryptionKey } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { migrate } from "./db/migrate.js";
-import { PfSenseClient } from "./pfsense/client.js";
+import { DevicePfSenseClientFactory } from "./pfsense/device-client-factory.js";
 import { PfSenseProvider } from "./pfsense/provider.js";
+import { DeviceRepository } from "./devices/device-repository.js";
+import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
 import { appendAudit, upsertAlert } from "./audit.js";
+import { hubAccessEndpointsSchema } from "./hub-settings.js";
+import { dispatchHubDeployment } from "./hub-deployment-service.js";
 
 const config = loadConfig();
-const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
+const bootstrapApiKey = config.PFSENSE_DEVICE_ID
+  ? await loadApiKey(config.PFSENSE_API_KEY_FILE)
+  : null;
 const encryptionKey = await loadEncryptionKey(config.APP_ENCRYPTION_KEY_FILE);
-void encryptionKey;
+const deploymentAgentToken = config.HUB_DEPLOYMENT_AGENT_TOKEN ?? null;
 const pool = createPool(config);
 await migrate(pool);
-const client = new PfSenseClient(config, apiKey);
-const provider = new PfSenseProvider(client, config, pool);
+const devices = new DeviceRepository(pool, encryptionKey);
+const clientFactory = new DevicePfSenseClientFactory(config, devices);
+const provider = new PfSenseProvider(clientFactory, devices, config, bootstrapApiKey, pool);
 await provider.ensureDevice();
 const app = Fastify({
   logger: { level: config.NODE_ENV === "production" ? "info" : "debug", redact: ["req.headers.x-api-key", "req.headers.authorization", "req.headers.cookie"] },
@@ -31,13 +39,6 @@ const userCreateSchema = z.object({ username: usernameSchema, password: password
 const userUpdateSchema = z.object({ role: z.enum(["admin", "user"]).optional(), isActive: z.boolean().optional(), password: passwordSchema.optional() }).strict().refine(v => Object.keys(v).length > 0);
 const setupSchema = z.object({ username: usernameSchema, password: passwordSchema }).strict();
 const loginSchema = z.object({ username: usernameSchema, password: z.string().min(1).max(128) }).strict();
-const hubSettingsSchema = z.object({
-  reachabilityMethod: z.enum(["local", "tailscale", "hostname"]),
-  addressType: z.enum(["magic_dns", "tailscale_ip", "hostname", "ip"]).nullable(),
-  address: z.string().trim().max(253).nullable(),
-  httpsPort: z.number().int().min(1).max(65535)
-}).strict();
-
 const loginAttempts = new Map<string, { count: number; windowStartedAt: number }>();
 function getCookie(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -76,6 +77,15 @@ async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promi
 app.addHook("onRequest", async (request, reply) => {
   (request as typeof request & { metricStart?: bigint }).metricStart = process.hrtime.bigint();
   const path = (request.raw.url ?? "").split("?")[0] ?? "";
+  if (path === "/api/v1/internal/host-deployment-config" && request.method === "GET") {
+    const authorization = request.headers.authorization ?? "";
+    const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+    const expected = deploymentAgentToken ?? "";
+    const valid = Boolean(expected) && Buffer.byteLength(supplied) === Buffer.byteLength(expected)
+      && timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
+    if (!valid) return reply.code(401).send({ error: { code: "HOST_AGENT_AUTHENTICATION_REQUIRED" } });
+    return;
+  }
   if (!path.startsWith("/api/v1/") || path === "/api/v1/version" || path.startsWith("/api/v1/auth/")) return;
   const token = getCookie(request.headers.cookie);
   const admin = token ? await findSession(pool, token) : null;
@@ -93,8 +103,11 @@ app.addHook("preHandler", async (request, reply) => {
     || path === "/api/v1/users"
     || path.startsWith("/api/v1/users/")
     || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
-    || (path === "/api/v1/hub-settings" && request.method === "PUT")
-    || (path.startsWith("/api/v1/alerts/") && request.method !== "GET");
+    || (path === "/api/v1/hub-settings/access-endpoints" && request.method === "PUT")
+    || path.startsWith("/api/v1/hub-settings/deployments")
+    || (path.startsWith("/api/v1/alerts/") && request.method !== "GET")
+    || (path === "/api/v1/devices" && request.method !== "GET")
+    || (path.startsWith("/api/v1/devices/") && (request.method !== "GET" || path.endsWith("/connection-test")));
   if (adminOnly) await requireAdmin(request, reply);
 });
 
@@ -312,47 +325,178 @@ app.post("/api/v1/alerts/:alertId/resolve", async (request, reply) => {
   return { data:{ resolved:true } };
 });
 
-app.get("/api/v1/hub-settings", async () => {
-  const result = await pool.query(
-    "SELECT reachability_method AS \"reachabilityMethod\", address_type AS \"addressType\", address, https_port AS \"httpsPort\", updated_at AS \"updatedAt\" FROM hub_settings WHERE id=1"
+app.get("/api/v1/internal/host-deployment-config", async (request, reply) => {
+  if (!deploymentAgentToken) return reply.code(503).send({ error: { code: "HOST_AGENT_NOT_CONFIGURED" } });
+  const parsed = z.object({
+    deploymentId: z.string().uuid(),
+    desiredRevision: z.coerce.number().int().min(1)
+  }).strict().safeParse(request.query);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_DEPLOYMENT_REQUEST" } });
+  const deployment = await pool.query<{ id: string; desired_revision: number; requested_method: "local" | "tailscale" | "hostname"; state: string }>(
+    `SELECT id,desired_revision,requested_method,state FROM hub_access_deployments
+      WHERE id=$1 AND desired_revision=$2`,
+    [parsed.data.deploymentId, parsed.data.desiredRevision]
   );
-  return { data: result.rows[0] ?? { reachabilityMethod: "local", addressType: null, address: null, httpsPort: 443 } };
+  const row = deployment.rows[0];
+  if (!row || !["validating", "applying", "verifying"].includes(row.state)) {
+    return reply.code(409).send({ error: { code: "DEPLOYMENT_NOT_CURRENT" } });
+  }
+  const state = await pool.query<{ desired_revision: number }>(
+    "SELECT desired_revision FROM hub_access_deployment_state WHERE id=1"
+  );
+  if (Number(state.rows[0]?.desired_revision) !== parsed.data.desiredRevision) {
+    return reply.code(409).send({ error: { code: "STALE_DEPLOYMENT" } });
+  }
+  const endpoints = await pool.query<{
+    method: "local" | "tailscale" | "hostname";
+    address_type: string | null;
+    address: string | null;
+    https_port: number;
+    enabled: boolean;
+  }>(
+    `SELECT method,address_type,address,https_port,enabled FROM hub_access_endpoints
+      WHERE method=$1`,
+    [row.requested_method]
+  );
+  const endpoint = endpoints.rows[0];
+  if (!endpoint || !endpoint.enabled) return reply.code(409).send({ error: { code: "DEPLOYMENT_ENDPOINT_INVALID" } });
+  const previous = await pool.query<{ applied_origin: string | null }>(
+    `SELECT applied_origin FROM hub_access_deployments
+      WHERE state='succeeded' AND applied_origin IS NOT NULL
+      ORDER BY desired_revision DESC LIMIT 1`
+  );
+  return { data: {
+    deploymentId: row.id,
+    desiredRevision: row.desired_revision,
+    method: endpoint.method,
+    scheme: "https",
+    addressType: endpoint.address_type,
+    address: endpoint.address,
+    port: endpoint.https_port,
+    previousAppliedOrigin: previous.rows[0]?.applied_origin ?? null
+  } };
 });
-app.put("/api/v1/hub-settings", async (request, reply) => {
-  const parsed = hubSettingsSchema.safeParse(request.body);
-  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Check the reachability method, address type, address, and HTTPS port." } });
-  const value = parsed.data;
-  if (value.reachabilityMethod === "local" && (value.addressType !== null || value.address !== null)) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Local access uses the default local binding and does not need an address." } });
-  }
-  if (value.reachabilityMethod !== "local" && (!value.addressType || !value.address)) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "An address is required for the selected optional reachability method." } });
-  }
-  if (value.reachabilityMethod === "tailscale" && !["magic_dns", "tailscale_ip"].includes(value.addressType ?? "")) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Choose a Tailscale MagicDNS hostname or Tailscale IPv4 address." } });
-  }
-  if (value.reachabilityMethod === "hostname" && !["hostname", "ip"].includes(value.addressType ?? "")) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Choose a hostname or IP address." } });
-  }
-  const ipSchema = value.addressType === "tailscale_ip" ? z.ipv4() : z.union([z.ipv4(), z.ipv6()]);
-  if (["tailscale_ip", "ip"].includes(value.addressType ?? "") && !ipSchema.safeParse(value.address).success) {
-    return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid IP address." } });
-  }
-  if (["magic_dns", "hostname"].includes(value.addressType ?? "")) {
-    const hostname = z.string().min(1).max(253).regex(/^(?=.{1,253}$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/);
-    if (!hostname.safeParse(value.address).success) {
-      return reply.code(400).send({ error: { code: "INVALID_HUB_SETTINGS", message: "Enter a valid fully qualified hostname." } });
+
+app.get("/api/v1/hub-settings", async () => {
+  const [endpointResult, stateResult] = await Promise.all([
+    pool.query(
+      'SELECT method, address_type AS "addressType", address, https_port AS "httpsPort", enabled, updated_at AS "updatedAt" FROM hub_access_endpoints ORDER BY CASE method WHEN \'local\' THEN 1 WHEN \'tailscale\' THEN 2 ELSE 3 END'
+    ),
+    pool.query(
+      'SELECT desired_revision AS "desiredRevision", applied_revision AS "appliedRevision", updated_at AS "updatedAt", applied_at AS "appliedAt" FROM hub_access_deployment_state WHERE id=1'
+    )
+  ]);
+  const deployment = stateResult.rows[0] ?? { desiredRevision: 1, appliedRevision: 0, updatedAt: null, appliedAt: null };
+  const [latest, previousSuccess] = await Promise.all([
+    pool.query(
+      `SELECT id,state,safe_error_code AS "errorCode",applied_origin AS "appliedOrigin",
+          rollback_succeeded AS "rollbackSucceeded",created_at AS "createdAt",finished_at AS "finishedAt"
+         FROM hub_access_deployments ORDER BY desired_revision DESC LIMIT 1`
+    ),
+    pool.query<{ appliedOrigin: string }>(
+      `SELECT applied_origin AS "appliedOrigin" FROM hub_access_deployments
+        WHERE state='succeeded' AND applied_origin IS NOT NULL
+        ORDER BY desired_revision DESC LIMIT 1`
+    )
+  ]);
+  return { data: {
+    endpoints: endpointResult.rows,
+    deploymentEnabled: config.HUB_ACCESS_DEPLOYMENT_ENABLED,
+    deployment: {
+      ...deployment,
+      status: Number(deployment.desiredRevision) === Number(deployment.appliedRevision) ? "applied" : (latest.rows[0]?.state ?? "pending"),
+      latest: latest.rows[0] ?? null,
+      previousAppliedOrigin: previousSuccess.rows[0]?.appliedOrigin ?? null
     }
+  } };
+});
+
+app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
+  if (!config.HUB_ACCESS_DEPLOYMENT_ENABLED) return reply.code(503).send({ error: { code: "HUB_ACCESS_DEPLOYMENT_DISABLED", message: "Automatic Hub access verification remains disabled until Linux host integration testing is complete." } });
+  const parsed = hubAccessEndpointsSchema.safeParse(request.body);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_HUB_ACCESS_ENDPOINTS", message: parsed.error.issues[0]?.message ?? "Check each access method, address, and HTTPS port." } });
+  const admin = (request as typeof request & { admin?: AdminUser }).admin;
+  const db = await pool.connect();
+  let revision = 1;
+  let appliedRevision = 0;
+  let deploymentId = "";
+  try {
+    await db.query("BEGIN");
+    await db.query("DELETE FROM hub_access_endpoints");
+    for (const endpoint of parsed.data.endpoints) {
+      await db.query(
+        `INSERT INTO hub_access_endpoints(method,address_type,address,https_port,enabled,updated_at,updated_by)
+         VALUES($1,$2,$3,$4,$5,now(),$6)`,
+        [endpoint.method, endpoint.addressType, endpoint.address, endpoint.httpsPort, endpoint.enabled, admin?.id ?? null]
+      );
+    }
+    const state = await db.query<{ desiredRevision: number; appliedRevision: number }>(
+      'UPDATE hub_access_deployment_state SET desired_revision=desired_revision+1,updated_at=now(),updated_by=$1 WHERE id=1 RETURNING desired_revision AS "desiredRevision", applied_revision AS "appliedRevision"',
+      [admin?.id ?? null]
+    );
+    revision = Number(state.rows[0]?.desiredRevision ?? 1);
+    appliedRevision = Number(state.rows[0]?.appliedRevision ?? 0);
+    const selectedMethod = parsed.data.endpoints.find(endpoint => endpoint.enabled)?.method;
+    if (!selectedMethod) throw new Error("No active Hub access method was selected.");
+    const deployment = await db.query<{ id: string }>(
+      `INSERT INTO hub_access_deployments(desired_revision,requested_method,state,actor_id)
+       VALUES($1,$2,'queued',$3) RETURNING id`,
+      [revision, selectedMethod, admin?.id ?? null]
+    );
+    deploymentId = deployment.rows[0]?.id ?? "";
+    if (!deploymentId) throw new Error("Deployment queue record was not created.");
+    await db.query("COMMIT");
+  } catch (error) {
+    try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
+    throw error;
+  } finally {
+    db.release();
   }
-  const admin = (request as typeof request & { admin?: { id: string } }).admin;
+  await appendAudit(pool, {
+    actorId: admin?.id ?? null,
+    actorUsername: admin?.username ?? null,
+    action: "hub.access_endpoints.update",
+    outcome: "success",
+    targetType: "hub_access_endpoints",
+    summary: "Updated Hub access endpoints",
+    requestId: request.id,
+    metadata: { methods: parsed.data.endpoints.map(endpoint => endpoint.method), enabledCount: parsed.data.endpoints.filter(endpoint => endpoint.enabled).length, desiredRevision: revision, deploymentId }
+  });
+  void dispatchHubDeployment(pool, { id: deploymentId, desired_revision: revision }, {
+    socketPath: config.HUB_DEPLOYMENT_AGENT_SOCKET || null
+  }).catch(() => undefined);
+  return { data: { endpoints: parsed.data.endpoints, deploymentId, desiredRevision: revision, appliedRevision, deploymentStatus: "queued" } };
+});
+
+app.get("/api/v1/hub-settings/deployments", async (request) => {
+  const parsed = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }).safeParse(request.query);
+  const limit = parsed.success ? parsed.data.limit : 20;
   const result = await pool.query(
-    `UPDATE hub_settings SET reachability_method=$1,address_type=$2,address=$3,https_port=$4,updated_at=now(),updated_by=$5
-      WHERE id=1
-      RETURNING reachability_method AS "reachabilityMethod",address_type AS "addressType",address,https_port AS "httpsPort",updated_at AS "updatedAt"`,
-    [value.reachabilityMethod, value.addressType, value.address, value.httpsPort, admin?.id ?? null]
+    `SELECT id,desired_revision AS "desiredRevision",requested_method AS "requestedMethod",
+        state,safe_error_code AS "errorCode",applied_origin AS "appliedOrigin",
+        rollback_succeeded AS "rollbackSucceeded",created_at AS "createdAt",
+        started_at AS "startedAt",finished_at AS "finishedAt"
+       FROM hub_access_deployments ORDER BY desired_revision DESC LIMIT $1`,
+    [limit]
   );
-  await appendAudit(pool, { actorId: admin?.id ?? null, action: "hub.settings.update", outcome: "success", targetType: "hub_settings", targetId: "1", summary: "Updated Hub reachability preferences", requestId: request.id, metadata: { reachabilityMethod: value.reachabilityMethod, addressType: value.addressType, httpsPort: value.httpsPort } });
-  return { data: { ...result.rows[0], applyStatus: "not_applied", note: "Saved as a preference only. This does not change Docker host bindings, DNS, Tailscale, or firewall reachability." } };
+  return { data: result.rows };
+});
+
+app.get("/api/v1/hub-settings/deployments/:deploymentId", async (request, reply) => {
+  const { deploymentId } = request.params as { deploymentId: string };
+  if (!z.string().uuid().safeParse(deploymentId).success) {
+    return reply.code(400).send({ error: { code: "INVALID_DEPLOYMENT_ID", message: "Invalid deployment identifier." } });
+  }
+  const result = await pool.query(
+    `SELECT id,desired_revision AS "desiredRevision",requested_method AS "requestedMethod",
+        state,safe_error_code AS "errorCode",applied_origin AS "appliedOrigin",
+        rollback_succeeded AS "rollbackSucceeded",created_at AS "createdAt",
+        started_at AS "startedAt",finished_at AS "finishedAt"
+       FROM hub_access_deployments WHERE id=$1`,
+    [deploymentId]
+  );
+  if (!result.rowCount) return reply.code(404).send({ error: { code: "DEPLOYMENT_NOT_FOUND", message: "Deployment was not found." } });
+  return { data: result.rows[0] };
 });
 
 app.get("/metrics", async (_request, reply) => {
@@ -369,12 +513,15 @@ app.get("/api/v1/devices/:deviceId", async (request, reply) => {
 });
 app.get("/api/v1/devices/:deviceId/capabilities", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
-  if (deviceId !== config.PFSENSE_DEVICE_ID) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  const device = (await provider.listDevices()).find(item => item.id === deviceId);
+  if (!device || device.isDemo) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
   return { data: await provider.capabilities() };
 });
 app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
   const { deviceId } = request.params as { deviceId: string };
-  if (deviceId !== config.PFSENSE_DEVICE_ID) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  const device = (await provider.listDevices()).find(item => item.id === deviceId);
+  if (!device || device.isDemo) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
+  if (!device.enabled) return reply.code(409).send({ error: { code: "DEVICE_DISABLED", message: "Enable this firewall before requesting live status." } });
   const started = Date.now();
   const result = await provider.collect(deviceId, (group, outcome, errorClass, durationMs) => {
     polls.inc({ device_id: deviceId, operation_group: group, result: outcome });
@@ -382,7 +529,8 @@ app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
     if (outcome === "failure") pollErrors.inc({ device_id: deviceId, operation_group: group, error_class: errorClass ?? "unknown" });
     else lastSuccess.set({ device_id: deviceId }, Date.now() / 1000);
   });
-  const failures = result?.failedOperations ?? 8;
+  if (!result) return reply.code(409).send({ error: { code: "DEVICE_UNAVAILABLE", message: "The firewall is no longer available for polling." } });
+  const failures = result.failedOperations;
   if (failures > 0) {
     await upsertAlert(pool, {
       deduplicationKey: "device-poll:" + deviceId,
@@ -403,6 +551,8 @@ app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
   deviceUp.set({ device_id: deviceId }, failures === 0 ? 1 : 0);
   return reply.code(failures === 8 ? 502 : 200).send({ data: result?.results ?? {}, meta: { deviceId, outcome: failures === 0 ? "success" : "partial", failedOperations: failures, durationMs: Date.now() - started } });
 });
+await registerDeviceAdminRoutes(app, { devices, clientFactory, pool });
+
 app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: { code: "NOT_FOUND", message: "Route not found." } }));
 app.setErrorHandler((error, request, reply) => {
   request.log.error({ err: error }, "Request failed");
@@ -415,8 +565,36 @@ app.setErrorHandler((error, request, reply) => {
     requestId: request.id
   } });
 });
+let deploymentWorkerRunning = false;
+async function recoverQueuedHubDeployments(): Promise<void> {
+  if (!config.HUB_ACCESS_DEPLOYMENT_ENABLED || deploymentWorkerRunning) return;
+  deploymentWorkerRunning = true;
+  try {
+    const queued = await pool.query<{ id: string; desired_revision: number }>(
+      `SELECT id,desired_revision FROM hub_access_deployments
+        WHERE state='queued' ORDER BY desired_revision ASC LIMIT 5`
+    );
+    for (const deployment of queued.rows) {
+      await dispatchHubDeployment(pool, deployment, {
+        socketPath: config.HUB_DEPLOYMENT_AGENT_SOCKET || null
+      });
+    }
+  } catch (error) {
+    app.log.error({ err: error }, "Unable to recover queued Hub access deployments");
+  } finally {
+    deploymentWorkerRunning = false;
+  }
+}
+
 await app.listen({ host: config.HOST, port: config.PORT });
 app.log.info("pfSense Hub Manager API started");
-const shutdown = async () => { await app.close(); await client.close(); await pool.end(); };
+void recoverQueuedHubDeployments();
+const deploymentWorkerTimer = setInterval(() => void recoverQueuedHubDeployments(), 5_000);
+deploymentWorkerTimer.unref();
+const shutdown = async () => {
+  clearInterval(deploymentWorkerTimer);
+  await app.close();
+  await pool.end();
+};
 process.on("SIGINT", () => void shutdown().then(() => process.exit(0)));
 process.on("SIGTERM", () => void shutdown().then(() => process.exit(0)));

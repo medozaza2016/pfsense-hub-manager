@@ -7,9 +7,22 @@ const valid={NODE_ENV:"test",HOST:"127.0.0.1",PORT:"3000",DATABASE_URL:"postgres
 let directory:string|undefined;
 afterEach(async()=>{if(directory)await rm(directory,{recursive:true,force:true});directory=undefined;});
 describe("configuration validation",()=>{
- it("accepts a complete HTTPS configuration",()=>{expect(loadConfig(valid).PORT).toBe(3000);});
+ it("accepts a complete HTTPS legacy bootstrap configuration",()=>{expect(loadConfig(valid).PORT).toBe(3000);});
+ it("accepts GUI-first startup without any firewall configured",()=>{
+  const config=loadConfig({...valid,PFSENSE_DEVICE_ID:"",PFSENSE_DEVICE_NAME:"",PFSENSE_API_BASE_URL:""});
+  expect(config.PFSENSE_DEVICE_ID).toBeUndefined();
+  expect(config.PFSENSE_DEVICE_NAME).toBeUndefined();
+  expect(config.PFSENSE_API_BASE_URL).toBeUndefined();
+ });
+ it("rejects partial legacy firewall bootstrap configuration",()=>{
+  expect(()=>loadConfig({...valid,PFSENSE_DEVICE_ID:""})).toThrow(/Invalid application configuration/);
+ });
  it("rejects HTTP firewall origins",()=>{expect(()=>loadConfig({...valid,PFSENSE_API_BASE_URL:"http://firewall.example.test"})).toThrow(/HTTPS/);});
  it("rejects missing required settings",()=>{expect(()=>loadConfig({})).toThrow(/Invalid application configuration/);});
+ it("accepts an unset agent token for local development",()=>{expect(loadConfig({...valid,HUB_DEPLOYMENT_AGENT_TOKEN:"",HUB_DEPLOYMENT_AGENT_SOCKET:""}).HUB_DEPLOYMENT_AGENT_TOKEN).toBe("");});
+ it("keeps automatic Hub access deployment disabled by default",()=>{expect(loadConfig(valid).HUB_ACCESS_DEPLOYMENT_ENABLED).toBe(false);});
+ it("enables Hub access deployment only for the explicit true value",()=>{expect(loadConfig({...valid,HUB_ACCESS_DEPLOYMENT_ENABLED:"true"}).HUB_ACCESS_DEPLOYMENT_ENABLED).toBe(true);expect(loadConfig({...valid,HUB_ACCESS_DEPLOYMENT_ENABLED:"false"}).HUB_ACCESS_DEPLOYMENT_ENABLED).toBe(false);});
+ it("rejects a short host-agent token",()=>{expect(()=>loadConfig({...valid,HUB_DEPLOYMENT_AGENT_TOKEN:"too-short"})).toThrow(/Invalid application configuration/);});
  it("loads exactly 32 bytes from a 64-character hexadecimal key file",async()=>{
   directory=await mkdtemp(join(tmpdir(),"pfsense-key-"));const path=join(directory,"key");await writeFile(path,"ab".repeat(32));
   expect((await loadEncryptionKey(path)).length).toBe(32);

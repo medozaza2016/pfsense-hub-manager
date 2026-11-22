@@ -198,7 +198,19 @@ Health endpoints must not disclose secrets, internal topology, or detailed depen
 | GET | `/api/v1/devices/:deviceId` | Retrieve one device's safe details |
 | GET | `/api/v1/devices/:deviceId/capabilities` | Retrieve the device's verified capability profile |
 
-Device creation, editing, deletion, and credential management are not defined in this read-only monitoring contract. They require the administrator authentication and secret-management decisions first.
+Manager-owned site lifecycle routes are separate from pfSense configuration operations and require an authenticated administrator. They only change the Hub's local inventory and encrypted connection material.
+
+| Method | Route | Purpose |
+|---|---|---|
+| POST | `/api/v1/devices` | Register a site after a successful read-only TLS/API connection test |
+| GET | `/api/v1/devices/:deviceId/profile` | Retrieve editable, non-secret connection profile fields |
+| PATCH | `/api/v1/devices/:deviceId` | Update name, location, edition, and HTTPS API origin |
+| PATCH | `/api/v1/devices/:deviceId/enabled` | Enable or disable manager polling for a site |
+| PUT | `/api/v1/devices/:deviceId/credential` | Verify a replacement API credential with a read-only version request, then rotate the encrypted credential |
+| PUT | `/api/v1/devices/:deviceId/tls-trust` | Set or clear the encrypted custom CA trust bundle |
+| DELETE | `/api/v1/devices/:deviceId` | Archive the manager-side site, requiring request body `{ "confirmation": "ARCHIVE" }` |
+
+Archival is non-destructive to operational history: it disables and hides the profile from active inventory, purges encrypted API credentials and custom TLS trust, resolves active/acknowledged device alerts, and retains polling history, alert records, and append-only audit events. Demo records are excluded from profile editing and archival. None of these routes enables POST, PUT, PATCH, or DELETE operations against pfSense itself.
 
 ### Current observations
 

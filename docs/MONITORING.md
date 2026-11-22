@@ -45,7 +45,7 @@ Prometheus is optional, not required in the initial Compose stack. If adopted, s
 8. Record the resolution without credentials or sensitive payloads.
 
 
-## Hub Docker Compose monitoring and recovery (approved, implementation pending)
+## Hub Docker Compose monitoring and recovery (approved scope, implementation pending)
 
 ### Access policy (DEC-027)
 - Application roles for this area are `admin` and `user`.
@@ -57,7 +57,7 @@ Prometheus is optional, not required in the initial Compose stack. If adopted, s
 
 ## Hub Docker Compose monitoring and recovery (planned)
 
-This section concerns the Hub's own four-service Compose project only: Web, API, PostgreSQL, and Code Server. The dedicated host is not intended to be a general-purpose Docker host, and unrelated containers are out of scope.
+This section concerns the Hub's own three-service Compose project only: Web, API, and PostgreSQL. The dedicated host is not intended to be a general-purpose Docker host, and unrelated containers are out of scope.
 
 ### Monitoring
 - Display host CPU, memory, and disk usage only when obtained through a reliable host-side telemetry source. Do not infer host resource usage from the API container's process metrics.
@@ -72,7 +72,7 @@ This section concerns the Hub's own four-service Compose project only: Web, API,
 - Rebuild, recreate, image update, volume deletion, database restore, and arbitrary Docker/host commands are not part of the initial scope.
 
 ### Execution and security boundary
-The browser calls the Hub API. The API authorizes the administrator and records the requested operation. A narrowly scoped host-side management component performs only predefined actions for the fixed Hub Compose project. The web and API containers must not receive the Docker socket. Do not accept arbitrary command strings, Compose file paths, project names, service names, or CLI flags from the browser. Validate targets against the fixed service allowlist: web, api, db (PostgreSQL), and code-server.
+The browser calls the Hub API. The API authorizes the administrator and records the requested operation. A narrowly scoped host-side management component performs only predefined actions for the fixed Hub Compose project. The web and API containers must not receive the Docker socket. Do not accept arbitrary command strings, Compose file paths, project names, service names, or CLI flags from the browser. Validate targets against the fixed service allowlist: web, api, and db (PostgreSQL).
 
 Operations must preserve persistent data. Routine stop, restart, and start operations must never include volume removal. Compose configuration validation must not start, stop, or recreate containers. After an operation, query actual runtime state and health; report command completion separately from confirmed recovery. Record actor, action, target, request time, completion time, outcome, and sanitized diagnostics.
 
@@ -80,4 +80,4 @@ Operations must preserve persistent data. Routine stop, restart, and start opera
 If the entire stack is stopped, the GUI cannot restart itself. The operator must use Docker Desktop or a host terminal to start the project again using the documented Compose deployment procedure. This recovery path must be documented and tested before exposing whole-stack stop in the GUI.
 
 ### Implementation status
-Planned only. No Docker management endpoint, host agent, UI controls, or live container monitoring is claimed to exist yet.
+The broader monitoring/Compose-operations scope remains planned. A restricted Linux Host Agent does exist for the separate Hub access deployment workflow only; it does not expose general container control, arbitrary Compose actions, or the monitoring operations described in this document. No generic Docker management endpoint or live container monitoring control is claimed to exist.

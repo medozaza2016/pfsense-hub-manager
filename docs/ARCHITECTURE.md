@@ -6,9 +6,9 @@ pfSense Hub Manager is a centralized application for monitoring and, only after 
 
 ## Current verified deployment
 
-A Proxmox LXC named pfsense-hub-manager has Docker and Docker Compose installed and Tailscale connected, according to the project setup record. It can reach one Netgate 2100 running pfSense Plus through 172.10.50.1:10443 and successfully call eight read-only REST API endpoints using an API key.
+The standard Linux deployment target is a prepared Debian 13 Proxmox LXC with Docker Engine, Docker Compose, Git, systemd, Python, and optional Tailscale already available. The Hub runs as three Docker Compose services: web, API, and PostgreSQL. The web UI and API host publication bind to loopback by default; PostgreSQL is not published to the host. A restricted root-owned systemd Host Agent applies supported Hub access changes over a group-restricted Unix socket. A clean install and the Tailscale MagicDNS access path were verified on November 22, 2026. See `DEPLOYMENT.md` and `VERIFICATION-AND-CLOSEOUT.md`.
 
-The second firewall, running pfSense CE, is not yet connected. Its integration is intentionally deferred until the user is ready to attach it.
+The first Netgate 2100 running pfSense Plus has a historical test record of eight successful read-only REST API calls. The second firewall, running pfSense CE, is not yet connected and remains intentionally deferred.
 
 ## Target logical components
 
@@ -48,7 +48,7 @@ The adapter should:
 
 The application will be deployed on the existing Proxmox LXC named `pfsense-hub-manager`. Docker Compose will manage the application containers. Cloudflare Workers and Cloudflare hosting are not part of this project.
 
-The approved frontend is React with TypeScript and Vite. The backend is a separate Node.js and TypeScript service exposing a REST API. PostgreSQL is approved as the application database and will run as a dedicated Docker Compose service. Fastify is the selected backend HTTP framework. The administrator identity provider and secret storage mechanism remain undecided. See `DECISIONS.md` for the authoritative decision record.
+The implemented frontend is React with TypeScript and Vite. The backend is a separate Node.js and TypeScript Fastify service exposing an authenticated REST API. PostgreSQL runs as a dedicated Docker Compose service. Manager authentication uses database-backed accounts and sessions with `admin` and `user` roles. Per-device API credentials and custom TLS trust are encrypted in PostgreSQL with AES-256-GCM; the application encryption key is provisioned separately as a protected runtime secret. See `DECISIONS.md` for the authoritative decision record.
 
 ## Network architecture
 
@@ -66,12 +66,12 @@ A firewall outage must not make the whole manager unavailable. Poll each device 
 
 ## Open architecture decisions
 
-- Administrator authentication and secret storage.
-- Firewall-to-hub transport: VPN/overlay, site-to-site tunnel, private connector/agent, or another private path. This decision is explicitly deferred.
-- Whether a private connector/agent is needed for remote sites.
-- Polling frequency and concurrency.
-- Exact initial dashboard metrics.
-- Support matrix for Plus and CE versions and package releases.
+- Firewall-to-hub transport and network path for each remote firewall; this decision remains explicitly deferred.
+- Whether a site-local connector/agent is needed for remote sites.
+- Production polling frequency, scheduler, concurrency, and retry/backoff policy.
+- Exact retention, backup, restore, and disaster-recovery requirements.
+- Verified support matrix for Plus and CE versions, architectures, and installed API package releases.
+- Application encryption-key rotation and migration procedure.
 
 ## Runtime and container boundaries
 
@@ -81,9 +81,9 @@ The initial deployment is a Docker Compose application on the existing Proxmox L
 
 1. **Web frontend:** React application built with Vite and TypeScript. It presents the operator interface and calls only the manager's application API. It must not call pfSense directly or contain firewall credentials.
 2. **Backend API:** Node.js and TypeScript service exposing the manager's REST API. It owns authentication and authorization enforcement once selected, input validation, device orchestration, firewall API calls, and safe response shaping.
-3. **Polling execution:** Initially a backend module/process responsibility, not a separate distributed service. It performs scheduled per-device collection with independent timeouts, bounded concurrency, and backoff. A separate worker container may be considered only if measured workload or operational isolation justifies it.
+3. **Polling execution:** The current backend performs request-triggered read-only collection per selected device and records operation outcomes. A production background scheduler, bounded cross-device concurrency, and retry/backoff are not yet implemented. A separate worker container may be considered only if measured workload or operational isolation justifies it.
 
-The initial Compose topology is implemented with separate web, API, and PostgreSQL containers. This remains an initial development topology, not a production security sign-off. Do not add a cache, message broker, identity provider, reverse proxy, or secret-management product until its requirement and operational cost are documented and approved.
+The Compose topology uses separate web, API, and PostgreSQL containers. The web and API host ports are loopback-only by default; PostgreSQL is private to the Compose network. The Linux Host Agent is a systemd process on the host, not a container. The deployment has passed a clean-install and Tailscale access test, but this is not a production security sign-off. Do not add a cache, message broker, external identity provider, or secret-management product until its requirement and operational cost are documented and approved.
 
 ### Container communication and exposure
 
@@ -97,7 +97,7 @@ The initial Compose topology is implemented with separate web, API, and PostgreS
 
 ### Configuration and persistence boundaries
 
-Non-secret runtime configuration (for example, listen addresses and log levels) must be validated at startup. Firewall API keys, passwords, private keys, and session-signing material must be injected only into server-side components through an approved protected mechanism. The mechanism is not selected yet. Do not place secrets in Vite-exposed variables, image layers, source control, browser storage, or logs.
+Non-secret runtime configuration (for example, listen addresses and log levels) is validated at startup. Per-device API keys and custom CA trust are encrypted in PostgreSQL. The 32-byte application encryption key is stored in a protected host-side runtime file and mounted into the API container as a read-only Compose secret. The database password and Host Agent token are held in a root-owned `.env` file with mode 0600; the Host Agent also has a separate root-only JSON configuration. Do not place secrets in Vite-exposed variables, image layers, source control, browser storage, or logs.
 
 PostgreSQL is the approved application database and will run as a dedicated Docker Compose service with a persistent volume and private Compose networking. The data model should distinguish stable device inventory and configuration metadata from time-series observations and sensitive diagnostic data. ARP entries and firewall state details should not be retained by default. Schema migrations, retention, backup, restore, and encryption requirements must be defined before production use. Database ports must not be published externally by default.
 
@@ -203,13 +203,16 @@ Metrics labels must be bounded. Never label by arbitrary device IP, raw path wit
 The OpenAPI JSON is the upstream contract reference. The application must use a controlled subset of operations through typed provider methods, not a generic pass-through proxy. Validate live responses at runtime. When the source specification changes, regenerate the matrix and review added, removed, and changed operations before changing application behavior.
 
 
-## Initial scaffold implementation status
+## Current implementation status, November 22, 2026
 
-The repository now includes React/Vite frontend and Fastify API workspaces, PostgreSQL migrations and poll-run persistence, Docker Compose, separate frontend/backend Dockerfiles, a server-side pfSense API client with exactly eight fixed GET routes, runtime envelope validation, strict TLS verification with optional private CA trust, Docker-secret API-key injection, an internal metrics endpoint, health/readiness routes, and a loopback-bound web entry point. The frontend can trigger a read-only overview collection. Manager-user authentication is not implemented; loopback-only exposure is a deliberate temporary security boundary. See DEPLOYMENT.md for setup and limitations.
+The current branch includes React/Vite frontend and Fastify API workspaces, PostgreSQL migrations and per-operation poll history, Docker Compose, separate frontend/backend Dockerfiles, a per-device pfSense client factory and provider, the fixed eight-operation GET allowlist, runtime response-envelope validation, strict TLS verification with optional device-scoped CA trust and TLS server name, AES-256-GCM credential storage, manager authentication and roles, user management, audit records, alerts, health/readiness routes, application metrics, and the Hub Settings workflow.
 
+The Linux production installer provisions the Hub and restricted Host Agent in one run. The Host Agent is a separate root-owned systemd service and does not expose the Docker socket to application containers. A clean Debian 13 install completed with healthy web/API/PostgreSQL services and a successful authenticated API-to-agent socket handshake. Hub Settings then applied and verified a Tailscale MagicDNS endpoint from the browser. See `DEPLOYMENT.md` and `VERIFICATION-AND-CLOSEOUT.md`.
 
-## Hub access configuration boundary (DEC-025)
+Manager-owned site profiles and their encrypted credentials are database-backed and can be created and managed through administrator-only GUI workflows. The provider can create per-device clients from each profile. However, only the first Plus firewall has a historical eight-endpoint diagnostic test, that test bypassed certificate validation, the installed API package version is unrecorded, and the CE firewall remains deferred. Production backup/restore, scheduled polling, and firewall write operations remain incomplete.
 
-The administrator-facing controls belong in the existing Administration → Hub Settings page. The first-run default remains loopback-only (`127.0.0.1`); Tailscale is optional and is not an application dependency. PostgreSQL stores validated desired access settings, while the host deployment owns the actual published-port binding. The application must separately represent desired, pending, applied, and reachability-verified state.
+## Hub access deployment boundary (DEC-025 / DEC-033)
 
-A containerized Fastify process cannot reconfigure the Docker host's published port by updating PostgreSQL. A later implementation must use a narrowly scoped host-side deployment agent or an explicit operator apply workflow. Do not mount the Docker socket into the web or API container, and do not add arbitrary command execution. Remote access remains gated on manager authentication/authorization and a reviewed host-side apply boundary. See `HUB-ACCESS-CONFIGURATION.md` for the workflow and acceptance criteria.
+The administrator-facing controls belong in Administration → Hub Settings. The first-run default remains loopback-only (`127.0.0.1:8080`). The UI supports Local, Tailscale MagicDNS, and Custom, with exactly one active method and per-method values retained. A selected method is not treated as reachable until the restricted Linux Host Agent applies it and verifies the HTTPS endpoint.
+
+The Host Agent retrieves approved revision-scoped configuration from the loopback API, validates the local host binding, performs only fixed Compose/web-service operations, and rolls back a failed change. For Tailscale it provisions only the fixed private Serve route to the loopback web service when missing. It never receives arbitrary commands and the web/API containers never receive the Docker socket. Tailscale installation, authentication, HTTPS certificate enablement, ACLs, DNS, Funnel, and external LAN/Custom reverse-proxy provisioning remain operator-managed. Windows Docker Desktop does not run this Linux agent. See `HUB-ACCESS-CONFIGURATION.md` and `AUTOMATIC-HUB-ACCESS-DEPLOYMENT.md`.

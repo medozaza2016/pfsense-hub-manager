@@ -1,0 +1,12 @@
+{
+  "api_base_url": "http://127.0.0.1:3001",
+  "api_token": "REPLACE_WITH_THE_SAME_32_PLUS_CHARACTER_TOKEN_AS_DOT_ENV",
+  "socket_path": "/opt/pfsense-hub/run/host-agent/agent.sock",
+  "tailscale_binary": "/usr/bin/tailscale",
+  "docker_binary": "/usr/bin/docker",
+  "ip_binary": "/usr/sbin/ip",
+  "project_dir": "/opt/pfsense-hub",
+  "compose_file": "/opt/pfsense-hub/compose.yaml",
+  "env_file": "/opt/pfsense-hub/.env",
+  "web_local_url": "http://127.0.0.1:8080"
+}

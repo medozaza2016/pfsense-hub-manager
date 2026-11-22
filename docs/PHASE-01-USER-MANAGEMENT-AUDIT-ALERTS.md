@@ -1,6 +1,6 @@
 # Phase 1: User Management, Audit Logs, and Alerts
 
-**Status:** Implemented on feature branch, automated and local verification pending  
+**Status:** Implemented on feature branch; Windows API verification and clean Linux installation completed November 22, 2026; broader authorization/retention acceptance remains open  
 **Planning date:** November 21, 2026  
 **Target:** Deliver User Management, Audit Logs, and Alerts together as one coherent phase.
 
@@ -115,7 +115,7 @@ Do not run this command against a production database. Running it a second time 
 
 ## Verification and remaining release gates
 
-- Run typecheck, tests, production build, Compose validation, and container build on the final pull request head.
+- Windows local verification: 177 API tests passed, 4 platform-specific tests skipped; API/web typechecks and API/web production builds passed.
 - Verify administrator and regular-user access in the Windows Docker environment.
 - Validate migrations against a copy of the current PostgreSQL database.
 - Verify last-active-admin protection and append-only enforcement against PostgreSQL.

@@ -34,7 +34,7 @@ The current direct-IP endpoint presented a self-signed certificate. This is not 
 Prefer a private management path or VPN between the manager and each firewall. Do not expose the firewall API directly to the public internet by default. The 172.10.x.x address plan is retained for now at the user's explicit direction.
 
 ## Application security requirements
-Before application release, implement authenticated administrative access, authorization checks on every manager API operation, input validation, bounded timeouts/retries/response sizes, redaction, audit events, and per-device isolation. Keep the initial pfSense integration read-only. Any future write capability requires a separate approved design and explicit authorization.
+The current branch implements database-backed manager authentication, `admin`/`user` authorization, authenticated manager API routes, administrator-only site and Hub access mutations, strict request validation, bounded firewall API requests, secret redaction, audit events, and per-device connection profiles. Remaining release work includes a full security review, existing-data migration validation, backup/restore and retention drills, key rotation design, and two-real-device isolation testing. Keep the pfSense integration read-only. Any future write capability requires a separate approved design and explicit authorization.
 
 ## Encrypted credential storage and key lifecycle
 DEC-024 selects per-site credential encryption in PostgreSQL, with AES-256-GCM. The installer generates one high-entropy application key, provides a recovery copy, and places a separate runtime copy in a protected host-side location. The backend loads it automatically. The key must never be stored in PostgreSQL, source control, browser storage, logs, or API responses.
@@ -47,7 +47,8 @@ Implementation now in this branch:
 - Migration 002 adds a per-device credential table containing ciphertext, nonce, authentication tag, algorithm, and key version. Plaintext credentials are not stored.
 - Database and encryption-key backups must be protected and restored separately. Losing the key makes encrypted credentials unrecoverable.
 - Docker Compose file secrets are mounted as files, not encrypted at rest. Windows host ACLs and container access controls are separate security boundaries and both require validation.
-- Key rotation, Linux production provisioning, credential-management API, and end-to-end container permission tests remain outstanding.
+- Linux production application-key provisioning and Host Agent installation are provided by the standard Linux installer. A clean Debian 13 install verified the root-owned configuration, API supplementary group, group-restricted socket, bearer-authenticated handshake, and service health before enabling the deployment feature. A broader container permission/security audit remains outstanding.
+- Application-key rotation is not implemented. Database backup/restore with its exact matching key has not passed a recovery drill. Do not replace the runtime key while encrypted credentials or TLS trust material exist.
 
 ## Incident response
 If a key or password is exposed, revoke or rotate it, update the protected secret store, review logs and repository history, assess other affected systems, and record remediation without copying the secret into the incident record.
@@ -58,12 +59,19 @@ If a key or password is exposed, revoke or rotate it, update the protected secre
 The initial manager-user model for System Monitoring and Recovery has two roles: `admin` and `user`. Both roles may view authenticated monitoring status and bounded, sanitized service logs. Only `admin` may invoke service or stack operations and Compose validation. The frontend keeps those controls visible but disabled for `user`; this is usability behavior only. Fastify must derive the role from the database-backed authenticated session and enforce authorization on every privileged route. Requests without a valid session return 401; authenticated sessions without `admin` return 403. Never trust a role, user ID, or authorization claim supplied in a request body, query string, or browser storage. The initial administrator must remain an administrator; user provisioning and role changes must be admin-only, and the system must prevent demotion or deletion of the last administrator. Docker execution remains unavailable until the restricted host-side agent and its fixed project/service allowlists are implemented and reviewed.
 
 
-### Manager role implementation status, November 21, 2026
+### Manager role implementation status, November 22, 2026
 
-The first API role increment is committed on `feature/linux-production-gui-onboarding`:
+The current `feature/multi-site-onboarding` branch includes manager authentication, database-backed roles and sessions, user administration, audit logging, and administrator enforcement on site and Hub access mutation routes:
 
 - Migration `003_manager_roles_and_sessions.sql` creates the manager account/session tables when absent and adds a constrained `role` column. Existing rows receive the `admin` role by default; no account deletion or password reset is part of the migration.
 - Session lookup reads the role from PostgreSQL. Setup and login responses include the role from the database.
 - A Fastify pre-handler enforces administrator access on the reserved `/api/v1/system/operations` and `/api/v1/users` API namespaces. It returns 403 for authenticated non-admin users. The existing authentication hook returns 401 when there is no valid session.
-- Unit tests cover the role decision outcomes and passed in the Windows source test run on November 21, 2026. The migration has not yet been executed against a local test database or an existing database copy.
-- No Docker operation endpoints, host agent, or container controls have been added. Deployment and database migration are intentionally not performed by these source changes.
+- The Windows local API suite reported 177 passed and 4 skipped; API/web typechecks and production builds passed. The clean Debian 13 install executed the migration chain against a new PostgreSQL volume. Migration testing against a preserved existing-data copy remains outstanding.
+- The Linux Host Agent is limited to GUI-managed Hub access deployment. It is not a general Docker operations endpoint and does not expose arbitrary container, Compose, or host commands.
+
+
+## Current security acceptance status, November 22, 2026
+
+The clean Debian 13 installation verified the Linux Host Agent systemd service, root-owned configuration, group-restricted Unix socket, API supplementary group, bearer-authenticated request, and health-gated enablement of GUI-managed Hub access. Hub Settings successfully applied and verified the tested Tailscale MagicDNS endpoint. The web and API containers do not receive the Docker socket.
+
+The current release remains limited to the fixed read-only pfSense GET allowlist. The first Plus firewall's historical diagnostic test used a temporary TLS bypass; a trusted TLS test against that firewall remains required. A second real firewall has not been tested. Backup/restore, retention, key rotation, existing-data migration, full system security review, and Windows host deployment are not complete. See [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md) for the exact evidence and remaining gaps.
