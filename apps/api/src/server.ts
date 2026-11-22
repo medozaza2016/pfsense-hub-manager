@@ -444,7 +444,7 @@ app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
     metadata: { methods: parsed.data.endpoints.map(endpoint => endpoint.method), enabledCount: parsed.data.endpoints.filter(endpoint => endpoint.enabled).length, desiredRevision: revision, deploymentId }
   });
   void dispatchHubDeployment(pool, { id: deploymentId, desired_revision: revision }, {
-    socketPath: config.HUB_DEPLOYMENT_AGENT_SOCKET ?? null
+    socketPath: config.HUB_DEPLOYMENT_AGENT_SOCKET || null
   }).catch(() => undefined);
   return { data: { endpoints: parsed.data.endpoints, deploymentId, desiredRevision: revision, appliedRevision, deploymentStatus: "queued" } };
 });
