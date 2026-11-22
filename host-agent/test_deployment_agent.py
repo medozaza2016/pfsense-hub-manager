@@ -223,5 +223,17 @@ class DeploymentAgentTests(unittest.TestCase):
         )
         self.assertEqual(run_fixed.call_args_list[1].kwargs, {"timeout": 45})
 
+
+    @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("8.8.8.8")})
+    def test_rejects_publicly_routable_host_bind_addresses(self, assigned):
+        endpoint = {
+            "method": "local",
+            "addressType": "ip",
+            "address": "8.8.8.8",
+        }
+        with self.assertRaises(agent.AgentError) as caught:
+            agent.resolve_bind_address(endpoint, self.config)
+        self.assertEqual(caught.exception.code, "HOST_BIND_PUBLIC_ADDRESS_NOT_ALLOWED")
+
 if __name__ == "__main__":
     unittest.main()
