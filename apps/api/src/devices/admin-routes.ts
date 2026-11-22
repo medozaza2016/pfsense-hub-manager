@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Pool } from "pg";
@@ -222,7 +223,7 @@ export async function registerDeviceAdminRoutes(
       return reply.code(409).send({ error: { code: "DEVICE_DISABLED", message: "Enable this firewall before testing its connection." } });
     }
 
-    const testedAt = new Date().toISOString();
+    const startedAt = Date.now();
     let client: Awaited<ReturnType<DevicePfSenseClientFactory["create"]>> = null;
     let outcome: "reachable" | "unreachable" = "reachable";
     let errorClass: ReturnType<typeof classifyError> | null = null;
@@ -245,6 +246,13 @@ export async function registerDeviceAdminRoutes(
       if (client) await client.close().catch(() => undefined);
     }
 
+    const completedAt = new Date();
+    const durationMs = Math.max(0, completedAt.getTime() - startedAt);
+    await pool.query(
+      "INSERT INTO poll_runs(id,device_id,operation_group,outcome,started_at,completed_at,duration_ms,error_class) VALUES($1,$2,'version',$3,now()-($4::integer * interval '1 millisecond'),now(),$4,$5)",
+      [randomUUID(), deviceId, outcome === "reachable" ? "success" : "failure", durationMs, errorClass]
+    );
+
     await appendAudit(pool, {
       actorId: actor.id,
       actorUsername: actor.username,
@@ -258,6 +266,6 @@ export async function registerDeviceAdminRoutes(
       metadata: { operation: "version", outcome, errorClass },
       requestId: request.id
     });
-    return { data: { deviceId, outcome, errorClass, testedAt, operation: "version" } };
+    return { data: { deviceId, outcome, errorClass, testedAt: completedAt.toISOString(), operation: "version" } };
   });
 }
