@@ -258,7 +258,6 @@ def main() -> None:
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
     os.chmod(socket_path, 0o660)
-    os.chown(socket_path, 0, int(config["socket_gid"]))
     server.listen(8)
     lock_path = Path("/run/pfsense-hub/deployment.lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
