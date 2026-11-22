@@ -555,8 +555,36 @@ app.setErrorHandler((error, request, reply) => {
     requestId: request.id
   } });
 });
+let deploymentWorkerRunning = false;
+async function recoverQueuedHubDeployments(): Promise<void> {
+  if (deploymentWorkerRunning) return;
+  deploymentWorkerRunning = true;
+  try {
+    const queued = await pool.query<{ id: string; desired_revision: number }>(
+      `SELECT id,desired_revision FROM hub_access_deployments
+        WHERE state='queued' ORDER BY desired_revision ASC LIMIT 5`
+    );
+    for (const deployment of queued.rows) {
+      await dispatchHubDeployment(pool, deployment, {
+        socketPath: config.HUB_DEPLOYMENT_AGENT_SOCKET || null
+      });
+    }
+  } catch (error) {
+    app.log.error({ err: error }, "Unable to recover queued Hub access deployments");
+  } finally {
+    deploymentWorkerRunning = false;
+  }
+}
+
 await app.listen({ host: config.HOST, port: config.PORT });
 app.log.info("pfSense Hub Manager API started");
-const shutdown = async () => { await app.close(); await pool.end(); };
+void recoverQueuedHubDeployments();
+const deploymentWorkerTimer = setInterval(() => void recoverQueuedHubDeployments(), 5_000);
+deploymentWorkerTimer.unref();
+const shutdown = async () => {
+  clearInterval(deploymentWorkerTimer);
+  await app.close();
+  await pool.end();
+};
 process.on("SIGINT", () => void shutdown().then(() => process.exit(0)));
 process.on("SIGTERM", () => void shutdown().then(() => process.exit(0)));
