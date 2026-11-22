@@ -504,6 +504,7 @@ type HubAccessEndpoint = {
 };
 const deploymentErrorCopy:Record<string,string> = {
  HOST_AGENT_NOT_CONFIGURED:"The Linux host deployment agent is not installed or connected.",
+ HOST_AGENT_ORIGIN_MISMATCH:"The agent reported an HTTPS origin that does not match the selected endpoint. The API rejected it.",
  TLS_METHOD_NOT_SUPPORTED_YET:"This access method still needs a trusted TLS certificate and deployment configuration.",
  TAILSCALE_HTTPS_NOT_ENABLED:"Enable HTTPS certificates for this tailnet before using Tailscale Serve.",
  TAILSCALE_NOT_CONNECTED:"Tailscale is not connected on the Hub host.",
