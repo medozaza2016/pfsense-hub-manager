@@ -14,8 +14,8 @@ const routes={
 export type PfSenseOperation=keyof typeof routes;
 
 export type PfSenseTlsTrust =
- | { mode: "system" }
- | { mode: "custom-ca"; certificateAuthority: Buffer };
+ | { mode: "system"; servername?: string | null }
+ | { mode: "custom-ca"; certificateAuthority: Buffer; servername?: string | null };
 
 export function selectTlsCa(trust: PfSenseTlsTrust | undefined, legacyCa?: Buffer): Buffer | undefined {
  if (trust?.mode === "system") return undefined;
@@ -61,6 +61,7 @@ export class PfSenseClient{
    const ca=selectTlsCa(tlsTrust,legacyCa);
    return new Agent({connect:{
     ...(ca?{ca}:{}),
+    ...(tlsTrust?.servername ? { servername: tlsTrust.servername } : {}),
     rejectUnauthorized:true,
     lookup:createPinnedLookup(base.hostname.startsWith("[") ? base.hostname.slice(1,-1) : base.hostname,destination)
    }});
