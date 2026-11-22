@@ -13,7 +13,7 @@ import {
 import { normalizeDeviceCaBundle } from "../pfsense/tls-trust.js";
 
 const deviceIdSchema = z.string().uuid();
-const apiOriginSchema = z.string().trim().min(1).max(2048).url().transform((value, context) => {
+export const apiOriginSchema = z.string().trim().min(1).max(2048).url().transform((value, context) => {
   let url: URL;
   try {
     url = new URL(value);
