@@ -30,6 +30,9 @@ class DeploymentAgentTests(unittest.TestCase):
             "deploymentId": "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1",
             "desiredRevision": 3,
         }
+        self.read_bind_patcher = patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"))
+        self.read_bind_patcher.start()
+        self.addCleanup(self.read_bind_patcher.stop)
         self.endpoint = {
             "deploymentId": self.request["deploymentId"],
             "desiredRevision": 3,
