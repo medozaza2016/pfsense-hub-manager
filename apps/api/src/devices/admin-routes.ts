@@ -135,7 +135,7 @@ async function discoverFirewallCertificate(apiBaseUrl: string, requestedServerna
           subjectAltName,
           dnsNames,
           ipAddresses,
-          suggestedServername: dnsNames.length === 1 ? dnsNames[0] ?? null : null,
+          suggestedServername: dnsNames.length === 1 && !dnsNames[0]?.startsWith("*.") ? dnsNames[0] ?? null : null,
           fingerprint256: certificate.fingerprint256,
           validFrom: certificate.validFrom,
           validTo: certificate.validTo,
