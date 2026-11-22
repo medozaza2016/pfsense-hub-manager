@@ -7,8 +7,19 @@ export const hostDeploymentRequestSchema = z.object({
   desiredRevision: z.number().int().min(1)
 }).strict();
 
+const verifiedOriginSchema = z.string().url().refine((value) => {
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol)
+      && !url.username && !url.password
+      && url.pathname === "/" && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+}, "A verified origin must be an HTTP(S) origin without credentials, path, query, or fragment.");
+
 export const hostDeploymentResultSchema = z.discriminatedUnion("state", [
-  z.object({ state: z.literal("succeeded"), appliedOrigin: z.string().url() }).strict(),
+  z.object({ state: z.literal("succeeded"), appliedOrigin: verifiedOriginSchema }).strict(),
   z.object({ state: z.literal("rolled_back"), errorCode: z.string().regex(/^[A-Z0-9_]{1,64}$/), rollbackSucceeded: z.literal(true) }).strict(),
   z.object({ state: z.literal("failed"), errorCode: z.string().regex(/^[A-Z0-9_]{1,64}$/), rollbackSucceeded: z.boolean().nullable() }).strict()
 ]);
