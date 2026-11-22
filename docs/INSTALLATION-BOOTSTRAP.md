@@ -1,8 +1,10 @@
 # Hub Installation and First-Run Bootstrap
 
-**Status:** Approved target workflow, partially implemented on `feature/multi-site-onboarding`
-**Decision:** DEC-031
-**Implementation status:** The current branch supports Hub startup without a configured firewall and GUI-based site onboarding. The Linux installer provisions the Host Agent as a standard component. Windows/Linux parity and full migration acceptance still require separate verification.
+**Status:** Linux first-install workflow implemented, broader installation acceptance in progress
+**Decision:** DEC-031 and DEC-032
+**Implementation status:** The current branch supports a single-entry Linux installation on a clean Debian/systemd host. The main installer provisions the Hub and standard Host Agent, verifies their connection, and enables GUI-managed access deployment after health checks. Windows/Linux parity, reboot/recovery, and migration acceptance still require separate verification.
+
+**Operator procedure:** Follow [Fresh Linux Host Setup](DEPLOYMENT.md#fresh-linux-host-setup) for the clean-machine prerequisites, Docker setup, repository checkout, and installer command. This document records the lifecycle requirements and acceptance criteria.
 
 ## 1. Core installation rule
 
@@ -64,9 +66,9 @@ The supported local development platform is Windows 11 with VS Code and Docker D
 
 The existing `scripts/setup-encryption-key.ps1` recovery behavior must be preserved or incorporated into the final installer. It must refuse to replace an existing key.
 
-## 5. Linux Bash installation target
+## 5. Linux Bash installation workflow
 
-Production deployment targets Linux, initially the existing Proxmox LXC. The future Bash installer must provide equivalent behavior:
+Production deployment targets Linux, initially Debian 13 on a Proxmox LXC or another supported systemd host. The implemented Bash installer provides the following behavior:
 
 1. Verify Linux, systemd, Docker Engine, Docker Compose, Python 3.10 or newer, and iproute2 prerequisites.
 2. Detect existing application files, Host Agent configuration/service, Compose containers, the PostgreSQL volume, and key files before making changes. Refuse to initialize over an existing database volume.
