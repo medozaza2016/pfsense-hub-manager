@@ -48,13 +48,13 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
   - `PUT /api/v1/devices/:deviceId/credential`
   - `PUT /api/v1/devices/:deviceId/tls-trust`
   - `POST /api/v1/devices/:deviceId/connection-test`
-- Route tests have been added for administrator enforcement, credential non-disclosure, profile secret rejection, and successful/failed read-only connection tests. These new tests and the integrated server build are pending execution in the user's local checkout.
+- Route tests now cover administrator enforcement, credential non-disclosure, profile secret rejection, pre-registration test success/failure, and safe certificate discovery. These tests and the integrated server build are pending execution in the user's local checkout.
 - The startup configuration still requires the legacy `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, `PFSENSE_API_BASE_URL`, and `PFSENSE_API_KEY_FILE` bootstrap settings. The first configured firewall is persisted at startup. Removing that requirement is a separate compatibility change and must preserve existing deployments.
 - The capabilities response currently reports the fixed operation list as supported/tested. This is an implementation declaration, not proof that every endpoint has been verified against every pfSense edition or release. Do not interpret it as a live compatibility test.
 - The inventory derives `connectionState` and `lastConnectionCheckAt` from the latest persisted `version` operation in `poll_runs`. Explicit connection tests record success or failure in the existing history table, so status survives refresh without a new migration. Devices with no recorded check remain `unknown`; demo devices remain unverified.
 - The Add Site workflow is connected to the API. It collects the site name, optional location, edition, HTTPS API origin, API credential, optional TLS server name, and optional custom CA bundle. It can discover and display the presented certificate before credentials are submitted. The administrator must confirm the displayed SHA-256 fingerprint against a trusted independent source before the pre-registration test can proceed. Credentials and CA material are cleared after successful registration.
 - The pre-registration connection test uses only the `version` GET operation. The server repeats that test during registration, then persists the profile and encrypted trust material atomically. The post-registration dialog still allows a fresh connection test.
-- Migration 008 and the lifecycle have unit-test coverage, but migration execution against the user's actual PostgreSQL database and live firewall connectivity have not yet been confirmed.
+- Migrations 008 and 009 and the lifecycle have unit-test coverage, but migration execution against the user's actual PostgreSQL database and live firewall connectivity have not yet been confirmed.
 
 ## 3. Security invariants
 
@@ -110,7 +110,7 @@ These are non-negotiable throughout the remaining work:
 
 ### Phase D: Deployment and operational verification
 
-- [ ] Apply migration 008 in a controlled development database and verify the resulting schema.
+- [ ] Apply migrations 008 and 009 in a controlled development database and verify the resulting schema.
 - [ ] Verify encrypted credential and custom CA persistence, decryption, wrong-key failure, and tamper rejection.
 - [ ] Verify the legacy bootstrap path preserves an existing manager-rotated credential and profile.
 - [ ] Verify independent device behavior with two test devices when the user is ready to connect the second firewall.
@@ -138,13 +138,13 @@ The onboarding milestone is complete only when:
 4. No secret material is returned to the browser or recorded in logs/audit metadata.
 5. Lifecycle mutations, certificate discovery, and connection tests are administrator-only and covered by automated tests.
 5. Connection tests return accurate, classified outcomes without exposing raw upstream errors.
-6. One device's failure does not prevent another device's inventory or test.
-7. Disabled and demo devices cannot obtain live clients or be tested.
-8. TLS verification, DNS validation, pinned lookup, and the fixed GET allowlist remain enforced.
-9. The legacy first-firewall bootstrap remains compatible until an intentional migration away from it is implemented.
-10. Migration execution, API tests, typecheck, production build, Compose validation, and browser acceptance are verified and recorded.
-11. The second firewall can be added when the user chooses the transport and is ready to connect it.
-12. No firewall configuration-changing operation is introduced.
+7. One device's failure does not prevent another device's inventory or test.
+8. Disabled and demo devices cannot obtain live clients or be tested.
+9. TLS verification, DNS validation, pinned lookup, and the fixed GET allowlist remain enforced.
+10. The legacy first-firewall bootstrap remains compatible until an intentional migration away from it is implemented.
+11. Migration execution, API tests, typecheck, production build, Compose validation, and browser acceptance are verified and recorded.
+12. The second firewall can be added when the user chooses the transport and is ready to connect it.
+13. No firewall configuration-changing operation is introduced.
 
 ## 7. Branch and delivery workflow
 
