@@ -34,7 +34,7 @@ services:
       HUB_DEPLOYMENT_AGENT_TOKEN: ${HUB_DEPLOYMENT_AGENT_TOKEN:-}
       HUB_DEPLOYMENT_AGENT_API_PORT: ${HUB_AGENT_API_PORT:-3001}
       PFSENSE_CA_FILE: ${PFSENSE_CA_FILE:-}
-    volumes: ["./certs:/run/certs:ro", "/run/pfsense-hub:/run/pfsense-hub"]
+    volumes: ["./certs:/run/certs:ro", "./run/host-agent:/run/pfsense-hub"]
     group_add: ["${HUB_AGENT_GID:-2000}"]
     secrets: [pfsense_api_key, app_encryption_key]
     expose: ["3000"]
