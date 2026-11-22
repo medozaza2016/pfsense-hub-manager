@@ -14,7 +14,7 @@
 - [ ] Implement the Linux host agent, fixed root-owned Compose wrapper, least-privilege service account, and Unix-socket installation.
 - [ ] Implement host-side address/interface validation, serialized apply, HTTPS probing, and verified rollback.
 - [ ] Implement and test the Tailscale Serve validation/proxy integration on the Linux host.
-- [ ] Complete the Hub Settings browser status-polling and verified-success redirect workflow.
+- [x] Add frontend deployment status polling, redirect only after verified success, and a last-successful-origin recovery link (browser behavior still requires end-to-end verification).
 - [ ] Add API, agent, Compose, and browser integration tests; run typechecks and production builds.
 - [ ] Validate on the actual Proxmox Linux host before enabling remote access.
 
