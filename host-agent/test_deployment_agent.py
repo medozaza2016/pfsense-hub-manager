@@ -134,5 +134,24 @@ class DeploymentAgentTests(unittest.TestCase):
             "/usr/bin/tailscale", "serve", "--https=443", "off"
         ])
 
+
+    @patch.object(agent, "run_fixed", return_value='{"Web":{"hub.example.ts.net:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8080"}}}}}')
+    @patch.object(agent, "serve_status", return_value="{}")
+    @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}))
+    @patch.object(agent, "get_deployment")
+    def test_refuses_to_replace_existing_funnel_configuration(self, get_deployment, identity, serve_status, run_fixed):
+        get_deployment.return_value = {
+            "deploymentId": self.request["deploymentId"],
+            "desiredRevision": 3,
+            "method": "tailscale",
+            "scheme": "https",
+            "addressType": "magic_dns",
+            "address": "hub.example.ts.net",
+            "port": 443,
+        }
+        with self.assertRaises(agent.AgentError) as caught:
+            agent.deploy(self.config, self.request)
+        self.assertEqual(caught.exception.code, "TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
+
 if __name__ == "__main__":
     unittest.main()
