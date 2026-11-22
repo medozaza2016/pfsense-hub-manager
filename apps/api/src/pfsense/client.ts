@@ -1,7 +1,9 @@
 import {readFile} from "node:fs/promises";
+import type { LookupFunction } from "node:dns";
 import {Agent,fetch} from "undici";
 import {z} from "zod";
 import type {AppConfig} from "../config.js";
+import {resolveSafeDeviceDestination} from "../devices/network-destination.js";
 import {PfSenseApiError} from "./errors.js";
 const envelope=z.object({code:z.number().optional(),status:z.string().optional(),response_id:z.string().optional(),message:z.string().optional(),data:z.unknown()}).passthrough();
 const routes={
@@ -10,11 +12,36 @@ const routes={
  firewallStates:"/api/v2/firewall/states",firewallStateSize:"/api/v2/firewall/states/size"
 } as const;
 export type PfSenseOperation=keyof typeof routes;
+
+function createPinnedLookup(expectedHostname: string, address: { address: string; family: 4 | 6 }): LookupFunction {
+ const expected=expectedHostname.toLowerCase();
+ return ((hostname: string, options: { all?: boolean }, callback: (error: NodeJS.ErrnoException | null, address: string | Array<{address:string;family:number}>, family?: number) => void) => {
+  if(hostname.toLowerCase()!==expected){
+   const error=Object.assign(new Error("Unexpected hostname lookup."),{code:"ENOTFOUND"});
+   callback(error,"",0);
+   return;
+  }
+  const record={address:address.address,family:address.family};
+  if(options?.all) callback(null,[record]);
+  else callback(null,record.address,record.family);
+ }) as LookupFunction;
+}
+
 export class PfSenseClient{
- private readonly base:URL; private readonly dispatcher:Promise<Agent>;
+ private readonly base:URL;
+ private readonly dispatcher:Promise<Agent>;
  constructor(private readonly config:AppConfig,private readonly key:string){
   this.base=new URL(config.PFSENSE_API_BASE_URL);
-  this.dispatcher=(async()=>{const caPath=process.env.PFSENSE_CA_FILE;return caPath?new Agent({connect:{ca:await readFile(caPath),rejectUnauthorized:true}}):new Agent({connect:{rejectUnauthorized:true}});})();
+  this.dispatcher=(async()=>{
+   const destination=await resolveSafeDeviceDestination(this.base.hostname);
+   const caPath=process.env.PFSENSE_CA_FILE;
+   const ca=caPath?await readFile(caPath):undefined;
+   return new Agent({connect:{
+    ...(ca?{ca}:{}),
+    rejectUnauthorized:true,
+    lookup:createPinnedLookup(this.base.hostname.replace(/^\\[|\\]$/g,""),destination)
+   }});
+  })();
  }
  async get(operation:PfSenseOperation){
   const dispatcher=await this.dispatcher;
