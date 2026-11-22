@@ -245,13 +245,13 @@ class DeploymentAgentTests(unittest.TestCase):
         verify.assert_any_call("https://hub.example.com")
         verify.assert_any_call("https://old.example.com")
 
-    @patch.object(agent, "socket.getaddrinfo", return_value=[(2, 1, 6, "", ("192.168.1.20", 0))])
+    @patch.object(agent.socket, "getaddrinfo", return_value=[(2, 1, 6, "", ("192.168.1.20", 0))])
     @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("192.168.1.20")})
     def test_resolves_hostname_only_to_an_address_assigned_to_this_host(self, assigned, getaddrinfo):
         endpoint = {"method": "hostname", "addressType": "hostname", "address": "hub.example.com"}
         self.assertEqual(agent.resolve_bind_address(endpoint, self.config), "192.168.1.20")
 
-    @patch.object(agent, "socket.getaddrinfo", return_value=[(2, 1, 6, "", ("192.168.1.30", 0))])
+    @patch.object(agent.socket, "getaddrinfo", return_value=[(2, 1, 6, "", ("192.168.1.30", 0))])
     @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("192.168.1.20")})
     def test_rejects_hostname_that_does_not_resolve_to_a_local_interface(self, assigned, getaddrinfo):
         endpoint = {"method": "hostname", "addressType": "hostname", "address": "other.example.com"}
@@ -304,7 +304,19 @@ class DeploymentAgentTests(unittest.TestCase):
             env_path.write_text("POSTGRES_PASSWORD=keep-this\nHUB_BIND_ADDRESS=127.0.0.1\nWEB_PORT=8080\n", encoding="utf-8")
             env_path.chmod(0o600)
             config = {**self.config, "env_file": str(env_path)}
-            agent.write_bind_address(config, "192.168.1.20")
+            # Windows cannot represent the root:root ownership required by the
+            # production Linux agent. Mock only the lstat metadata so this test
+            # exercises the atomic content update without weakening that guard.
+            with patch.object(
+                Path,
+                "lstat",
+                return_value=type("TrustedRootFile", (), {
+                    "st_uid": 0,
+                    "st_gid": 0,
+                    "st_mode": agent.stat.S_IFREG | 0o600,
+                })(),
+            ):
+                agent.write_bind_address(config, "192.168.1.20")
             self.assertEqual(
                 env_path.read_text(encoding="utf-8"),
                 "POSTGRES_PASSWORD=keep-this\nHUB_BIND_ADDRESS=192.168.1.20\nWEB_PORT=8080\n"
