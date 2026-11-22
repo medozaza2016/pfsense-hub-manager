@@ -578,9 +578,13 @@ function HubSettingsPage(){
     if(!active)return;
     const current=result.data;
     setDeployment(value=>({...value,status:current.state,appliedOrigin:current.appliedOrigin??undefined,errorCode:current.errorCode??undefined}));
-    if(current.state==="succeeded"&&typeof current.appliedOrigin==="string"){
-     const target=new URL(current.appliedOrigin,window.location.href);
-     if(target.protocol==="https:")window.location.assign(target.toString());
+    if(current.state==="succeeded"){
+     const success="Hub access endpoint verified successfully.";
+     setMessage(success);notify(success,"success");
+     if(typeof current.appliedOrigin==="string"){
+      const target=new URL(current.appliedOrigin,window.location.href);
+      if(target.protocol==="https:")window.location.assign(target.toString());
+     }
     }
     if(["failed","rolled_back"].includes(current.state)){
      const failure=current.errorCode??"Deployment did not complete.";
@@ -614,16 +618,19 @@ function HubSettingsPage(){
   if(method==="tailscale")return <><option value="">Select address type</option><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip" disabled>Tailscale IPv4, not valid for HTTPS</option></>;
   return <><option value="">Select address type</option><option value="hostname">Hostname</option><option value="ip">IP address</option></>;
  }
+ const deploymentInProgress=saving||["pending","queued","applying","validating","verifying","rolling_back"].includes(deployment.status);
+ const saveButtonLabel=saving?"Saving settings…":deployment.status==="queued"?"Starting deployment…":deployment.status==="applying"?"Applying settings…":deployment.status==="validating"?"Validating configuration…":deployment.status==="verifying"?"Verifying endpoint…":deployment.status==="rolling_back"?"Restoring previous access…":"Applying settings…";
  async function save(event:React.FormEvent){
-  event.preventDefault();setSaving(true);setMessage("");
+  event.preventDefault();
+  if(deploymentInProgress)return;
+  setSaving(true);setMessage("");
   try{
    const payload=endpoints.map(({method,addressType,address,httpsPort})=>({method,addressType,address:address?.trim()||null,httpsPort,enabled:method===activeMethod}));
    const response=await fetch("/api/v1/hub-settings/access-endpoints",{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoints:payload})});
    const result=await response.json();
    if(!response.ok)throw new Error(result.error?.message??"Unable to save Hub access settings.");
    setDeployment(value=>({...value,status:"queued",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision,deploymentId:result.data.deploymentId,appliedOrigin:undefined,errorCode:undefined}));
-   const success="Access settings saved. The host agent is verifying the configured HTTPS endpoint.";
-   setMessage(success);notify(success,"success");
+   setMessage("Access settings saved. The Host Agent is applying and verifying the endpoint.");
   }catch(error){
    const failure=error instanceof Error?error.message:"Unable to save Hub access settings.";
    setMessage(failure);notify(failure,"error");
@@ -645,21 +652,21 @@ function HubSettingsPage(){
    <Panel title="Hub access">
     <p className="hub-settings-intro">Select one active access method. Each tab keeps its own address type, address, and port when you switch between tabs.</p>
     <div className="hub-access-tabs" role="tablist" aria-label="Hub access method">
-     {(["local","tailscale","hostname"] as HubAccessMethod[]).map(method=><button key={method} type="button" role="tab" aria-selected={activeMethod===method} className={activeMethod===method?"hub-access-tab active":"hub-access-tab"} onClick={()=>selectMethod(method)} disabled={busy}>{methodCopy[method].title}{activeMethod===method&&<span>Active</span>}</button>)}
+     {(["local","tailscale","hostname"] as HubAccessMethod[]).map(method=><button key={method} type="button" role="tab" aria-selected={activeMethod===method} className={activeMethod===method?"hub-access-tab active":"hub-access-tab"} onClick={()=>selectMethod(method)} disabled={busy||deploymentInProgress}>{methodCopy[method].title}{activeMethod===method&&<span>Active</span>}</button>)}
     </div>
     <section className="hub-endpoint-card" role="tabpanel">
      <div className="hub-endpoint-heading"><div><strong>{methodCopy[activeMethod].title} access</strong><small>{methodCopy[activeMethod].description}</small></div><span className="hub-active-indicator">Selected method</span></div>
      <div className="hub-endpoint-fields">
-      <label>Address type<select value={endpoint.addressType??""} onChange={event=>updateEndpoint(activeMethod,{addressType:event.target.value?event.target.value as HubAccessEndpoint["addressType"]:null,address:null})} disabled={busy}>
+      <label>Address type<select value={endpoint.addressType??""} onChange={event=>updateEndpoint(activeMethod,{addressType:event.target.value?event.target.value as HubAccessEndpoint["addressType"]:null,address:null})} disabled={busy||deploymentInProgress}>
        {addressTypeOptions(activeMethod)}
       </select></label>
-      <label>{addressLabel}<input value={endpoint.address??""} onChange={event=>updateEndpoint(activeMethod,{address:event.target.value||null})} placeholder={methodCopy[activeMethod].placeholder} disabled={busy||!endpoint.addressType}/></label>
-      <label>Port<input type="number" min="1" max="65535" value={endpoint.httpsPort} onChange={event=>updateEndpoint(activeMethod,{httpsPort:Number(event.target.value)})} disabled={busy}/></label>
+      <label>{addressLabel}<input value={endpoint.address??""} onChange={event=>updateEndpoint(activeMethod,{address:event.target.value||null})} placeholder={methodCopy[activeMethod].placeholder} disabled={busy||deploymentInProgress||!endpoint.addressType}/></label>
+      <label>Port<input type="number" min="1" max="65535" value={endpoint.httpsPort} onChange={event=>updateEndpoint(activeMethod,{httpsPort:Number(event.target.value)})} disabled={busy||deploymentInProgress}/></label>
      </div>
     </section>
     {!deploymentEnabled?<p className="hub-settings-note">Automatic access verification is disabled until the Linux host integration tests pass. Do not enable this feature on the production host yet.</p>:!methodDeploymentSupported&&<p className="hub-settings-note">LAN and Custom require a hostname/IP assigned to this host plus an already-configured trusted HTTPS reverse proxy to the host address on port 8080. Tailscale requires the host to be connected and tailnet HTTPS certificates to be enabled. The Host Agent creates the fixed private Serve route if it is missing. Hub Manager does not configure DNS, issue certificates, or change tailnet ACLs.</p>}
     {message&&<div className="settings-message" role="status">{message}</div>}
-    <div className="hub-settings-actions"><button className="primary-button" disabled={busy||saving||loadFailed||!methodDeploymentSupported}>{saving?"Saving…":"Save access method"}</button></div>
+    <div className="hub-settings-actions"><button type="submit" className="primary-button hub-save-button" disabled={busy||deploymentInProgress||loadFailed||!methodDeploymentSupported} aria-busy={deploymentInProgress}>{deploymentInProgress&&<span className="hub-save-spinner" aria-hidden="true"/>}<span>{deploymentInProgress?saveButtonLabel:"Save access method"}</span></button></div>
    </Panel>
    <Panel title="Deployment status">
     <div className={["failed","rolled_back"].includes(deployment.status)?"hub-deployment-state pending":deployment.status==="succeeded"?"hub-deployment-state applied":"hub-deployment-state pending"}>
