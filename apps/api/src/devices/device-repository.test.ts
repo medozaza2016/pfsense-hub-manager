@@ -92,7 +92,7 @@ describe("DeviceRepository", () => {
     const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
     const repository = new DeviceRepository(pool, key);
 
-    const profile = await repository.create(validInput);
+    const profile = await repository.create(validInput, 0);
 
     expect(profile).toMatchObject({
       id: insertedRow.id,
@@ -142,7 +142,7 @@ describe("DeviceRepository", () => {
       ...validInput,
       tlsServername: "firewall.example.test",
       certificateAuthority: certificate
-    });
+    }, 0);
     expect(result.tlsServername).toBe("firewall.example.test");
     expect(query.mock.calls.map(call => String(call[0]).trim().split(/\s+/)[0])).toEqual([
       "BEGIN", "INSERT", "INSERT", "INSERT", "INSERT", "COMMIT"
@@ -162,7 +162,7 @@ describe("DeviceRepository", () => {
     const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
     const repository = new DeviceRepository(pool, key);
 
-    await expect(repository.create(validInput)).rejects.toThrow("database write failed");
+    await expect(repository.create(validInput, 0)).rejects.toThrow("database write failed");
     expect(query.mock.calls[3]?.[0]).toBe("ROLLBACK");
     expect(client.release).toHaveBeenCalledOnce();
   });
