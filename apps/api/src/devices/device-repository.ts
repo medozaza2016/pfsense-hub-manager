@@ -10,7 +10,7 @@ import {
 
 const deviceIdSchema = z.string().uuid();
 function isForbiddenAddress(hostname: string): boolean {
-  const address = hostname.replace(/^\\[|\\]$/g, "").toLowerCase();
+  const address = (hostname.startsWith("[") ? hostname.slice(1, -1) : hostname).toLowerCase();
   const family = isIP(address);
   if (family === 4) {
     const octets = address.split(".").map(Number);
