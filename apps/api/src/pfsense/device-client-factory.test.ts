@@ -163,7 +163,7 @@ describe("DevicePfSenseClientFactory", () => {
         close: vi.fn(async () => undefined)
       } as unknown as PfSenseClient;
       const buildClient = vi.fn(() => client);
-      const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId, PFSENSE_DEVICE_NAME: "Legacy Firewall" } as AppConfig;
+      const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId, PFSENSE_DEVICE_NAME: "Legacy Firewall", PFSENSE_API_BASE_URL: "https://legacy-firewall.example/" } as AppConfig;
       const factory = new DevicePfSenseClientFactory(
         bootstrapConfig,
         repository,
