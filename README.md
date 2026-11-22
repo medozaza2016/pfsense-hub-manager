@@ -47,13 +47,16 @@ Docker Compose runs the React/Vite web application, Fastify API, and PostgreSQL.
 
 ### New Linux machine installation
 
-For a clean Debian 13 host, follow the [Fresh Linux Host Setup](docs/DEPLOYMENT.md#fresh-linux-host-setup) procedure. It covers host prerequisites, Docker Engine and Compose installation, cloning the required branch into `/opt/pfsense-hub`, and running the one-command Linux installer:
+The standard deployment target is a prepared Debian 13 Proxmox LXC with an administrator account, Docker Engine, Docker Compose, Git, and (optionally) Tailscale already installed. On that prepared template, there is no need to reinstall host packages or set up Tailscale. Clone the feature branch and start onboarding:
 
 ```bash
+sudo git clone --branch feature/multi-site-onboarding --single-branch https://github.com/medozaza2016/pfsense-hub-manager.git /opt/pfsense-hub
 sudo bash /opt/pfsense-hub/scripts/install-linux.sh
 ```
 
-The Linux host does not need Node.js or npm. The installer provisions the Hub and its standard Host Agent, validates their connection, and enables GUI-managed access deployment after health checks pass. Read the full [Deployment guide](docs/DEPLOYMENT.md) before installing on a new machine or updating an existing installation.
+The installer provisions the Hub and its standard Host Agent, generates protected secrets, validates the services and agent connection, and enables GUI-managed access deployment after health checks pass. Save the one-time application encryption recovery key when prompted. The Linux host does not need Node.js or npm.
+
+For a plain Debian 13 machine without Docker already installed, follow the full [Fresh Linux Host Setup](docs/DEPLOYMENT.md#fresh-linux-host-setup) procedure. Read the [Deployment guide](docs/DEPLOYMENT.md) before updating an existing installation.
 
 ## Repository guide
 
