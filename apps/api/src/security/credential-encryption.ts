@@ -100,7 +100,7 @@ function decryptWithAad(
 
 /**
  * Legacy format retained only so credentials encrypted before device binding
- * remain readable during migration. New credentials must use the v2 helpers.
+ * remain readable during migration. New API credentials use v2 and TLS trust uses v3.
  */
 export function encryptCredential(plaintext: string, key: Buffer): EncryptedCredential {
   return encryptWithAad(plaintext, key, LEGACY_AAD, LEGACY_FORMAT_VERSION) as EncryptedCredential;
