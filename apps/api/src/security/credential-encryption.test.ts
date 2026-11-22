@@ -58,7 +58,7 @@ describe("credential encryption", () => {
 
 describe("device-bound TLS trust encryption", () => {
   it("round-trips TLS trust material with its own purpose-bound envelope", () => {
-    const pem = "-----BEGIN CERTIFICATE-----\\nexample\\n-----END CERTIFICATE-----";
+    const pem = "-----BEGIN CERTIFICATE-----\nexample\n-----END CERTIFICATE-----";
     const encrypted = encryptDeviceTlsTrust(pem, key, deviceA);
     expect(encrypted.algorithm).toBe("aes-256-gcm");
     expect(encrypted.version).toBe(3);
