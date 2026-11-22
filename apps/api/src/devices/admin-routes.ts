@@ -90,7 +90,7 @@ type DiscoveredFirewallCertificate = {
 
 async function discoverFirewallCertificate(apiBaseUrl: string): Promise<DiscoveredFirewallCertificate> {
   const url = new URL(apiBaseUrl);
-  const hostname = url.hostname.replace(/^\\[|\\]$/g, "");
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
   const destination = await resolveSafeDeviceDestination(hostname);
   const port = Number(url.port || 443);
 
@@ -121,9 +121,9 @@ async function discoverFirewallCertificate(apiBaseUrl: string): Promise<Discover
         if (!peer.raw) throw new Error("Certificate unavailable");
         const certificate = new X509Certificate(peer.raw);
         const subjectAltName = certificate.subjectAltName ?? "";
-        const dnsNames = [...subjectAltName.matchAll(/(?:^|,\\s*)DNS:([^,]+)/g)]
+        const dnsNames = [...subjectAltName.matchAll(/(?:^|,\s*)DNS:([^,]+)/g)]
           .map(match => match[1]?.trim()).filter((value): value is string => Boolean(value));
-        const ipAddresses = [...subjectAltName.matchAll(/(?:^|,\\s*)IP Address:([^,]+)/g)]
+        const ipAddresses = [...subjectAltName.matchAll(/(?:^|,\s*)IP Address:([^,]+)/g)]
           .map(match => match[1]?.trim()).filter((value): value is string => Boolean(value));
         settled = true;
         resolve({
