@@ -393,6 +393,7 @@ app.get("/api/v1/hub-settings", async () => {
   ]);
   return { data: {
     endpoints: endpointResult.rows,
+    deploymentEnabled: config.HUB_ACCESS_DEPLOYMENT_ENABLED,
     deployment: {
       ...deployment,
       status: Number(deployment.desiredRevision) === Number(deployment.appliedRevision) ? "applied" : (latest.rows[0]?.state ?? "pending"),
@@ -403,6 +404,7 @@ app.get("/api/v1/hub-settings", async () => {
 });
 
 app.put("/api/v1/hub-settings/access-endpoints", async (request, reply) => {
+  if (!config.HUB_ACCESS_DEPLOYMENT_ENABLED) return reply.code(503).send({ error: { code: "HUB_ACCESS_DEPLOYMENT_DISABLED", message: "Automatic Hub access verification remains disabled until Linux host integration testing is complete." } });
   const parsed = hubAccessEndpointsSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_HUB_ACCESS_ENDPOINTS", message: parsed.error.issues[0]?.message ?? "Check each access method, address, and HTTPS port." } });
   const admin = (request as typeof request & { admin?: AdminUser }).admin;
