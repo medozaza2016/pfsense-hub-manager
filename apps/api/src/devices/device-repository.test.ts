@@ -105,6 +105,7 @@ describe("DeviceRepository", () => {
     expect(query.mock.calls.map(call => String(call[0]).trim().split(/\s+/)[0])).toEqual([
       "BEGIN", "INSERT", "INSERT", "INSERT", "COMMIT"
     ]);
+    expect(String(query.mock.calls[3]?.[0])).toContain("poll_runs");
     const credentialInsert = query.mock.calls[2];
     const parameters = credentialInsert?.[1] as unknown[];
     expect(parameters).not.toContain(validInput.apiKey);
