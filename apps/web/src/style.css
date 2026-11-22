@@ -170,3 +170,13 @@
 .hub-active-indicator{display:inline-flex;align-items:center}
 .hub-access-tab:disabled{opacity:.6;cursor:not-allowed}
 @media(max-width:520px){.hub-access-tabs{gap:3px;padding:3px}.hub-access-tab{flex-direction:column;gap:3px;padding:7px 4px;font-size:11px}.hub-endpoint-heading{flex-direction:column}}
+
+/* Hub Settings single-active access tabs */
+.hub-access-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0 16px}
+.hub-access-tab{display:flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:12px 16px;border:1px solid var(--border-color,#d7dee8);border-radius:10px;background:var(--surface,#fff);color:var(--text-primary,#243247);font:inherit;font-weight:650;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.hub-access-tab:hover{border-color:var(--accent,#2563eb)}
+.hub-access-tab.active{border-color:var(--accent,#2563eb);background:var(--accent-soft,#eff6ff);color:var(--accent-strong,#1d4ed8);box-shadow:inset 0 0 0 1px var(--accent,#2563eb)}
+.hub-access-tab span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.hub-active-indicator{font-size:12px;font-weight:650;color:var(--accent-strong,#1d4ed8);white-space:nowrap}
+.hub-access-tab:disabled{opacity:.6;cursor:not-allowed}
+@media(max-width:640px){.hub-access-tabs{gap:6px}.hub-access-tab{padding:10px 6px;gap:5px;flex-direction:column;font-size:13px}}
