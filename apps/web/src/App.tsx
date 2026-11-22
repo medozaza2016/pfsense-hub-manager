@@ -501,6 +501,17 @@ type HubAccessEndpoint = {
  httpsPort: number;
  enabled: boolean;
 };
+const deploymentErrorCopy:Record<string,string> = {
+ HOST_AGENT_NOT_CONFIGURED:"The Linux host deployment agent is not installed or connected.",
+ TLS_METHOD_NOT_SUPPORTED_YET:"This access method still needs a trusted TLS certificate and deployment configuration.",
+ TAILSCALE_HTTPS_NOT_ENABLED:"Enable HTTPS certificates for this tailnet before using Tailscale Serve.",
+ TAILSCALE_NOT_CONNECTED:"Tailscale is not connected on the Hub host.",
+ TAILSCALE_ADDRESS_MISMATCH:"The selected MagicDNS name does not belong to this Hub host.",
+ TAILSCALE_SERVE_ALREADY_CONFIGURED:"The host already has a Tailscale Serve configuration. It was left unchanged.",
+ TAILSCALE_FUNNEL_ALREADY_CONFIGURED:"The host already has a Tailscale Funnel configuration. It was left unchanged.",
+ TAILSCALE_HTTPS_PORT_UNSUPPORTED:"Choose Tailscale HTTPS port 443, 8443, or 10000.",
+ TLS_OR_ENDPOINT_VERIFICATION_FAILED:"The new HTTPS endpoint failed certificate or health verification. The agent attempted rollback."
+};
 const defaultHubEndpoints: HubAccessEndpoint[] = [
  {method:"local",addressType:null,address:null,httpsPort:443,enabled:true},
  {method:"tailscale",addressType:null,address:null,httpsPort:443,enabled:false},
@@ -638,7 +649,7 @@ function HubSettingsPage(){
     <div className={["failed","rolled_back"].includes(deployment.status)?"hub-deployment-state pending":deployment.status==="succeeded"?"hub-deployment-state applied":"hub-deployment-state pending"}>
      <strong>{deployment.status==="succeeded"?"Deployment verified":deployment.status==="failed"?"Deployment failed":deployment.status==="rolled_back"?"Previous binding restored":deployment.status==="queued"?"Deployment queued":deployment.status==="applying"?"Applying host configuration":deployment.status==="validating"?"Validating configuration":deployment.status==="verifying"?"Verifying endpoint":deployment.status==="rolling_back"?"Restoring previous binding":"Deployment status"}</strong>
      <span>Configuration revision {deployment.desiredRevision}, applied revision {deployment.appliedRevision}</span>
-     {deployment.errorCode&&<span>Safe error code: {deployment.errorCode}</span>}
+     {deployment.errorCode&&<><span>Safe error code: {deployment.errorCode}</span><span>{deploymentErrorCopy[deployment.errorCode]??"The host agent could not complete this deployment. Review the agent service logs."}</span></>}
     </div>
     <p className="hub-settings-note">Saving automatically requests the restricted host agent to apply the selected binding. The status above is updated from the API. The browser redirects only after the host agent verifies the new endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
     {deployment.previousAppliedOrigin&&<p className="hub-settings-note">Last verified access: <a href={deployment.previousAppliedOrigin} target="_blank" rel="noreferrer">{deployment.previousAppliedOrigin}</a>. Keep this recovery address available while changing access settings.</p>}
