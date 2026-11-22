@@ -305,7 +305,6 @@ describe("DeviceRepository archival", () => {
     expect(String(query.mock.calls[2]?.[0])).toContain("archived_at=now()");
     expect(String(query.mock.calls[3]?.[0])).toContain("device_credentials");
     expect(String(query.mock.calls[4]?.[0])).toContain("device_tls_trust");
-    expect(query.some?.(() => false)).toBeUndefined();
     expect(query.mock.calls.some(call => String(call[0]).includes("poll_runs"))).toBe(false);
     expect(client.release).toHaveBeenCalledOnce();
   });
