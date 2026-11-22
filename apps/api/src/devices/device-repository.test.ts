@@ -44,6 +44,8 @@ describe("managed device profile validation", () => {
     "https://localhost",
     "https://router.localhost",
     "https://127.0.0.2",
+    "https://169.254.169.254",
+    "https://[fe80::1]",
     "https://[::1]",
     "https://192.168.10.1?",
     "https://192.168.10.1#"
@@ -51,7 +53,7 @@ describe("managed device profile validation", () => {
     expect(createDeviceSchema.safeParse({ ...validInput, apiBaseUrl }).success).toBe(false);
   });
 
-  it("keeps credentials out of profile update input", () => {
+  it("accepts Tailscale shared IPv4 overlay addresses", () => {\n    expect(createDeviceSchema.safeParse({ ...validInput, apiBaseUrl: "https://100.64.0.1" }).success).toBe(true);\n  });\n\n  it("keeps credentials out of profile update input", () => {
     expect(updateDeviceProfileSchema.safeParse({ ...validInput, apiKey: "should-not-be-accepted" }).success).toBe(false);
   });
 });
