@@ -26,6 +26,21 @@ for file in "$ENV_FILE" "$AGENT_SOURCE" "$SERVICE_SOURCE"; do
     exit 1
   }
 done
+for trusted_path in "$PROJECT_DIR/host-agent" "$AGENT_SOURCE" "$SERVICE_SOURCE"; do
+  [[ ! -L "$trusted_path" ]] || {
+    echo "$trusted_path must not be a symbolic link." >&2
+    exit 1
+  }
+  [[ "$(stat -c '%u:%g' "$trusted_path")" == "0:0" ]] || {
+    echo "$trusted_path must be owned by root:root before installing the privileged host agent." >&2
+    exit 1
+  }
+  TRUSTED_MODE="$(stat -c '%a' "$trusted_path")"
+  (( (8#$TRUSTED_MODE & 0022) == 0 )) || {
+    echo "$trusted_path must not be group/world writable." >&2
+    exit 1
+  }
+done
 for trusted_path in "$PROJECT_DIR" "$PROJECT_DIR/compose.yaml"; do
   [[ ! -L "$trusted_path" ]] || {
     echo "$trusted_path must not be a symbolic link." >&2
