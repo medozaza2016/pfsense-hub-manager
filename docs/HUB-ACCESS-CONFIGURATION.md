@@ -7,7 +7,7 @@ The feature belongs in the existing **Administration → Hub Settings** page. Do
 ## Initial and optional access modes
 
 - **Local (default):** the Hub is published only on `127.0.0.1`. This is the supported first-install state.
-- **Tailscale (optional):** the administrator may use a Tailscale MagicDNS hostname or the Tailscale IPv4 address assigned to the device. MagicDNS is a name that resolves to the device's Tailscale address, it is not a separate transport. The Hub must not require Tailscale for local operation.
+- **Tailscale (optional):** the administrator may use the Hub host's Tailscale MagicDNS hostname. Tailscale IPv4 addresses are not supported as HTTPS origins because the tailnet certificate is issued for the MagicDNS name. The Hub must not require Tailscale for local operation.
 - **Other hostname / IP (optional):** the administrator may record an existing hostname or IP managed outside Hub Manager. Do not treat an address entry as automatic DNS, certificate, proxy, or host-network provisioning.
 - **Guidance only:** explain each option with a short example and allow all optional fields to remain empty. Do not ask for a Tailscale address during first-run setup.
 
