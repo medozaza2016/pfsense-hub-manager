@@ -65,10 +65,11 @@ class DeploymentAgentTests(unittest.TestCase):
             agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_ADDRESS_MISMATCH")
 
+    @patch.object(agent, "run_fixed", return_value="{}")
     @patch.object(agent, "serve_status")
     @patch.object(agent, "tailscale_identity")
     @patch.object(agent, "get_deployment")
-    def test_does_not_overwrite_existing_serve_configuration(self, get_deployment, identity, serve_status):
+    def test_does_not_overwrite_existing_serve_configuration(self, run_fixed, get_deployment, identity, serve_status):
         get_deployment.return_value = {
             "deploymentId": self.request["deploymentId"],
             "desiredRevision": 3,
@@ -79,7 +80,7 @@ class DeploymentAgentTests(unittest.TestCase):
             "port": 443,
         }
         identity.return_value = ("hub.example.ts.net", {"100.64.0.2"})
-        serve_status.return_value = '{"Web":{}}'
+        serve_status.return_value = '{"Web":{"hub.example.ts.net:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8080"}}}}}'
         with self.assertRaises(agent.AgentError) as caught:
             agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_SERVE_ALREADY_CONFIGURED")
