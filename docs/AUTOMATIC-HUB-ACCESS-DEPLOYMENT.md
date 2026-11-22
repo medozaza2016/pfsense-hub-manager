@@ -56,17 +56,19 @@ The agent must control only a fixed, documented configuration surface. It must n
 
 ### Linux production host
 
-The supported production mechanism is a host-managed system service and local Unix socket. Installation must explicitly provision the service account, socket permissions, fixed project paths, wrapper, service unit, and recovery instructions. The service must fail closed if its trusted paths, ownership, or Compose project identity do not match the installation.
+The Linux agent is installed with `host-agent/install-linux.sh` on a host with the project checked out at `/opt/pfsense-hub`. The installer provisions a root-only JSON configuration, a dedicated GID 2000 socket group, a restrictive socket directory, and a systemd service. The service drops all Linux capabilities and is filesystem-hardened. The API container receives only the socket directory as a read-only mount.
+
+The current agent does not invoke Docker or Compose. It configures only Tailscale Serve for the Hub's existing loopback HTTP service. The installer requires the exact loopback and socket settings documented in DEPLOYMENT.md and fails if those settings or the group ID do not match.
 
 ### Windows Docker Desktop development
 
-The production Linux agent must not be assumed to work on Windows. Until a separately implemented and tested Windows host adapter exists, the API must report automatic deployment as unavailable on Windows and preserve the currently applied local binding. Do not silently fall back to manual confirmation or claim the setting was applied. Windows development must continue to support frontend and API development without requiring the production agent.
+The production Linux agent does not run on Windows. Leave the agent token and socket empty for local development. The API reports `HOST_AGENT_NOT_CONFIGURED` if a deployment is requested without the Linux agent. The UI currently disables Local and Custom deployment and only permits a Tailscale MagicDNS selection. Windows development continues to support the frontend and API without the production agent; it does not provide automatic host deployment.
 
 ## Persistence and API contract
 
-Add a deployment history table keyed by a generated deployment ID, with desired revision, requested mode, state, safe error code, started/finished timestamps, applied origin, rollback outcome, and actor. States are queued, validating, applying, verifying, succeeded, rolling_back, rolled_back, and failed. Store no secrets or arbitrary command output.
+Migration `014_hub_access_deployments.sql` adds deployment history keyed by generated deployment ID, desired revision, requested mode, state, safe error code, timestamps, applied origin, rollback outcome, and actor. States are queued, validating, applying, verifying, succeeded, rolling_back, rolled_back, and failed. No secrets or arbitrary command output are stored.
 
-The API currently exposes current desired endpoint settings and applied revision, a save operation that persists desired settings and queues deployment, deployment status lookup by opaque deployment ID, and bounded deployment history for administrators. The agent transport is fail-closed and does not apply configuration until the Linux host agent is installed and configured.
+The API exposes current desired endpoint settings and applied revision, a save operation that persists settings and queues deployment, status lookup by deployment ID, and bounded deployment history for administrators. The dispatcher holds a PostgreSQL row lock on the desired revision while the host agent verifies the endpoint. This serializes concurrent settings changes against an in-flight apply. The agent transport remains fail-closed when the Linux host agent is not installed or configured.
 
 All mutation routes require an administrator session and server-side authorization. Reject stale desired revisions with HTTP 409. Deployment requests are idempotent per desired revision. Do not accept a browser-supplied applied status, host path, arbitrary bind address, or arbitrary origin.
 
@@ -76,12 +78,9 @@ The save response distinguishes persisted desired state from deployment state. T
 
 ## Required tests and acceptance criteria
 
-- Validation tests for all endpoint modes and invalid, wildcard, and unassigned addresses.
-- API integration tests for administrator authorization, revision conflicts, idempotency, deployment history, and audit records.
-- Agent tests for strict request parsing, path/service allowlists, interface validation, stale revisions, lock contention, command timeout, bounded output, successful apply, failed apply, successful rollback, and failed rollback.
-- Compose integration tests proving only the web service is recreated and persistent volumes and other services remain untouched.
-- Linux host integration tests on the actual supported distribution and Docker Engine/Compose versions.
-- Browser tests proving no redirect occurs before verified success, redirect uses the returned origin, and the previous origin remains available for recovery.
-- Explicit tests that API and web containers do not receive the Docker socket and that no arbitrary command interface exists.
+- Added: endpoint schema tests, including rejection of Tailscale IP HTTPS; strict API-agent protocol tests; Unix-socket client tests; dispatcher tests for missing agent, stale revisions, row-lock ordering, and database connection failure; Python host-agent tests for MagicDNS identity, certificate eligibility, preservation of existing Serve/Funnel configuration, successful Serve setup, and rollback after TLS probe failure.
+- Not yet executed here: API/web typecheck, API tests, Python host-agent tests, frontend build, Compose config validation, and Linux systemd integration.
+- Still required: live Linux host integration on the supported distribution, actual Tailscale Serve and TLS verification, browser tests from another tailnet device, failure/rollback tests against a real tailnet, and a full Windows development verification pass.
+- LAN and Custom certificate provisioning and TLS termination are not implemented. A Windows host adapter is not implemented.
 
-The feature is complete only after the above tests pass on the supported Linux host. A code-only success, a database update, or a successful Compose command is not sufficient evidence of deployment or reachability.
+The feature is not complete until the tests above are executed and the Linux Tailscale path is verified on the supported host. A code-only success or a successful host-side probe is not evidence that the administrator's browser can reach the endpoint.
