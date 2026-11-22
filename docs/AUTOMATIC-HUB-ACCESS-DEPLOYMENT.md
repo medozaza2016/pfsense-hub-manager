@@ -23,7 +23,7 @@ The existing endpoint settings and desired/applied revision model remain the sou
 6. The agent changes only HUB_BIND_ADDRESS in the managed deployment environment file, validates the fixed Compose project configuration, and recreates only the web service. It must not restart the API, database, code-server, unrelated projects, or remove volumes.
 7. The agent probes the exact newly published HTTP origin and /health endpoint with a bounded timeout. It uses the actual WEB_PORT and scheme configured by the deployment. A port label in Hub Settings is not proof that TLS is configured.
 8. Only after the probe succeeds does the agent mark the revision applied. The API exposes the confirmed origin and deployment status to the browser.
-9. The browser navigates to the returned origin only after a successful status response. The UI retains a recovery link to the prior origin during the transition.
+9. The browser navigates to the returned origin only after a successful status response. A prior-origin recovery link remains a required UI task and is not yet implemented.
 10. If apply or verification fails, the agent restores the previous environment value, recreates only the web service, verifies the previous origin, and records whether rollback succeeded. Never claim rollback succeeded without a successful recovery probe.
 
 ## Host agent security boundary
