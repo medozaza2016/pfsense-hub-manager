@@ -65,9 +65,9 @@ describe("DevicePfSenseClientFactory", () => {
   });
 
   it("preserves the legacy global CA for the configured bootstrap device when no device CA exists", async () => {
-    const repository = makeRepository({ listProfiles: async () => [profile()] });
+    const repository = makeRepository({ listProfiles: async () => [profile({ apiBaseUrl: config.PFSENSE_API_BASE_URL as string })] });
     const buildClient = vi.fn(() => ({} as PfSenseClient));
-    const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId } as AppConfig;
+    const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId, PFSENSE_DEVICE_NAME: "Legacy Firewall" } as AppConfig;
     const factory = new DevicePfSenseClientFactory(bootstrapConfig, repository, buildClient);
 
     await factory.create(deviceId);
@@ -82,7 +82,7 @@ describe("DevicePfSenseClientFactory", () => {
   it("does not apply a legacy CA when the bootstrap profile has explicit device trust", async () => {
     const repository = makeRepository({ decryptDeviceCaBundle: async () => certificate });
     const buildClient = vi.fn(() => ({} as PfSenseClient));
-    const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId } as AppConfig;
+    const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId, PFSENSE_DEVICE_NAME: "Legacy Firewall" } as AppConfig;
     const factory = new DevicePfSenseClientFactory(bootstrapConfig, repository, buildClient);
 
     await factory.create(deviceId);
@@ -102,7 +102,7 @@ describe("DevicePfSenseClientFactory", () => {
       PFSENSE_DEVICE_ID: deviceId,
       PFSENSE_DEVICE_NAME: undefined
     } as AppConfig;
-    const repository = makeRepository({ listProfiles: async () => [profile()] });
+    const repository = makeRepository({ listProfiles: async () => [profile({ apiBaseUrl: config.PFSENSE_API_BASE_URL as string })] });
     const buildClient = vi.fn(() => ({} as PfSenseClient));
     const factory = new DevicePfSenseClientFactory(incompleteBootstrapConfig, repository, buildClient);
 
@@ -119,7 +119,7 @@ describe("DevicePfSenseClientFactory", () => {
     const unrelatedId = "22222222-2222-4222-8222-222222222222";
     const repository = makeRepository({ listProfiles: async () => [profile({ id: unrelatedId })] });
     const buildClient = vi.fn(() => ({} as PfSenseClient));
-    const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId } as AppConfig;
+    const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId, PFSENSE_DEVICE_NAME: "Legacy Firewall" } as AppConfig;
     const factory = new DevicePfSenseClientFactory(bootstrapConfig, repository, buildClient);
 
     await factory.create(unrelatedId);
@@ -155,7 +155,7 @@ describe("DevicePfSenseClientFactory", () => {
         close: vi.fn(async () => undefined)
       } as unknown as PfSenseClient;
       const buildClient = vi.fn(() => client);
-      const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId } as AppConfig;
+      const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId, PFSENSE_DEVICE_NAME: "Legacy Firewall" } as AppConfig;
       const factory = new DevicePfSenseClientFactory(
         bootstrapConfig,
         repository,
