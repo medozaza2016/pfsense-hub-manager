@@ -157,7 +157,12 @@ describe("pfSense operation data validation",()=>{
   ["arpTable",{}],
   ["firewallStates",{entries:[]}],
   ["firewallStateSize",[]],
-  ["firewallStateSize",{}]
+  ["firewallStateSize",{}],
+  ["gateways",[null]],
+  ["interfaces",[1]],
+  ["services",["running"]],
+  ["arpTable",[[]]],
+  ["firewallStates",[false]]
  ] as const)("rejects malformed %s data", (operation,data)=>{
   expect(()=>validatePfSenseOperationData(operation,data)).toThrowError(
    expect.objectContaining({errorClass:"invalid_response"})
