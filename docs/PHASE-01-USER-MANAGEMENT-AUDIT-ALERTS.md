@@ -128,3 +128,12 @@ Do not run this command against a production database. Running it a second time 
 - Notification delivery, audit export, configurable retention, and alert mute controls are not implemented.
 - The wider dashboard still contains demonstration data outside these three administration screens.
 - No pfSense configuration-changing operation is introduced.
+
+
+## Closeout update, November 21, 2026
+
+The development seed and responsive administration UI are now part of the active feature branch. The shared `DataTable` and `ListToolbar` components provide search, expandable filters, pagination, and mobile cards. A global `ToastProvider` supplies consistent operation feedback. User Management, Audit Logs, and Alerts render API-backed data and retain loading, empty, error, and action states.
+
+The development-only seed command is exposed as `npm run db:seed:dev`. It must only be run against a disposable/local development database. Its guard, transaction, and seed ledger make it safe to rerun without duplicating the seeded dataset. Seeded accounts have unknown random passwords, so use the application administrator workflow to set credentials before testing those accounts.
+
+The recent local UI issue was traced to a stale Docker web image. Rebuilding the web service resolved the discrepancy; no source rollback or branch repair was required. Remaining verification gates in this document still apply, particularly role behavior, migration validation, seed rerun behavior, and production-build checks on the final merge candidate.
