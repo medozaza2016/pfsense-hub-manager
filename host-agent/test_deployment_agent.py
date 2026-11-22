@@ -1,4 +1,5 @@
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -197,6 +198,18 @@ class DeploymentAgentTests(unittest.TestCase):
         with self.assertRaises(agent.AgentError) as caught:
             agent.resolve_bind_address(endpoint, self.config)
         self.assertEqual(caught.exception.code, "HOST_BIND_ADDRESS_NOT_ASSIGNED")
+
+
+    def test_updates_only_hub_bind_address_and_preserves_other_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_path = Path(directory) / ".env"
+            env_path.write_text("POSTGRES_PASSWORD=keep-this\\nHUB_BIND_ADDRESS=127.0.0.1\\nWEB_PORT=8080\\n", encoding="utf-8")
+            config = {**self.config, "env_file": str(env_path)}
+            agent.write_bind_address(config, "192.168.1.20")
+            self.assertEqual(
+                env_path.read_text(encoding="utf-8"),
+                "POSTGRES_PASSWORD=keep-this\\nHUB_BIND_ADDRESS=192.168.1.20\\nWEB_PORT=8080\\n"
+            )
 
 if __name__ == "__main__":
     unittest.main()
