@@ -394,8 +394,8 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     changed = False
     try:
         if new_bind_address != old_bind_address:
-            write_bind_address(config, new_bind_address)
             changed = True
+            write_bind_address(config, new_bind_address)
             compose_web_recreate(config)
         verify_https_with_retries(origin)
         current = get_deployment(config, deployment_id, revision)
