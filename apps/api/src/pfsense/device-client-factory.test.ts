@@ -138,18 +138,18 @@ describe("DevicePfSenseClientFactory", () => {
       const buildClient = vi.fn(() => client);
       const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId } as AppConfig;
       const factory = new DevicePfSenseClientFactory(
-        { ...bootstrapConfig, PFSENSE_API_BASE_URL: "https://192.168.10.9" } as AppConfig,
+        bootstrapConfig,
         repository,
         buildClient
       );
 
       await factory.testConnection({
-        apiBaseUrl: "https://192.168.10.9",
+        apiBaseUrl: "https://legacy-firewall.example",
         apiKey: "temporary-registration-key"
       });
 
       expect(buildClient).toHaveBeenCalledWith(
-        expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.9" }),
+        expect.objectContaining({ PFSENSE_API_BASE_URL: "https://legacy-firewall.example" }),
         "temporary-registration-key",
         { mode: "legacy-ca-file", servername: null }
       );
