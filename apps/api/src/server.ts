@@ -6,6 +6,7 @@ import { migrate } from "./db/migrate.js";
 import { DevicePfSenseClientFactory } from "./pfsense/device-client-factory.js";
 import { PfSenseProvider } from "./pfsense/provider.js";
 import { DeviceRepository } from "./devices/device-repository.js";
+import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
 import { appendAudit, upsertAlert } from "./audit.js";
@@ -95,9 +96,13 @@ app.addHook("preHandler", async (request, reply) => {
     || path.startsWith("/api/v1/users/")
     || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
     || (path === "/api/v1/hub-settings" && request.method === "PUT")
-    || (path.startsWith("/api/v1/alerts/") && request.method !== "GET");
+    || (path.startsWith("/api/v1/alerts/") && request.method !== "GET")
+    || (path === "/api/v1/devices" && request.method !== "GET")
+    || (path.startsWith("/api/v1/devices/") && (request.method !== "GET" || path.endsWith("/connection-test")));
   if (adminOnly) await requireAdmin(request, reply);
 });
+
+await registerDeviceAdminRoutes(app, { devices, clientFactory, pool });
 
 app.addHook("onResponse", async (request, reply) => {
   const route = request.routeOptions.url ?? "unmatched";
