@@ -157,6 +157,21 @@ def verify_https(origin: str) -> None:
         raise AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED") from exc
 
 
+def has_funnel_handler(raw: str, host: str, port: int) -> bool:
+    if not raw.strip():
+        return False
+    try:
+        value = json.loads(raw)
+    except Exception as exc:
+        raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID") from exc
+    if not isinstance(value, dict):
+        raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
+    allow_funnel = value.get("AllowFunnel") or {}
+    if not isinstance(allow_funnel, dict):
+        raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
+    return allow_funnel.get(f"{host}:{port}") is True
+
+
 def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     if set(request) != {"protocolVersion", "deploymentId", "desiredRevision"}:
         raise AgentError("REQUEST_INVALID")
@@ -168,7 +183,6 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
         raise AgentError("REQUEST_INVALID") from exc
     revision = request["desiredRevision"]
 
-    # Fetch once before any host action, then again immediately before applying.
     endpoint = get_deployment(config, deployment_id, revision)
     if endpoint.get("method") != "tailscale" or endpoint.get("addressType") != "magic_dns" or endpoint.get("scheme") != "https":
         raise AgentError("TLS_METHOD_NOT_SUPPORTED_YET")
@@ -177,55 +191,31 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(address, str) or not isinstance(port, int) or not 1 <= port <= 65535:
         raise AgentError("DEPLOYMENT_ENDPOINT_INVALID")
     host = address.rstrip(".").lower()
-    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\.ts\.net", host):
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\\.ts\\.net", host):
         raise AgentError("TAILSCALE_MAGICDNS_REQUIRED")
 
     binary = config["tailscale_binary"]
-    dns_name, _ips = tailscale_identity(binary)
+    dns_name, _ips, cert_domains = tailscale_identity(binary)
     if host != dns_name:
         raise AgentError("TAILSCALE_ADDRESS_MISMATCH")
+    if host not in cert_domains:
+        raise AgentError("TAILSCALE_HTTPS_NOT_ENABLED")
 
-    # Never overwrite an existing Serve configuration that may belong to another app.
-    before = serve_status(binary)
-    if has_existing_serve_configuration(before):
-        raise AgentError("TAILSCALE_SERVE_ALREADY_CONFIGURED")
+    # DEC-026 prohibits automatic Tailscale, DNS, or reverse-proxy provisioning.
+    # Verify that an operator has already configured the exact private Serve route.
+    serve = serve_status(binary)
+    if not has_serve_handler(serve, host, port, config["web_local_url"]):
+        raise AgentError("TAILSCALE_SERVE_NOT_CONFIGURED")
     funnel = run_fixed([binary, "funnel", "status", "--json"], timeout=10)
-    try:
-        funnel_config = json.loads(funnel) if funnel.strip() else {}
-    except Exception as exc:
-        raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID") from exc
-    if not isinstance(funnel_config, dict):
-        raise AgentError("TAILSCALE_FUNNEL_STATUS_INVALID")
-    if funnel_config.get("Web") or funnel_config.get("TCP"):
+    if has_funnel_handler(funnel, host, port):
         raise AgentError("TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
 
-    # Confirm revision is still current before the only host mutation.
-    endpoint = get_deployment(config, deployment_id, revision)
-    if endpoint.get("address") != address or endpoint.get("method") != "tailscale":
+    verify_https("https://" + host + ("" if port == 443 else ":" + str(port)))
+    # Reject a result if the desired revision changed during the HTTPS probe.
+    current = get_deployment(config, deployment_id, revision)
+    if current.get("address") != address or current.get("port") != port:
         raise AgentError("STALE_DEPLOYMENT")
-
-    applied = False
-    try:
-        run_fixed([binary, "serve", "--bg", "--https=" + str(port), config["web_local_url"]], timeout=30)
-        applied = True
-        origin = "https://" + host + ("" if port == 443 else ":" + str(port))
-        verify_https(origin)
-        # Ensure the deployment did not become stale while the endpoint was being verified.
-        get_deployment(config, deployment_id, revision)
-        return {"state": "succeeded", "appliedOrigin": origin}
-    except Exception as exc:
-        rollback_ok = False
-        if applied:
-            try:
-                run_fixed([binary, "serve", "--https=" + str(port), "--set-path=/", "off"], timeout=15)
-                after = serve_status(binary)
-                rollback_ok = not has_serve_handler(after, host, port, config["web_local_url"])
-            except Exception:
-                rollback_ok = False
-        code = exc.code if isinstance(exc, AgentError) else "DEPLOYMENT_FAILED"
-        if rollback_ok:
-            return {"state": "rolled_back", "errorCode": code, "rollbackSucceeded": True}
-        return {"state": "failed", "errorCode": code, "rollbackSucceeded": False if applied else None}
+    return {"state": "succeeded", "appliedOrigin": "https://" + host + ("" if port == 443 else ":" + str(port))}
 
 
 def handle_client(conn: socket.socket, config: dict[str, Any], lock_path: Path) -> None:
