@@ -85,7 +85,6 @@ type DiscoveredFirewallCertificate = {
   fingerprint256: string;
   validFrom: string;
   validTo: string;
-  selfSigned: boolean;
   tlsServernameUsed: string | null;
 };
 
@@ -139,7 +138,6 @@ async function discoverFirewallCertificate(apiBaseUrl: string, requestedServerna
           fingerprint256: certificate.fingerprint256,
           validFrom: certificate.validFrom,
           validTo: certificate.validTo,
-          selfSigned: certificate.subject === certificate.issuer,
           tlsServernameUsed
         });
       } catch {
