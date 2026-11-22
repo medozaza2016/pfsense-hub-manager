@@ -101,6 +101,7 @@ async function discoverFirewallCertificate(apiBaseUrl: string, requestedServerna
       host: hostname,
       port,
       ...(tlsServernameUsed ? { servername: tlsServernameUsed } : {}),
+      // Certificate validation is disabled only to inspect the peer certificate. No API key is sent, and this socket is never used for API requests.
       rejectUnauthorized: false,
       lookup: createPinnedLookup(hostname, destination),
       timeout: 5000
