@@ -50,11 +50,11 @@ class DeploymentAgentTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "REQUEST_INVALID")
 
     @patch.object(agent, "get_deployment")
-    def test_rejects_lan_and_custom_until_tls_is_provisioned(self, get_deployment):
+    def test_rejects_local_without_an_explicit_bind_address(self, get_deployment):
         get_deployment.return_value = {**self.endpoint, "method": "local", "addressType": None, "address": None}
         with self.assertRaises(agent.AgentError) as caught:
             agent.deploy(self.config, self.request)
-        self.assertEqual(caught.exception.code, "TLS_METHOD_NOT_SUPPORTED_YET")
+        self.assertEqual(caught.exception.code, "HOST_BIND_ENDPOINT_UNSUPPORTED")
 
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
@@ -91,7 +91,7 @@ class DeploymentAgentTests(unittest.TestCase):
             agent.deploy(self.config, self.request)
         self.assertEqual(caught.exception.code, "TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
 
-    @patch.object(agent, "verify_https")
+    @patch.object(agent, "verify_https_with_retries")
     @patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{}}')
     @patch.object(agent, "serve_status")
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
@@ -107,7 +107,7 @@ class DeploymentAgentTests(unittest.TestCase):
         )
         self.assertEqual(get_deployment.call_count, 2)
 
-    @patch.object(agent, "verify_https", side_effect=agent.AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED"))
+    @patch.object(agent, "verify_https_with_retries", side_effect=agent.AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED"))
     @patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{}}')
     @patch.object(agent, "serve_status")
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
@@ -221,7 +221,7 @@ class DeploymentAgentTests(unittest.TestCase):
             run_fixed.call_args_list[1].args[0][-4:],
             ["up", "-d", "--no-deps", "web"]
         )
-        self.assertEqual(run_fixed.call_args_list[1].kwargs, {"timeout": 60})
+        self.assertEqual(run_fixed.call_args_list[1].kwargs, {"timeout": 45})
 
 if __name__ == "__main__":
     unittest.main()
