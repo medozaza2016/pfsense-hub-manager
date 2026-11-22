@@ -71,6 +71,12 @@ install -d -m 0750 "$CONFIG_DIR" /run/pfsense-hub "$PROJECT_DIR/run/host-agent" 
 if ! getent group pfsense-hub-agent >/dev/null; then
   if getent group 2000 >/dev/null; then echo "GID 2000 is already assigned. Resolve this before installing." >&2; exit 1; fi
   groupadd --gid 2000 pfsense-hub-agent
+else
+  EXISTING_GID="$(getent group pfsense-hub-agent | cut -d: -f3)"
+  if [[ "$EXISTING_GID" != "2000" ]]; then
+    echo "The pfsense-hub-agent group must use GID 2000." >&2
+    exit 1
+  fi
 fi
 install -m 0755 "$AGENT_SOURCE" /usr/local/libexec/pfsense-hub-deployment-agent.py
 python3 - "$CONFIG_FILE" "$TOKEN" "$API_PORT" "$PROJECT_DIR" "$TAILSCALE_BIN" <<'PY'
