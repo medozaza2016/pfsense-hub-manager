@@ -23,6 +23,17 @@ fi
 for file in "$ENV_FILE" "$AGENT_SOURCE" "$SERVICE_SOURCE"; do
   [[ -f "$file" ]] || { echo "Required file not found: $file" >&2; exit 1; }
 done
+for trusted_path in "$PROJECT_DIR" "$PROJECT_DIR/compose.yaml"; do
+  [[ "$(stat -c '%u:%g' "$trusted_path")" == "0:0" ]] || {
+    echo "$trusted_path must be owned by root:root before installing the privileged host agent." >&2
+    exit 1
+  }
+  TRUSTED_MODE="$(stat -c '%a' "$trusted_path")"
+  (( (8#$TRUSTED_MODE & 0022) == 0 )) || {
+    echo "$trusted_path must not be group/world writable." >&2
+    exit 1
+  }
+done
 command -v python3 >/dev/null || { echo "python3 is required." >&2; exit 1; }
 command -v systemctl >/dev/null || { echo "systemd is required." >&2; exit 1; }
 DOCKER_BIN="$(command -v docker)" || { echo "Docker Engine is required." >&2; exit 1; }
