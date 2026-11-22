@@ -31,7 +31,7 @@ For Windows 11 development, run the existing key-provisioning script from the re
 
 Save the recovery value in a password manager. Create the Compose secret directories and files locally as required. Do not commit any secret files.
 
-Set POSTGRES_PASSWORD in .env to a strong random value. Keep it alphanumeric as generated so it can be safely embedded in the Compose connection URL.
+For Windows local development, set POSTGRES_PASSWORD in .env to a strong random value. Keep it alphanumeric so it can be safely embedded in the Compose connection URL. The Linux installer generates this value automatically.
 
 For Linux deployments, restrict secret file permissions to the API container's runtime user. For Windows Docker Desktop, the key file is protected by the Windows ACL created by the provisioning script, but verify that Docker Desktop can mount and read it before relying on it in operation.
 

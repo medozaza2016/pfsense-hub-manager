@@ -31,7 +31,6 @@ mkdir -p secrets/runtime certs
 chmod 700 secrets secrets/runtime
 DB_PASSWORD=$(openssl rand -hex 32)
 APP_KEY=$(openssl rand -hex 32)
-DEVICE_ID=$(cat /proc/sys/kernel/random/uuid)
 
 : > secrets/pfsense_api_key
 printf '%s\n' "$CODE_PASSWORD" > secrets/code_server_password
