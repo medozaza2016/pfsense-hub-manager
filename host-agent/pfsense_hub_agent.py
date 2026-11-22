@@ -42,7 +42,7 @@ def load_config() -> dict[str, Any]:
         raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except Exception as exc:
         raise AgentError("AGENT_CONFIGURATION_UNAVAILABLE") from exc
-    required = {"api_base_url", "api_token", "socket_path", "socket_gid", "tailscale_binary", "web_local_url"}
+    required = {"api_base_url", "api_token", "socket_path", "tailscale_binary", "web_local_url"}
     if not isinstance(raw, dict) or not required.issubset(raw):
         raise AgentError("AGENT_CONFIGURATION_INVALID")
     try:
@@ -61,8 +61,6 @@ def load_config() -> dict[str, Any]:
         raise AgentError("AGENT_TOKEN_INVALID")
     if not isinstance(raw["socket_path"], str) or not os.path.isabs(raw["socket_path"]):
         raise AgentError("AGENT_SOCKET_PATH_INVALID")
-    if not isinstance(raw["socket_gid"], int) or isinstance(raw["socket_gid"], bool) or not 1 <= raw["socket_gid"] <= 65535:
-        raise AgentError("AGENT_SOCKET_GROUP_INVALID")
     if not isinstance(raw["tailscale_binary"], str) or not os.path.isabs(raw["tailscale_binary"]):
         raise AgentError("AGENT_TAILSCALE_BINARY_INVALID")
     if raw["web_local_url"] != "http://127.0.0.1:8080":
