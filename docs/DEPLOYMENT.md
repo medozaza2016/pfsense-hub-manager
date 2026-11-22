@@ -1,11 +1,15 @@
 # Local and Proxmox Deployment
 
+> **Workflow status:** This guide contains legacy setup instructions matching the current single-firewall implementation. The approved target is a Hub-only installation that starts with zero registered firewalls. Read [Hub Installation and First-Run Bootstrap](INSTALLATION-BOOTSTRAP.md). That target is not implemented yet. Do not remove existing firewall configuration or run assumed new installer steps until the application, Compose configuration, PowerShell installer, Bash installer, and migration path are implemented and verified together.
+
 ## Current deployment shape
 Docker Compose runs the React/Vite web application served by Nginx, the Fastify API, PostgreSQL, and code-server. PostgreSQL and the API are not published to the LXC host. The application UI binds to 127.0.0.1 by default. You can instead bind it to the host's Tailscale IPv4 address by setting HUB_BIND_ADDRESS in .env. This publishes the UI only on that selected interface, not on the host's LAN or public interfaces. Do not use 0.0.0.0. Code-server remains bound to 127.0.0.1. Do not publish either service directly to the public internet.
 
 The code-server container has a persistent project workspace and persistent editor configuration. It is isolated from the application backend network and does not receive the Docker socket.
 
-## Prerequisites
+## Current implementation prerequisites (legacy single-firewall bootstrap)
+
+These prerequisites describe the current repository, not the target first-run experience. The current API and Compose configuration still require a preconfigured firewall. This dependency is scheduled for removal during the multi-site onboarding implementation.
 - Docker Engine and Docker Compose plugin.
 - Node.js 22 only if running application development scripts outside containers.
 - A trusted CA certificate for the firewall API, if required.
@@ -13,7 +17,9 @@ The code-server container has a persistent project workspace and persistent edit
 - A strong, unique code-server password.
 - The application encryption key provisioned by scripts/setup-encryption-key.ps1 on Windows.
 
-## First-time setup
+## Current legacy setup procedure
+
+**This is not the approved clean-install target.** It documents the existing environment-driven bootstrap so the current deployment can be preserved and migrated safely. Once implemented, a fresh Hub-only installation must not ask for firewall information.
 On Windows 11, run the provisioning script from the repository root in PowerShell:
 
 ```powershell
@@ -53,7 +59,7 @@ Back up PostgreSQL and the runtime encryption key separately. Protect the recove
 
 ## Security limitations before production
 - No manager-user authentication or role-based authorization is implemented. Keep the web UI bound to localhost or the host's Tailscale interface only. Restrict tailnet access with Tailscale ACLs or grants. Tailscale network access is not a substitute for manager-user authentication and authorization.
-- The first firewall is still configured from environment variables. Multi-device CRUD and credential lifecycle APIs are not implemented.
+- The first firewall is still configured from environment variables. Multi-device CRUD and credential lifecycle APIs are not implemented. This is legacy behavior, not a requirement for the target Hub installation.
 - Key rotation and Linux key provisioning remain outstanding.
 - Docker Compose file secrets are not encrypted at rest.
 - Windows host ACLs do not by themselves prove container-side access restrictions.
