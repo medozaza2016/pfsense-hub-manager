@@ -157,17 +157,22 @@ def write_bind_address(config: dict[str, Any], address: str) -> None:
             updated.append("HUB_BIND_ADDRESS=" + address + "\n")
         fd, temporary = tempfile.mkstemp(prefix=".hub-env-", dir=str(path.parent))
         try:
-            os.fchmod(fd, mode)
+            if hasattr(os, "fchmod"):
+                os.fchmod(fd, mode)
             with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
                 stream.write("".join(updated))
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, path)
-            directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
             try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+                directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+            except OSError:
+                if os.name != "nt":
+                    raise
         finally:
             try:
                 os.unlink(temporary)
