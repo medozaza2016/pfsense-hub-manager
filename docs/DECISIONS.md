@@ -153,3 +153,8 @@ This document records confirmed architectural decisions. Proposals and open ques
 ## Development sample firewall records
 
 The development seed process must not create synthetic firewall sites. Existing rows marked `is_demo=true` are archived by migration `011_archive_development_demo_sites.sql`, with polling disabled and database records retained for referential integrity. The Sites page is reserved for actual registered firewall profiles. Connectivity is a separate operational view of API-reported reachability, polling enabled state, and last connection check. Do not display invented latency, TLS diagnostics, or failure streaks.
+
+
+### DEC-026, automatic Hub access deployment
+
+**Decision:** Once an administrator saves a valid LAN, Tailscale, or Custom access method, Hub Manager should automatically apply the desired binding through a narrowly scoped host-side deployment agent, verify the new endpoint, and redirect the browser only after verification succeeds. If apply or verification fails, restore the previous binding and verify recovery. Normal operation must not require a separate manual deployment confirmation. This decision does not authorize unrestricted Docker socket access, arbitrary command execution, wildcard binds, or automatic Tailscale/DNS/reverse-proxy provisioning. The host agent must expose only a fixed project/service operation, validate addresses against assigned host interfaces, serialize revisions, and preserve the previous working configuration. The Linux production adapter and Windows Docker Desktop adapter must be treated separately. The feature remains disabled until implementation and host integration tests pass. See [Automatic Hub Access Deployment](AUTOMATIC-HUB-ACCESS-DEPLOYMENT.md).
