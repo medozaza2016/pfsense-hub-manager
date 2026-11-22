@@ -9,7 +9,6 @@ an explicit certificate lifecycle is provisioned.
 """
 from __future__ import annotations
 
-import http.client
 import json
 import os
 import re
@@ -17,7 +16,6 @@ import socket
 import ssl
 import subprocess
 import threading
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
