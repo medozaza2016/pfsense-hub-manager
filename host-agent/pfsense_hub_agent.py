@@ -80,9 +80,162 @@ def run_fixed(argv: list[str], timeout: int = 20) -> str:
         result = subprocess.run(argv, check=False, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise AgentError("HOST_OPERATION_UNAVAILABLE") from exc
+    if len(result.stdout.encode("utf-8")) > 1024 * 1024 or len(result.stderr.encode("utf-8")) > 1024 * 1024:
+        raise AgentError("HOST_OPERATION_OUTPUT_TOO_LARGE")
     if result.returncode != 0:
         raise AgentError("HOST_OPERATION_FAILED")
     return result.stdout.strip()
+
+
+def read_bind_address(config: dict[str, Any]) -> tuple[str, str]:
+    path = Path(config["env_file"])
+    try:
+        metadata = path.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+            raise AgentError("ENV_FILE_PERMISSIONS_INVALID")
+        content = path.read_text(encoding="utf-8")
+    except AgentError:
+        raise
+    except Exception as exc:
+        raise AgentError("ENV_FILE_UNAVAILABLE") from exc
+    matches = [line for line in content.splitlines() if line.strip().startswith("HUB_BIND_ADDRESS=")]
+    if len(matches) > 1:
+        raise AgentError("ENV_BIND_ADDRESS_DUPLICATED")
+    if not matches:
+        return content, "127.0.0.1"
+    value = matches[0].split("=", 1)[1].strip().strip('"').strip("'")
+    if not value:
+        raise AgentError("ENV_BIND_ADDRESS_INVALID")
+    return content, value
+
+
+def write_bind_address(config: dict[str, Any], content: str, address: str) -> None:
+    path = Path(config["env_file"])
+    try:
+        metadata = path.stat()
+        mode = stat.S_IMODE(metadata.st_mode)
+        lines = content.splitlines(keepends=True)
+        updated: list[str] = []
+        matches = 0
+        for line in lines:
+            if line.strip().startswith("HUB_BIND_ADDRESS="):
+                matches += 1
+                newline = "\r\n" if line.endswith("\r\n") else "\n" if line.endswith("\n") else ""
+                updated.append("HUB_BIND_ADDRESS=" + address + newline)
+            else:
+                updated.append(line)
+        if matches > 1:
+            raise AgentError("ENV_BIND_ADDRESS_DUPLICATED")
+        if matches == 0:
+            if updated and not updated[-1].endswith(("\n", "\r")):
+                updated[-1] += "\n"
+            updated.append("HUB_BIND_ADDRESS=" + address + "\n")
+        fd, temporary = tempfile.mkstemp(prefix=".hub-env-", dir=str(path.parent))
+        try:
+            os.fchmod(fd, mode)
+            os.fchown(fd, metadata.st_uid, metadata.st_gid)
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+                stream.write("".join(updated))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+            directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        finally:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+    except AgentError:
+        raise
+    except Exception as exc:
+        raise AgentError("ENV_FILE_UPDATE_FAILED") from exc
+
+
+def assigned_interface_addresses(config: dict[str, Any]) -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+    raw = run_fixed([config["ip_binary"], "-j", "address", "show"], timeout=10)
+    try:
+        interfaces = json.loads(raw)
+        addresses: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
+        for interface in interfaces:
+            for info in interface.get("addr_info", []):
+                local = info.get("local")
+                if not local:
+                    continue
+                address = ipaddress.ip_address(local)
+                if not address.is_unspecified and not address.is_multicast:
+                    addresses.add(address)
+        return addresses
+    except Exception as exc:
+        if isinstance(exc, AgentError):
+            raise
+        raise AgentError("HOST_INTERFACE_DISCOVERY_FAILED") from exc
+
+
+def resolve_bind_address(endpoint: dict[str, Any], config: dict[str, Any]) -> str:
+    method = endpoint.get("method")
+    address_type = endpoint.get("addressType")
+    address = endpoint.get("address")
+    if method not in ("local", "hostname") or address_type not in ("hostname", "ip") or not isinstance(address, str) or not address:
+        raise AgentError("HOST_BIND_ENDPOINT_UNSUPPORTED")
+    assigned = assigned_interface_addresses(config)
+    candidates: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
+    if address_type == "ip":
+        try:
+            candidates.add(ipaddress.ip_address(address))
+        except ValueError as exc:
+            raise AgentError("HOST_BIND_ADDRESS_INVALID") from exc
+    else:
+        try:
+            records = socket.getaddrinfo(address, None, type=socket.SOCK_STREAM)
+            candidates = {ipaddress.ip_address(record[4][0]) for record in records}
+        except Exception as exc:
+            raise AgentError("HOST_BIND_HOSTNAME_RESOLUTION_FAILED") from exc
+    matches = candidates.intersection(assigned)
+    if not matches:
+        raise AgentError("HOST_BIND_ADDRESS_NOT_ASSIGNED")
+    eligible = sorted(matches, key=lambda item: (item.version != 4, str(item)))
+    selected = eligible[0]
+    if method == "hostname" and selected.is_loopback:
+        raise AgentError("HOST_BIND_LOOPBACK_NOT_ALLOWED")
+    return str(selected)
+
+
+def compose_web_recreate(config: dict[str, Any]) -> None:
+    base = [
+        config["docker_binary"], "compose",
+        "--project-directory", config["project_dir"],
+        "-f", config["compose_file"]
+    ]
+    run_fixed(base + ["config", "--quiet"], timeout=30)
+    run_fixed(base + ["up", "-d", "--no-deps", "web"], timeout=60)
+
+
+def format_origin(address: str, port: int) -> str:
+    host = address
+    try:
+        parsed = ipaddress.ip_address(address)
+        if parsed.version == 6:
+            host = "[" + address + "]"
+    except ValueError:
+        pass
+    return "https://" + host + ("" if port == 443 else ":" + str(port))
+
+
+def verify_https_with_retries(origin: str) -> None:
+    last_error: AgentError | None = None
+    for attempt in range(5):
+        try:
+            verify_https(origin)
+            return
+        except AgentError as exc:
+            last_error = exc
+            if attempt < 4:
+                time.sleep(1)
+    raise last_error or AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED")
 
 
 def get_deployment(config: dict[str, Any], deployment_id: str, revision: int) -> dict[str, Any]:
