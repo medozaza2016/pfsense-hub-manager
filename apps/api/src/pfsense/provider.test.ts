@@ -115,7 +115,7 @@ describe("PfSenseProvider multi-device polling", () => {
     const { provider, factory, pool } = makeProvider(null);
     const client = {
       get: vi.fn(async (operation: PfSenseOperation) => {
-        const data = operation === "gateways" ? { unexpected: "object" } :
+        const data = operation === "gateways" ? [null] :
           operation === "system" ? { status: "ok" } :
           operation === "version" ? { release: "test" } :
           operation === "firewallStateSize" ? 0 : [];
