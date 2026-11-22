@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR="${1:-/opt/pfsense-hub}"
+ENV_FILE="$PROJECT_DIR/.env"
+AGENT_SOURCE="$PROJECT_DIR/host-agent/pfsense_hub_agent.py"
+CONFIG_DIR="/etc/pfsense-hub"
+CONFIG_FILE="$CONFIG_DIR/deployment-agent.json"
+SERVICE_SOURCE="$PROJECT_DIR/host-agent/pfsense-hub-deployment-agent.service"
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "Run this installer as root." >&2
+  exit 1
+fi
+for file in "$ENV_FILE" "$AGENT_SOURCE" "$SERVICE_SOURCE"; do
+  [[ -f "$file" ]] || { echo "Required file not found: $file" >&2; exit 1; }
+done
+command -v python3 >/dev/null || { echo "python3 is required." >&2; exit 1; }
+command -v systemctl >/dev/null || { echo "systemd is required." >&2; exit 1; }
+command -v tailscale >/dev/null || { echo "Tailscale CLI is required for the initial agent implementation." >&2; exit 1; }
+
+# Parse only literal KEY=value lines. Never source or execute the .env file.
+TOKEN="$(python3 - "$ENV_FILE" <<'PY'
+import sys
+values = {}
+for line in open(sys.argv[1], encoding="utf-8"):
+    line = line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    key, value = line.split("=", 1)
+    values[key.strip()] = value.strip().strip('"').strip("'")
+print(values.get("HUB_DEPLOYMENT_AGENT_TOKEN", ""))
+PY
+)"
+API_PORT="$(python3 - "$ENV_FILE" <<'PY'
+import sys
+values = {}
+for line in open(sys.argv[1], encoding="utf-8"):
+    line = line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    key, value = line.split("=", 1)
+    values[key.strip()] = value.strip().strip('"').strip("'")
+print(values.get("HUB_AGENT_API_PORT", "3001"))
+PY
+)"
+if [[ "${#TOKEN}" -lt 32 ]]; then
+  echo "Set HUB_DEPLOYMENT_AGENT_TOKEN to a random value of at least 32 characters in .env first." >&2
+  exit 1
+fi
+if [[ ! "$API_PORT" =~ ^[0-9]{1,5}$ ]] || (( API_PORT < 1 || API_PORT > 65535 )); then
+  echo "HUB_AGENT_API_PORT must be a valid TCP port." >&2
+  exit 1
+fi
+
+install -d -m 0750 "$CONFIG_DIR" /run/pfsense-hub "$PROJECT_DIR/run/host-agent"
+getent group pfsense-hub-agent >/dev/null || groupadd --gid 2000 pfsense-hub-agent
+install -m 0755 "$AGENT_SOURCE" /usr/local/libexec/pfsense-hub-deployment-agent.py
+python3 - "$CONFIG_FILE" "$TOKEN" "$API_PORT" "$PROJECT_DIR" <<'PY'
+import json, os, sys
+path, token, port, project = sys.argv[1:]
+config = {
+    "api_base_url": f"http://127.0.0.1:{port}",
+    "api_token": token,
+    "socket_path": os.path.join(project, "run/host-agent/agent.sock"),
+    "socket_gid": 2000,
+    "tailscale_binary": "/usr/bin/tailscale",
+    "web_local_url": "http://127.0.0.1:8080"
+}
+fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w", encoding="utf-8") as stream:
+    json.dump(config, stream)
+    stream.write("\\n")
+os.chown(path, 0, 0)
+os.chmod(path, 0o600)
+PY
+install -m 0644 "$SERVICE_SOURCE" /etc/systemd/system/pfsense-hub-deployment-agent.service
+chown root:pfsense-hub-agent "$PROJECT_DIR/run/host-agent"
+chmod 0770 "$PROJECT_DIR/run/host-agent"
+systemctl daemon-reload
+systemctl enable --now pfsense-hub-deployment-agent.service
+
+echo "Host agent installed. Ensure .env contains:"
+echo "HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock"
+echo "HUB_DEPLOYMENT_AGENT_TOKEN=<same token used by the agent>"
+echo "HUB_AGENT_GID=2000"
+echo "Then recreate only the API container so its socket mount and group are active."
