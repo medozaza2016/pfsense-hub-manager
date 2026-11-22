@@ -48,10 +48,19 @@ export async function dispatchHubDeployment(
     return;
   }
 
-  await pool.query(
-    "UPDATE hub_access_deployments SET state='applying',updated_at=now() WHERE id=$1 AND state='validating'",
-    [deployment.id]
-  );
+  try {
+    await pool.query(
+      "UPDATE hub_access_deployments SET state='applying',updated_at=now() WHERE id=$1 AND state='validating'",
+      [deployment.id]
+    );
+  } catch (error) {
+    await pool.query(
+      `UPDATE hub_access_deployments SET state='failed',safe_error_code=$2,
+          finished_at=now(),updated_at=now() WHERE id=$1 AND state='validating'`,
+      [deployment.id, safeErrorCode(error)]
+    );
+    return;
+  }
 
   let db: pg.PoolClient | null = null;
   let transactionOpen = false;
