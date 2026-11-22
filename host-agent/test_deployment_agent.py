@@ -292,6 +292,7 @@ class DeploymentAgentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env_path = Path(directory) / ".env"
             env_path.write_text("POSTGRES_PASSWORD=keep-this\nHUB_BIND_ADDRESS=127.0.0.1\nWEB_PORT=8080\n", encoding="utf-8")
+            env_path.chmod(0o600)
             config = {**self.config, "env_file": str(env_path)}
             agent.write_bind_address(config, "192.168.1.20")
             self.assertEqual(
