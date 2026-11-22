@@ -21,9 +21,13 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
 - Separate `device_credentials` storage using AES-256-GCM encrypted envelopes.
 - Device-bound credential encryption using versioned authenticated additional data.
 - Device-bound custom TLS trust storage in migration `008_device_tls_trust.sql`, encrypted separately from API credentials.
+- Per-device TLS server-name override persisted by migration `009_device_tls_servername.sql`, for firewalls addressed by IP whose certificate is issued to a DNS hostname.
 - Custom CA bundle validation, including size and certificate-count limits, PEM/X.509 validation, and certificate validity checks.
 - Repository methods for profile listing and retrieval, create, update, enable/disable, credential rotation, custom CA set/remove, and controlled decryption for backend connections.
-- A per-device client factory that selects the device's own HTTPS origin, decrypted API key, and explicit system or custom-CA trust mode.
+- A per-device client factory that selects the device's own HTTPS origin, decrypted API key, explicit system or custom-CA trust mode, and optional TLS server name.
+- Administrator-only TLS certificate discovery that validates the HTTPS origin, applies the same safe-destination policy and pinned DNS lookup, and reports the presented certificate subject, issuer, DNS/IP SANs, SHA-256 fingerprint, and validity dates. Certificate discovery does not send an API key or establish trust.
+- A write-free pre-registration connection test that verifies TLS and authenticates using only the fixed `version` GET operation. The registration endpoint repeats this test server-side and refuses to persist a device when it fails.
+- Atomic registration of the managed-device profile, encrypted API credential, optional encrypted custom CA trust, and TLS server name.
 - Explicit TLS certificate and hostname verification, DNS destination validation and pinned resolution, redirect rejection, bounded response size, request timeout, and classified API errors.
 - A fixed allowlist of eight pfSense GET operations. No write operations are exposed by the client.
 - Multi-device provider collection, with per-operation poll history and isolated failure handling.
@@ -36,7 +40,9 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
 - All `/api/v1/` routes other than the explicitly public version and authentication routes require a valid session.
 - Device inventory and detail are available to authenticated users. Device capability and overview routes also require authentication and reject demo devices. Overview rejects disabled devices.
 - Administrator-only lifecycle routes have now been added for device creation, non-secret profile updates, enable/disable, credential rotation, custom CA set/remove, and explicit connection testing:
-  - `POST /api/v1/devices`
+  - `POST /api/v1/devices/discover-certificate` (administrator-only TLS certificate inspection)
+  - `POST /api/v1/devices/registration-test` (administrator-only pre-registration authenticated test)
+  - `POST /api/v1/devices` (re-tests connectivity server-side before saving)
   - `PATCH /api/v1/devices/:deviceId`
   - `PATCH /api/v1/devices/:deviceId/enabled`
   - `PUT /api/v1/devices/:deviceId/credential`
@@ -46,8 +52,8 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
 - The startup configuration still requires the legacy `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, `PFSENSE_API_BASE_URL`, and `PFSENSE_API_KEY_FILE` bootstrap settings. The first configured firewall is persisted at startup. Removing that requirement is a separate compatibility change and must preserve existing deployments.
 - The capabilities response currently reports the fixed operation list as supported/tested. This is an implementation declaration, not proof that every endpoint has been verified against every pfSense edition or release. Do not interpret it as a live compatibility test.
 - The inventory derives `connectionState` and `lastConnectionCheckAt` from the latest persisted `version` operation in `poll_runs`. Explicit connection tests record success or failure in the existing history table, so status survives refresh without a new migration. Devices with no recorded check remain `unknown`; demo devices remain unverified.
-- The Add Site workflow is now connected to the API. It collects the site name, optional location, edition, HTTPS API origin, API credential, and optional custom CA bundle. Credentials and CA material are cleared from the form after successful registration.
-- The post-registration dialog offers a separate read-only connection test and displays the classified result. The current inventory API still reports `unknown` on a fresh load; persistence of the latest connection-test state is not yet implemented.
+- The Add Site workflow is connected to the API. It collects the site name, optional location, edition, HTTPS API origin, API credential, optional TLS server name, and optional custom CA bundle. It can discover and display the presented certificate before credentials are submitted. The administrator must confirm the displayed SHA-256 fingerprint against a trusted independent source before the pre-registration test can proceed. Credentials and CA material are cleared after successful registration.
+- The pre-registration connection test uses only the `version` GET operation. The server repeats that test during registration, then persists the profile and encrypted trust material atomically. The post-registration dialog still allows a fresh connection test.
 - Migration 008 and the lifecycle have unit-test coverage, but migration execution against the user's actual PostgreSQL database and live firewall connectivity have not yet been confirmed.
 
 ## 3. Security invariants
@@ -94,6 +100,9 @@ These are non-negotiable throughout the remaining work:
 - [x] Keep secret inputs write-only and clear them after successful registration.
 - [x] Add separate Test Connection behavior and display the classified outcome.
 - [x] Persist connection-test success/failure and timestamp in `poll_runs`; expose the latest result in device inventory.
+- [x] Discover the presented TLS certificate with safe destination validation and pinned DNS resolution.
+- [x] Require an authenticated read-only connection test before registration, and repeat it server-side before persistence.
+- [x] Persist optional TLS server name and custom CA trust atomically with the new device.
 - [ ] Add edit, enable/disable, and credential rotation controls for administrators.
 - [ ] Distinguish configured, enabled, reachable, and compatible states. Do not treat these as interchangeable.
 - [ ] Clearly label demo devices and prevent demo actions from being presented as live firewall operations.
@@ -124,9 +133,10 @@ These are non-negotiable throughout the remaining work:
 The onboarding milestone is complete only when:
 
 1. An administrator can register multiple real-device profiles through the GUI without adding environment variables for each additional firewall.
-2. Each device uses its own encrypted credential, HTTPS origin, and TLS trust configuration.
-3. No secret material is returned to the browser or recorded in logs/audit metadata.
-4. Lifecycle mutations and connection tests are administrator-only and covered by automated tests.
+2. Each device uses its own encrypted credential, HTTPS origin, TLS trust configuration, and optional verified TLS server name.
+3. Registration is blocked unless TLS verification and an authenticated `version` GET succeed. Certificate discovery itself never establishes trust.
+4. No secret material is returned to the browser or recorded in logs/audit metadata.
+5. Lifecycle mutations, certificate discovery, and connection tests are administrator-only and covered by automated tests.
 5. Connection tests return accurate, classified outcomes without exposing raw upstream errors.
 6. One device's failure does not prevent another device's inventory or test.
 7. Disabled and demo devices cannot obtain live clients or be tested.
