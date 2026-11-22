@@ -8,7 +8,8 @@ const schema = z.object({
  PFSENSE_EDITION:z.enum(["plus","ce","unknown"]).default("unknown"),
  PFSENSE_API_BASE_URL:z.string().url(), PFSENSE_API_KEY_FILE:z.string().min(1),
  APP_ENCRYPTION_KEY_FILE:z.string().min(1),
- PFSENSE_API_TIMEOUT_MS:z.coerce.number().int().min(1000).max(60000).default(10000)
+ PFSENSE_API_TIMEOUT_MS:z.coerce.number().int().min(1000).max(60000).default(10000),
+ HUB_DEPLOYMENT_AGENT_SOCKET:z.string().trim().min(1).optional()
 });
 export type AppConfig=z.infer<typeof schema>;
 export function loadConfig(env:NodeJS.ProcessEnv=process.env):AppConfig {
