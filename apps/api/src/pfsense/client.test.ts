@@ -4,7 +4,8 @@ import {checkServerIdentity} from "node:tls";
 import type {AddressInfo} from "node:net";
 import {Agent,fetch} from "undici";
 import {describe,expect,it,vi} from "vitest";
-import {createPinnedLookup,pfSenseOperations,selectTlsCa} from "./client.js";
+import {createPinnedLookup,pfSenseOperations,selectTlsCa,validatePfSenseOperationData} from "./client.js";
+import {PfSenseApiError} from "./errors.js";
 
 const testCertificate=readFileSync(new URL("./fixtures/firewall-test-cert.pem",import.meta.url));
 const testPrivateKey=readFileSync(new URL("./fixtures/firewall-test-key.pem",import.meta.url));
@@ -126,6 +127,43 @@ describe("Undici pinned HTTPS integration",()=>{
    expect(failure).toBeInstanceOf(Error);
    expect((failure as Error&{cause?:{code?:string}}).cause?.code).toBe("ERR_TLS_CERT_ALTNAME_INVALID");
   });
+ });
+});
+
+describe("pfSense operation data validation",()=>{
+ const valid:Record<string,unknown>={
+  system:{},
+  gateways:[],
+  interfaces:[],
+  services:[],
+  version:{release:"26.07.2-RELEASE"},
+  arpTable:[],
+  firewallStates:[],
+  firewallStateSize:0
+ };
+
+ it.each(Object.entries(valid))("accepts the expected minimum %s data shape", (operation,data)=>{
+  expect(()=>validatePfSenseOperationData(operation as keyof typeof valid,data)).not.toThrow();
+ });
+
+ it.each([
+  ["system",[]],
+  ["gateways",{}],
+  ["interfaces",null],
+  ["services","running"],
+  ["version",[]],
+  ["arpTable",{}],
+  ["firewallStates",{entries:[]}],
+  ["firewallStateSize",[]]
+ ] as const)("rejects malformed %s data", (operation,data)=>{
+  expect(()=>validatePfSenseOperationData(operation,data)).toThrowError(
+   expect.objectContaining({errorClass:"invalid_response"})
+  );
+ });
+
+ it("rejects a missing envelope data field as an invalid API envelope",()=>{
+  // The client envelope parser is applied before the operation-specific schema.
+  expect(()=>validatePfSenseOperationData("version",undefined)).toThrowError(PfSenseApiError);
  });
 });
 
