@@ -508,7 +508,7 @@ const deploymentErrorCopy:Record<string,string> = {
  TLS_METHOD_NOT_SUPPORTED_YET:"This access method still needs a trusted TLS certificate and deployment configuration.",
  TAILSCALE_HTTPS_NOT_ENABLED:"Enable HTTPS certificates for this tailnet before using Tailscale Serve.",
  TAILSCALE_SERVE_NOT_CONFIGURED:"Configure a private Tailscale Serve route to the Hub loopback service before saving this method.",
- TAILSCALE_LOOPBACK_BINDING_REQUIRED:"Tailscale Serve requires the Hub web service to remain bound to 127.0.0.1. Restore the loopback bind before using this method.",
+ TAILSCALE_LOOPBACK_BINDING_REQUIRED:"Tailscale Serve requires the Hub web service to remain bound to 127.0.0.1. The host agent could not restore that binding.",
  HOST_BIND_ADDRESS_NOT_ASSIGNED:"The selected address does not resolve to an IP assigned to this Hub host.",
  HOST_BIND_ENDPOINT_UNSUPPORTED:"Select a LAN or Custom hostname/IP address before deploying.",
  HOST_BIND_HOSTNAME_RESOLUTION_FAILED:"The selected hostname could not be resolved by the Hub host.",
@@ -668,7 +668,7 @@ function HubSettingsPage(){
      <span>Configuration revision {deployment.desiredRevision}, applied revision {deployment.appliedRevision}</span>
      {deployment.errorCode&&<><span>Safe error code: {deployment.errorCode}</span><span>{deploymentErrorCopy[deployment.errorCode]??"The host agent could not complete this deployment. Review the agent service logs."}</span></>}
     </div>
-    <p className="hub-settings-note">Saving automatically requests the restricted host agent to verify the selected HTTPS endpoint. For Tailscale, the private Serve route must already be configured outside Hub Manager. For LAN/Custom, the agent changes only HUB_BIND_ADDRESS and recreates the web service. It does not configure Tailscale, DNS, certificates, or reverse proxies. The browser redirects only after the host agent verifies the endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
+    <p className="hub-settings-note">Saving automatically requests the restricted host agent to verify the selected HTTPS endpoint. For Tailscale, the private Serve route must already be configured outside Hub Manager. For LAN/Custom, the agent binds the web service to the selected private host address. For Tailscale, it restores the loopback binding when switching from LAN/Custom. It does not configure Tailscale, DNS, certificates, or reverse proxies. The browser redirects only after the host agent verifies the endpoint. DNS, Tailscale connectivity, and client routing must still be valid from the device you are using.</p>
     {deployment.previousAppliedOrigin&&<p className="hub-settings-note">Last verified access: <a href={deployment.previousAppliedOrigin} target="_blank" rel="noreferrer">{deployment.previousAppliedOrigin}</a>. Keep this recovery address available while changing access settings.</p>}
    </Panel>
    <Panel title="Recent deployments">
