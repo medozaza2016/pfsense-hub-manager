@@ -225,7 +225,7 @@ This is an approved product scope, not an implemented feature. Implementation an
 
 ## Development closeout and next baseline, November 21, 2026
 
-The active implementation branch is `feature/development-seed-data`, currently synchronized with its GitHub remote at `06e8d0f49433654d37b7d9c8c8135ab96da17283`. At the recorded comparison point it is 91 commits ahead of `main`, with no commits behind. The current task is documentation closeout, then a pull request into `main`. Do not begin new feature work on the feature branch after the merge; continue from an updated local `main`.
+The implementation and documentation closeout were merged through [PR #5](https://github.com/medozaza2016/pfsense-hub-manager/pull/5) into `main` on November 21, 2026. The merge commit is `12bf57733aab1f654a2819639b3a16887ac62bb4`. The feature branch was 98 commits ahead of `main` immediately before merge. Upcoming work must start from an updated local `main`; do not continue feature work on the merged feature branch.
 
 ### Completed in this implementation increment
 - [x] Add shared frontend UI components for searchable tables, search fields, list toolbars, expandable filters, pagination, and responsive mobile cards.
