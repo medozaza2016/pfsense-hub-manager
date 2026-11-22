@@ -109,7 +109,7 @@ export const pfSenseOperations=Object.keys(routes) as PfSenseOperation[];
  * for firmware/package variation, but a wrong top-level shape is never success.
  */
 const recordSchema=z.record(z.string(),z.unknown());
-const recordsSchema=z.array(z.unknown());
+const recordsSchema=z.array(recordSchema);
 const nonEmptyObjectSchema=z.object({}).passthrough().refine(value=>Object.keys(value).length>0,"Expected a non-empty object.");
 const versionSchema=z.union([
  z.string().min(1),
