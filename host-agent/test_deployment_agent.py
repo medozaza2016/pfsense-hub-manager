@@ -144,8 +144,8 @@ class DeploymentAgentTests(unittest.TestCase):
         with (
             patch.object(agent, "get_deployment", return_value=endpoint),
             patch.object(agent, "read_bind_address", side_effect=[
-                ("HUB_BIND_ADDRESS=192.168.1.20\\n", "192.168.1.20"),
-                ("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"),
+                ("HUB_BIND_ADDRESS=192.168.1.20\n", "192.168.1.20"),
+                ("HUB_BIND_ADDRESS=127.0.0.1\n", "127.0.0.1"),
             ]),
             patch.object(agent, "write_bind_address") as write_bind,
             patch.object(agent, "compose_web_recreate") as recreate,
@@ -168,8 +168,8 @@ class DeploymentAgentTests(unittest.TestCase):
         with (
             patch.object(agent, "get_deployment", return_value=endpoint),
             patch.object(agent, "read_bind_address", side_effect=[
-                ("HUB_BIND_ADDRESS=192.168.1.20\\n", "192.168.1.20"),
-                ("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"),
+                ("HUB_BIND_ADDRESS=192.168.1.20\n", "192.168.1.20"),
+                ("HUB_BIND_ADDRESS=127.0.0.1\n", "127.0.0.1"),
             ]),
             patch.object(agent, "write_bind_address") as write_bind,
             patch.object(agent, "compose_web_recreate") as recreate,
