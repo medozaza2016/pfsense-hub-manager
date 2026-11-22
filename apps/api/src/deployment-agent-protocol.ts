@@ -10,13 +10,13 @@ export const hostDeploymentRequestSchema = z.object({
 const verifiedOriginSchema = z.string().url().refine((value) => {
   try {
     const url = new URL(value);
-    return ["http:", "https:"].includes(url.protocol)
+    return url.protocol === "https:"
       && !url.username && !url.password
       && url.pathname === "/" && !url.search && !url.hash;
   } catch {
     return false;
   }
-}, "A verified origin must be an HTTP(S) origin without credentials, path, query, or fragment.");
+}, "A verified origin must be an HTTPS origin without credentials, path, query, or fragment.");
 
 export const hostDeploymentResultSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("succeeded"), appliedOrigin: verifiedOriginSchema }).strict(),
