@@ -217,7 +217,7 @@ def compose_web_recreate(config: dict[str, Any]) -> None:
         "-f", config["compose_file"]
     ]
     run_fixed(base + ["config", "--quiet"], timeout=20)
-    run_fixed(base + ["up", "-d", "--no-deps", "web"], timeout=45)
+    run_fixed(base + ["up", "-d", "--no-deps", "--no-build", "web"], timeout=45)
 
 
 def format_origin(address: str, port: int) -> str:
