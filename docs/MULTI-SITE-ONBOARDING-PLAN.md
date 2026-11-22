@@ -45,7 +45,7 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
 - Route tests have been added for administrator enforcement, credential non-disclosure, profile secret rejection, and successful/failed read-only connection tests. These new tests and the integrated server build are pending execution in the user's local checkout.
 - The startup configuration still requires the legacy `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, `PFSENSE_API_BASE_URL`, and `PFSENSE_API_KEY_FILE` bootstrap settings. The first configured firewall is persisted at startup. Removing that requirement is a separate compatibility change and must preserve existing deployments.
 - The capabilities response currently reports the fixed operation list as supported/tested. This is an implementation declaration, not proof that every endpoint has been verified against every pfSense edition or release. Do not interpret it as a live compatibility test.
-- Connection state in the device inventory is currently `unknown`; inventory does not imply reachability.
+- The inventory derives `connectionState` and `lastConnectionCheckAt` from the latest persisted `version` operation in `poll_runs`. Explicit connection tests record success or failure in the existing history table, so status survives refresh without a new migration. Devices with no recorded check remain `unknown`; demo devices remain unverified.
 - The Add Site workflow is now connected to the API. It collects the site name, optional location, edition, HTTPS API origin, API credential, and optional custom CA bundle. Credentials and CA material are cleared from the form after successful registration.
 - The post-registration dialog offers a separate read-only connection test and displays the classified result. The current inventory API still reports `unknown` on a fresh load; persistence of the latest connection-test state is not yet implemented.
 - Migration 008 and the lifecycle have unit-test coverage, but migration execution against the user's actual PostgreSQL database and live firewall connectivity have not yet been confirmed.
@@ -91,7 +91,8 @@ These are non-negotiable throughout the remaining work:
 - [x] Replace the preview-only Add Site action with the API-backed registration workflow.
 - [x] Collect name, optional location, edition, HTTPS API origin, API credential, and optional custom CA trust material.
 - [x] Keep secret inputs write-only and clear them after successful registration.
-- [x] Add separate Test Connection behavior and display the classified outcome. Persisting the last test timestamp and state in the inventory remains open.
+- [x] Add separate Test Connection behavior and display the classified outcome.
+- [x] Persist connection-test success/failure and timestamp in `poll_runs`; expose the latest result in device inventory.
 - [ ] Add edit, enable/disable, and credential rotation controls for administrators.
 - [ ] Distinguish configured, enabled, reachable, and compatible states. Do not treat these as interchangeable.
 - [ ] Clearly label demo devices and prevent demo actions from being presented as live firewall operations.
