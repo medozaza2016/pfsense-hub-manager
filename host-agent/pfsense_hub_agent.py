@@ -189,7 +189,7 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
             try:
                 run_fixed([binary, "serve", "--https=" + str(port), "off"], timeout=15)
                 after = serve_status(binary)
-                rollback_ok = after in ("", "{}", "null")
+                rollback_ok = not has_existing_serve_configuration(after)
             except Exception:
                 rollback_ok = False
         code = exc.code if isinstance(exc, AgentError) else "DEPLOYMENT_FAILED"
