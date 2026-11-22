@@ -14,7 +14,7 @@ export type PfSenseOperation=keyof typeof routes;
 
 type PinnedLookup = (hostname: string, options: { all?: boolean }, callback: (error: NodeJS.ErrnoException | null, address: string | Array<{address:string;family:number}>, family?: number) => void) => void;
 
-function createPinnedLookup(expectedHostname: string, address: { address: string; family: 4 | 6 }): PinnedLookup {
+export function createPinnedLookup(expectedHostname: string, address: { address: string; family: 4 | 6 }): PinnedLookup {
  const expected=expectedHostname.toLowerCase();
  return (hostname, options, callback) => {
   if(hostname.toLowerCase()!==expected){
@@ -47,7 +47,7 @@ export class PfSenseClient{
  async get(operation:PfSenseOperation){
   const dispatcher=await this.dispatcher;
   let response;
-  try{response=await fetch(new URL(routes[operation],this.base),{method:"GET",headers:{"X-API-Key":this.key,Accept:"application/json"},signal:AbortSignal.timeout(this.config.PFSENSE_API_TIMEOUT_MS),dispatcher});}
+  try{response=await fetch(new URL(routes[operation],this.base),{method:"GET",headers:{"X-API-Key":this.key,Accept:"application/json"},redirect:"error",signal:AbortSignal.timeout(this.config.PFSENSE_API_TIMEOUT_MS),dispatcher});}
   catch(error){const message=error instanceof Error?error.message:"";if(/certificate|tls|ssl/i.test(message))throw new PfSenseApiError("Firewall TLS verification failed.","tls");if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError"))throw new PfSenseApiError("Firewall request timed out.","timeout");throw new PfSenseApiError("Firewall connection failed.","unknown");}
   if(response.status===401)throw new PfSenseApiError("Firewall authentication failed.","authentication",401);
   if(response.status===403)throw new PfSenseApiError("Firewall denied the requested operation.","authorization",403);
