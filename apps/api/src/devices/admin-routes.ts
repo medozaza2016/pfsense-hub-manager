@@ -86,19 +86,21 @@ type DiscoveredFirewallCertificate = {
   validFrom: string;
   validTo: string;
   selfSigned: boolean;
+  tlsServernameUsed: string | null;
 };
 
-async function discoverFirewallCertificate(apiBaseUrl: string): Promise<DiscoveredFirewallCertificate> {
+async function discoverFirewallCertificate(apiBaseUrl: string, requestedServername: string | null): Promise<DiscoveredFirewallCertificate> {
   const url = new URL(apiBaseUrl);
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   const destination = await resolveSafeDeviceDestination(hostname);
   const port = Number(url.port || 443);
+  const tlsServernameUsed = requestedServername || (isIP(hostname) === 0 ? hostname : null);
 
   return new Promise((resolve, reject) => {
     const socket = tlsConnect({
       host: hostname,
       port,
-      ...(isIP(hostname) === 0 ? { servername: hostname } : {}),
+      ...(tlsServernameUsed ? { servername: tlsServernameUsed } : {}),
       rejectUnauthorized: false,
       lookup: createPinnedLookup(hostname, destination),
       timeout: 5000
@@ -136,7 +138,8 @@ async function discoverFirewallCertificate(apiBaseUrl: string): Promise<Discover
           fingerprint256: certificate.fingerprint256,
           validFrom: certificate.validFrom,
           validTo: certificate.validTo,
-          selfSigned: certificate.subject === certificate.issuer
+          selfSigned: certificate.subject === certificate.issuer,
+          tlsServernameUsed
         });
       } catch {
         fail("The firewall presented a certificate that could not be inspected.");
@@ -155,10 +158,10 @@ export async function registerDeviceAdminRoutes(
 
 
   app.post("/api/v1/devices/discover-certificate", { preHandler: requireAdministrator }, async (request, reply) => {
-    const parsed = z.object({ apiBaseUrl: apiOriginSchema }).strict().safeParse(request.body);
+    const parsed = z.object({ apiBaseUrl: apiOriginSchema, tlsServername: tlsServernameSchema }).strict().safeParse(request.body);
     if (!parsed.success) return invalidBody(reply, "INVALID_FIREWALL_URL", "Enter a valid HTTPS firewall origin.");
     try {
-      return { data: await discoverFirewallCertificate(parsed.data.apiBaseUrl) };
+      return { data: await discoverFirewallCertificate(parsed.data.apiBaseUrl, parsed.data.tlsServername) };
     } catch (error) {
       return reply.code(422).send({
         error: {
