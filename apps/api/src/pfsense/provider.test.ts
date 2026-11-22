@@ -75,7 +75,7 @@ describe("PfSenseProvider multi-device polling", () => {
     const { provider, devices, pool } = makeProvider(null);
     vi.mocked(devices.listProfiles).mockResolvedValue([{
       id: "55555555-5555-4555-8555-555555555555", name: "Branch", location: null, edition: "ce",
-      apiBaseUrl: "https://192.168.10.5", enabled: true, isDemo: false,
+      apiBaseUrl: "https://192.168.10.5", tlsServername: null, enabled: true, isDemo: false,
       createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z"
     }]);
     vi.mocked(pool.query).mockResolvedValue({ rows: [{
