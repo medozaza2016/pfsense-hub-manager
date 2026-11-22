@@ -25,7 +25,7 @@ export class DevicePfSenseClientFactory {
   async testConnection(input: {
     apiBaseUrl: string;
     apiKey: string;
-    certificateAuthority?: string;
+    certificateAuthority?: string | undefined;
     tlsServername?: string | null;
   }): Promise<void> {
     const ca = input.certificateAuthority ? normalizeDeviceCaBundle(input.certificateAuthority) : null;
