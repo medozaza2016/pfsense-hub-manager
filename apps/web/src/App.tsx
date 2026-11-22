@@ -620,7 +620,7 @@ function HubSettingsPage(){
    const response=await fetch("/api/v1/hub-settings/access-endpoints",{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoints:payload})});
    const result=await response.json();
    if(!response.ok)throw new Error(result.error?.message??"Unable to save Hub access settings.");
-   setDeployment({status:"queued",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision,deploymentId:result.data.deploymentId});
+   setDeployment(value=>({...value,status:"queued",desiredRevision:result.data.desiredRevision,appliedRevision:result.data.appliedRevision,deploymentId:result.data.deploymentId,appliedOrigin:undefined,errorCode:undefined}));
    const success="Access settings saved. The host agent is verifying the configured HTTPS endpoint.";
    setMessage(success);notify(success,"success");
   }catch(error){
