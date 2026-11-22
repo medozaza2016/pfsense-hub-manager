@@ -31,9 +31,12 @@ export class DevicePfSenseClientFactory {
     const ca = input.certificateAuthority ? normalizeDeviceCaBundle(input.certificateAuthority) : null;
     const isLegacyBootstrapOrigin = Boolean(
       this.config.PFSENSE_DEVICE_ID &&
+      this.config.PFSENSE_DEVICE_NAME &&
       this.config.PFSENSE_API_BASE_URL &&
       input.apiBaseUrl === this.config.PFSENSE_API_BASE_URL
     );
+    // A caller-supplied CA takes precedence. Legacy global trust is used only
+    // for the configured bootstrap origin; all other devices use system trust.
     const trust: PfSenseTlsTrust = ca !== null
       ? { mode: "custom-ca", certificateAuthority: Buffer.from(ca, "utf8"), servername: input.tlsServername ?? null }
       : isLegacyBootstrapOrigin
