@@ -5,8 +5,8 @@
 This document defines the implementation contract for automatic application of the LAN, Tailscale, and Custom access method selected in Administration → Hub Settings.
 
 Implementation status on `feature/multi-site-onboarding`:
-- Implemented: deployment history migration, strict API-to-agent request/response schemas, bounded Unix-socket client, queued deployment creation in the same transaction as endpoint settings, deployment status/history API, fail-closed behavior when no agent socket is configured, and frontend status polling/redirect after a verified success response.
-- Not implemented: Linux host agent, its trusted configuration retrieval mechanism, fixed host-side Compose wrapper, host socket/service installation, real host-side apply and rollback, end-to-end tests, and Windows host adapter.
+- Implemented: deployment history migration, strict API-to-agent request/response schemas, bounded Unix-socket client, queued deployment creation in the same transaction as endpoint settings, deployment status/history API, bearer-authenticated and revision-scoped host configuration retrieval, loopback-only API publication for that retrieval path, fail-closed behavior when no agent socket is configured, frontend status polling/redirect after a verified success response, and a last-verified-origin recovery link.
+- Not implemented: Linux host agent, fixed host-side Compose wrapper, host socket/service installation, real host-side apply and rollback, end-to-end tests, and Windows host adapter.
 - Not verified: API/web typecheck, unit tests, production builds, Linux integration, and browser redirect behavior. Do not rebuild or deploy based on this partial implementation.
 
 The feature is not operational until the remaining host integration and verification described here are complete.
@@ -17,13 +17,13 @@ The existing endpoint settings and desired/applied revision model remain the sou
 
 1. The authenticated administrator submits the complete three-endpoint configuration.
 2. The API validates the complete configuration, persists it transactionally, increments the desired revision, and creates a deployment record for that revision.
-3. The API submits only the deployment identifier and validated desired revision to the restricted host agent. The agent must independently retrieve the approved configuration from a narrowly authenticated API endpoint or another explicitly provisioned read-only source, then validate it. This retrieval path is still to be implemented; the agent must not be given unrestricted database or Docker access merely to obtain settings. It never accepts arbitrary shell commands, Compose arguments, file paths, service names, ports, or environment variable names.
+3. The API submits only the deployment identifier and validated desired revision to the restricted host agent. The agent must independently retrieve the approved configuration from a narrowly authenticated API endpoint or another explicitly provisioned read-only source, then validate it. The API retrieval route is implemented with a dedicated bearer token and checks the deployment state and current desired revision. The Linux agent client for this route is not yet implemented. The agent must not be given unrestricted database or Docker access merely to obtain settings. It never accepts arbitrary shell commands, Compose arguments, file paths, service names, ports, or environment variable names.
 4. The agent serializes deployments with a host lock and snapshots the currently applied binding before making changes.
 5. The agent verifies the requested bind address is assigned to an eligible host interface. For the default local mode, it uses loopback. For a remote IP bind, the address must be assigned locally. A hostname is a reachability name, not a bind address. Do not bind to wildcard addresses.
 6. The agent changes only HUB_BIND_ADDRESS in the managed deployment environment file, validates the fixed Compose project configuration, and recreates only the web service. It must not restart the API, database, code-server, unrelated projects, or remove volumes.
 7. The agent probes the exact newly published HTTP origin and /health endpoint with a bounded timeout. It uses the actual WEB_PORT and scheme configured by the deployment. A port label in Hub Settings is not proof that TLS is configured.
 8. Only after the probe succeeds does the agent mark the revision applied. The API exposes the confirmed origin and deployment status to the browser.
-9. The browser navigates to the returned origin only after a successful status response. A prior-origin recovery link remains a required UI task and is not yet implemented.
+9. The browser navigates to the returned origin only after a successful status response. The Hub Settings page now displays the most recently successful applied origin as a recovery link. Browser reachability from the administrator's current device is still not proven by the host-side health probe.
 10. If apply or verification fails, the agent restores the previous environment value, recreates only the web service, verifies the previous origin, and records whether rollback succeeded. Never claim rollback succeeded without a successful recovery probe.
 
 ## Host agent security boundary
