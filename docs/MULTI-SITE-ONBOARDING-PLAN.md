@@ -54,7 +54,7 @@ The following reflects the code on `feature/multi-site-onboarding`, not the earl
 - The inventory derives `connectionState` and `lastConnectionCheckAt` from the latest persisted `version` operation in `poll_runs`. Explicit connection tests record success or failure in the existing history table, so status survives refresh without a new migration. Devices with no recorded check remain `unknown`; demo devices remain unverified.
 - The Add Site workflow is connected to the API. It collects the site name, optional location, edition, HTTPS API origin, API credential, optional TLS server name, and optional custom CA bundle. It can discover and display the presented certificate before credentials are submitted. The administrator must confirm the displayed SHA-256 fingerprint against a trusted independent source before the pre-registration test can proceed. Credentials and CA material are cleared after successful registration.
 - The pre-registration connection test uses only the `version` GET operation. The server repeats that test during registration, then persists the profile, encrypted trust material, and successful `poll_runs` entry in one database transaction. The post-registration dialog still allows a fresh connection test.
-- Migrations 008 and 009 and the lifecycle have unit-test coverage, but migration execution against the user's actual PostgreSQL database and live firewall connectivity have not yet been confirmed.
+- TLS trust persistence, server-name persistence, and lifecycle logic have unit-test coverage. Migration execution against the user's actual PostgreSQL database and live firewall connectivity have not yet been confirmed.
 
 ## 3. Security invariants
 
@@ -64,7 +64,7 @@ These are non-negotiable throughout the remaining work:
 2. Keep application encryption key material outside PostgreSQL and source control. Fail closed when it is unavailable or invalid.
 3. Bind encrypted credentials and TLS trust material to the device identity and their distinct purposes.
 4. Enforce HTTPS origins without URL credentials, paths, query strings, or fragments.
-5. Preserve strict TLS verification. Custom CA trust must be explicit and device-scoped. Never add an insecure certificate-verification bypass.
+5. Preserve strict TLS verification for every API request. Custom CA trust must be explicit and device-scoped. Certificate discovery may inspect an untrusted peer only in a separate credential-free TLS handshake, with safe destination validation and independent fingerprint confirmation.
 6. Preserve DNS destination validation and pinned lookup. Validate every resolved address and do not weaken SSRF protections.
 7. Use only the fixed eight-operation GET allowlist. Never accept caller-supplied upstream paths or arbitrary URLs.
 8. Enforce administrator authorization server-side for device lifecycle mutations and connection tests.
@@ -76,27 +76,27 @@ These are non-negotiable throughout the remaining work:
 
 ### Phase A: Admin-only device lifecycle API
 
-- [ ] Add strict API request schemas and normalized response DTOs.
-- [ ] Add administrator-only routes to create a device, update its non-secret profile, enable/disable it, rotate its credential, and set/remove its custom CA bundle.
-- [ ] Keep credential and CA inputs write-only. Never include them in response bodies, logs, or audit metadata.
-- [ ] Validate UUIDs, request bodies, HTTPS origins, and CA material. Return consistent validation and not-found errors.
-- [ ] Audit successful and rejected lifecycle actions with safe metadata.
-- [ ] Add route-level tests for authentication, authorization, demo-device protection, duplicate/invalid input, and secret redaction.
+- [x] Add strict API request schemas and normalized response DTOs.
+- [x] Add administrator-only routes to create a device, update its non-secret profile, enable/disable it, rotate its credential, and set/remove its custom CA bundle.
+- [x] Keep credential and CA inputs write-only. Never include them in response bodies, logs, or audit metadata.
+- [x] Validate UUIDs, request bodies, HTTPS origins, and CA material. Return consistent validation and not-found errors.
+- [x] Audit successful lifecycle actions and connection-test outcomes with safe metadata.
+- [x] Add route-level tests for authentication, authorization, demo-device protection, invalid input, and secret redaction.
 
 ### Phase B: Explicit connection test
 
-- [ ] Add an administrator-only connection-test endpoint using the selected device's own client factory.
-- [ ] Use only the fixed read-only operation allowlist. A minimal identity/version request may establish basic connectivity; do not claim full compatibility from a single successful request.
-- [ ] Return a normalized result with a classified outcome and timestamp. Do not expose raw upstream responses, credentials, internal exception details, or arbitrary headers.
+- [x] Add administrator-only connection-test endpoints using the selected device's own client factory.
+- [x] Use only the fixed read-only operation allowlist. A successful `version` request establishes basic authenticated reachability only, not full compatibility.
+- [x] Return normalized results with classified outcomes and timestamps. Do not expose raw upstream responses, credentials, internal exception details, or arbitrary headers.
 - [ ] Distinguish reachable/authenticated, DNS/network failure, timeout, TLS failure, authentication failure, authorization failure, unsupported endpoint, rate limiting, remote server failure, and invalid response where the client can reliably identify them.
-- [ ] Ensure disabled and demo devices cannot be tested.
-- [ ] Audit test outcomes without recording secret material.
+- [x] Ensure disabled and demo devices cannot be tested.
+- [x] Audit test outcomes without recording secret material.
 
 ### Phase C: Frontend integration
 
 - [x] Replace the preview-only Add Site action with the API-backed registration workflow.
 - [x] Collect name, optional location, edition, HTTPS API origin, API credential, and optional custom CA trust material.
-- [x] Organize the Add Site workflow into site information, API connection, and TLS trust sections; support importing `.pem`, `.crt`, and `.cer` CA certificate files (64 KB maximum) or pasting PEM text.
+- [x] Organize the Add Site workflow into site information, API connection, and TLS trust sections; support importing `.pem`, `.crt`, and `.cer` CA certificate files (60 KB maximum) or pasting PEM text.
 - [x] Keep secret inputs write-only and clear them after successful registration.
 - [x] Add separate Test Connection behavior and display the classified outcome.
 - [x] Persist connection-test success/failure and timestamp in `poll_runs`; expose the latest result in device inventory.
