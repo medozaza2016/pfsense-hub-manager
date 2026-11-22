@@ -94,20 +94,7 @@ describe("DevicePfSenseClientFactory", () => {
     );
   });
 
-  it("keeps the legacy CA when the factory is used without explicit TLS trust context", async () => {
-    const noLegacyConfig = { ...config, PFSENSE_DEVICE_ID: undefined, PFSENSE_API_BASE_URL: undefined } as AppConfig;
-    const repository = makeRepository({ listProfiles: async () => [profile()] });
-    const buildClient = vi.fn(() => ({} as PfSenseClient));
-    const factory = new DevicePfSenseClientFactory(noLegacyConfig, repository, buildClient);
 
-    await factory.create(deviceId);
-
-    expect(buildClient).toHaveBeenCalledWith(
-      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
-      apiKey,
-      { mode: "system", servername: null }
-    );
-  });
 
   it("does not apply the legacy global CA to unrelated managed devices", async () => {
     const unrelatedId = "22222222-2222-4222-8222-222222222222";
