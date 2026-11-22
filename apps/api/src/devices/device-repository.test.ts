@@ -293,18 +293,20 @@ describe("DeviceRepository archival", () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: null });
     const client = makePoolClient(query);
     const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
     const repository = new DeviceRepository(pool, key);
 
-    await expect(repository.archive(deviceId)).resolves.toBe(true);
+    await expect(repository.archive(deviceId, "22222222-2222-4222-8222-222222222222")).resolves.toEqual({ resolvedAlertCount: 1 });
     expect(query.mock.calls.map(call => String(call[0]).trim().split(/\\s+/)[0])).toEqual([
-      "BEGIN", "SELECT", "UPDATE", "DELETE", "DELETE", "COMMIT"
+      "BEGIN", "SELECT", "UPDATE", "DELETE", "DELETE", "UPDATE", "COMMIT"
     ]);
     expect(String(query.mock.calls[2]?.[0])).toContain("archived_at=now()");
     expect(String(query.mock.calls[3]?.[0])).toContain("device_credentials");
     expect(String(query.mock.calls[4]?.[0])).toContain("device_tls_trust");
+    expect(String(query.mock.calls[5]?.[0])).toContain("UPDATE alerts");
     expect(query.mock.calls.some(call => String(call[0]).includes("poll_runs"))).toBe(false);
     expect(client.release).toHaveBeenCalledOnce();
   });
@@ -318,7 +320,7 @@ describe("DeviceRepository archival", () => {
     const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
     const repository = new DeviceRepository(pool, key);
 
-    await expect(repository.archive(deviceId)).resolves.toBe(false);
+    await expect(repository.archive(deviceId, "22222222-2222-4222-8222-222222222222")).resolves.toBeNull();
     expect(query).toHaveBeenCalledTimes(3);
     expect(String(query.mock.calls[2]?.[0])).toBe("COMMIT");
   });
