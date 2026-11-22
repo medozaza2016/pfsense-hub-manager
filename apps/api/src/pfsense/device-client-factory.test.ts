@@ -136,7 +136,12 @@ describe("DevicePfSenseClientFactory", () => {
         close: vi.fn(async () => undefined)
       } as unknown as PfSenseClient;
       const buildClient = vi.fn(() => client);
-      const factory = new DevicePfSenseClientFactory(config, repository, buildClient);
+      const bootstrapConfig = { ...config, PFSENSE_DEVICE_ID: deviceId } as AppConfig;
+      const factory = new DevicePfSenseClientFactory(
+        { ...bootstrapConfig, PFSENSE_API_BASE_URL: "https://192.168.10.9" } as AppConfig,
+        repository,
+        buildClient
+      );
 
       await factory.testConnection({
         apiBaseUrl: "https://192.168.10.9",
