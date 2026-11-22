@@ -16,7 +16,6 @@ class DeploymentAgentTests(unittest.TestCase):
             "api_base_url": "http://127.0.0.1:3001",
             "api_token": "x" * 40,
             "socket_path": "/tmp/agent.sock",
-            "socket_gid": 2000,
             "tailscale_binary": "/usr/bin/tailscale",
             "web_local_url": "http://127.0.0.1:8080",
         }
