@@ -358,6 +358,11 @@ app.get("/api/v1/internal/host-deployment-config", async (request, reply) => {
   );
   const endpoint = endpoints.rows[0];
   if (!endpoint || !endpoint.enabled) return reply.code(409).send({ error: { code: "DEPLOYMENT_ENDPOINT_INVALID" } });
+  const previous = await pool.query<{ applied_origin: string | null }>(
+    `SELECT applied_origin FROM hub_access_deployments
+      WHERE state='succeeded' AND applied_origin IS NOT NULL
+      ORDER BY desired_revision DESC LIMIT 1`
+  );
   return { data: {
     deploymentId: row.id,
     desiredRevision: row.desired_revision,
@@ -365,7 +370,8 @@ app.get("/api/v1/internal/host-deployment-config", async (request, reply) => {
     scheme: "https",
     addressType: endpoint.address_type,
     address: endpoint.address,
-    port: endpoint.https_port
+    port: endpoint.https_port,
+    previousAppliedOrigin: previous.rows[0]?.applied_origin ?? null
   } };
 });
 
