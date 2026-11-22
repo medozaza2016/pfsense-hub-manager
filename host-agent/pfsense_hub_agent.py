@@ -109,10 +109,11 @@ def read_bind_address(config: dict[str, Any]) -> tuple[str, str]:
     return content, value
 
 
-def write_bind_address(config: dict[str, Any], content: str, address: str) -> None:
+def write_bind_address(config: dict[str, Any], address: str) -> None:
     path = Path(config["env_file"])
     try:
         metadata = path.stat()
+        content = path.read_text(encoding="utf-8")
         mode = stat.S_IMODE(metadata.st_mode)
         lines = content.splitlines(keepends=True)
         updated: list[str] = []
@@ -320,6 +321,30 @@ def has_funnel_handler(raw: str, host: str, port: int) -> bool:
     return allow_funnel.get(f"{host}:{port}") is True
 
 
+def verify_tailscale_endpoint(endpoint: dict[str, Any], config: dict[str, Any]) -> str:
+    binary = config.get("tailscale_binary") or ""
+    if not binary:
+        raise AgentError("TAILSCALE_NOT_INSTALLED")
+    host = str(endpoint.get("address") or "").rstrip(".").lower()
+    port = endpoint.get("port")
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\.ts\.net", host):
+        raise AgentError("TAILSCALE_MAGICDNS_REQUIRED")
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        raise AgentError("DEPLOYMENT_ENDPOINT_INVALID")
+    dns_name, _ips, cert_domains = tailscale_identity(binary)
+    if host != dns_name:
+        raise AgentError("TAILSCALE_ADDRESS_MISMATCH")
+    if host not in cert_domains:
+        raise AgentError("TAILSCALE_HTTPS_NOT_ENABLED")
+    serve = serve_status(binary)
+    if not has_serve_handler(serve, host, port, config["web_local_url"]):
+        raise AgentError("TAILSCALE_SERVE_NOT_CONFIGURED")
+    funnel = run_fixed([binary, "funnel", "status", "--json"], timeout=10)
+    if has_funnel_handler(funnel, host, port):
+        raise AgentError("TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
+    return format_origin(host, port)
+
+
 def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     if set(request) != {"protocolVersion", "deploymentId", "desiredRevision"}:
         raise AgentError("REQUEST_INVALID")
@@ -332,38 +357,66 @@ def deploy(config: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     revision = request["desiredRevision"]
 
     endpoint = get_deployment(config, deployment_id, revision)
-    if endpoint.get("method") != "tailscale" or endpoint.get("addressType") != "magic_dns" or endpoint.get("scheme") != "https":
-        raise AgentError("TLS_METHOD_NOT_SUPPORTED_YET")
+    if endpoint.get("scheme") != "https":
+        raise AgentError("DEPLOYMENT_ENDPOINT_INVALID")
+
+    method = endpoint.get("method")
+    if method == "tailscale":
+        if endpoint.get("addressType") != "magic_dns":
+            raise AgentError("TLS_METHOD_NOT_SUPPORTED_YET")
+        origin = verify_tailscale_endpoint(endpoint, config)
+        verify_https_with_retries(origin)
+        current = get_deployment(config, deployment_id, revision)
+        if current.get("address") != endpoint.get("address") or current.get("port") != endpoint.get("port"):
+            raise AgentError("STALE_DEPLOYMENT")
+        return {"state": "succeeded", "appliedOrigin": origin}
+
+    if method not in ("local", "hostname"):
+        raise AgentError("DEPLOYMENT_METHOD_UNSUPPORTED")
     address = endpoint.get("address")
     port = endpoint.get("port")
     if not isinstance(address, str) or not isinstance(port, int) or not 1 <= port <= 65535:
         raise AgentError("DEPLOYMENT_ENDPOINT_INVALID")
-    host = address.rstrip(".").lower()
-    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\.ts\.net", host):
-        raise AgentError("TAILSCALE_MAGICDNS_REQUIRED")
 
-    binary = config["tailscale_binary"]
-    dns_name, _ips, cert_domains = tailscale_identity(binary)
-    if host != dns_name:
-        raise AgentError("TAILSCALE_ADDRESS_MISMATCH")
-    if host not in cert_domains:
-        raise AgentError("TAILSCALE_HTTPS_NOT_ENABLED")
-
-    # DEC-026 prohibits automatic Tailscale, DNS, or reverse-proxy provisioning.
-    # Verify that an operator has already configured the exact private Serve route.
-    serve = serve_status(binary)
-    if not has_serve_handler(serve, host, port, config["web_local_url"]):
-        raise AgentError("TAILSCALE_SERVE_NOT_CONFIGURED")
-    funnel = run_fixed([binary, "funnel", "status", "--json"], timeout=10)
-    if has_funnel_handler(funnel, host, port):
-        raise AgentError("TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
-
-    verify_https("https://" + host + ("" if port == 443 else ":" + str(port)))
-    # Reject a result if the desired revision changed during the HTTPS probe.
-    current = get_deployment(config, deployment_id, revision)
-    if current.get("address") != address or current.get("port") != port:
-        raise AgentError("STALE_DEPLOYMENT")
-    return {"state": "succeeded", "appliedOrigin": "https://" + host + ("" if port == 443 else ":" + str(port))}
+    origin = format_origin(address, port)
+    _old_content, old_bind_address = read_bind_address(config)
+    new_bind_address = resolve_bind_address(endpoint, config)
+    changed = False
+    try:
+        if new_bind_address != old_bind_address:
+            write_bind_address(config, new_bind_address)
+            changed = True
+            compose_web_recreate(config)
+        verify_https_with_retries(origin)
+        current = get_deployment(config, deployment_id, revision)
+        if current.get("address") != address or current.get("port") != port:
+            raise AgentError("STALE_DEPLOYMENT")
+        return {"state": "succeeded", "appliedOrigin": origin}
+    except AgentError as failure:
+        if not changed:
+            raise
+        try:
+            write_bind_address(config, old_bind_address)
+            compose_web_recreate(config)
+            previous_origin = endpoint.get("previousAppliedOrigin")
+            if isinstance(previous_origin, str) and previous_origin.startswith("https://"):
+                verify_https_with_retries(previous_origin)
+                return {
+                    "state": "rolled_back",
+                    "errorCode": failure.code,
+                    "rollbackSucceeded": True
+                }
+            return {
+                "state": "failed",
+                "errorCode": failure.code,
+                "rollbackSucceeded": False
+            }
+        except AgentError:
+            return {
+                "state": "failed",
+                "errorCode": failure.code,
+                "rollbackSucceeded": False
+            }
 
 
 def handle_client(conn: socket.socket, config: dict[str, Any], lock_path: Path) -> None:
