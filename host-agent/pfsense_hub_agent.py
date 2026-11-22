@@ -15,7 +15,6 @@ import re
 import socket
 import ssl
 import subprocess
-import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -259,7 +258,7 @@ def main() -> None:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     while True:
         conn, _ = server.accept()
-        threading.Thread(target=handle_client, args=(conn, config, lock_path), daemon=True).start()
+        handle_client(conn, config, lock_path)
 
 
 if __name__ == "__main__":
