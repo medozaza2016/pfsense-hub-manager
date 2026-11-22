@@ -196,10 +196,15 @@ export default function App(){
  </section>
  <section className="onboarding-section">
   <div className="onboarding-section-heading"><span>03</span><div><strong>TLS certificate trust</strong><small>Only needed when the firewall uses a private certificate authority.</small></div></div>
-  <label className="certificate-file-label">Import CA certificate file
-   <input type="file" accept=".pem,.crt,.cer,application/x-pem-file,application/pkix-cert" onChange={e=>{void importCaFile(e.target.files?.[0]??null);}}/>
-   <small>{formCaFileName||"Browse for a .pem, .crt, or .cer file (64 KB maximum)."}</small>
-  </label>
+  <div className="certificate-file-picker">
+   <span className="certificate-file-title">Import CA certificate file</span>
+   <input id="ca-certificate-file" className="certificate-file-input" type="file" accept=".pem,.crt,.cer,application/x-pem-file,application/pkix-cert" onChange={e=>{void importCaFile(e.target.files?.[0]??null);}}/>
+   <div className="certificate-file-picker-row">
+    <label className="certificate-file-button" htmlFor="ca-certificate-file"><Icon name="file" size={16}/> Browse files</label>
+    <span className={formCaFileName?"certificate-file-name selected":"certificate-file-name"}>{formCaFileName||"No certificate selected"}</span>
+   </div>
+   <small className="certificate-file-hint">Accepted formats: PEM, CRT, CER. Maximum file size: 64 KB.</small>
+  </div>
   {formCaFileError&&<Feedback tone="error">{formCaFileError}</Feedback>}
   <label>Or paste PEM certificate bundle<textarea rows={3} value={formCaBundle} onChange={e=>{setFormCaBundle(e.target.value);setFormCaFileName("");}} placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"/></label>
   <p className="onboarding-note">Certificate contents are validated by the API and stored encrypted. Do not upload a private key or a pfSense license file here.</p>
