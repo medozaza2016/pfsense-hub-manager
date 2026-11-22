@@ -228,7 +228,7 @@ export class DeviceRepository {
         `INSERT INTO managed_devices(id,name,location,edition,api_base_url,tls_servername,enabled,is_demo)
          VALUES($1,$2,$3,$4,$5,$6,true,false)
          RETURNING id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at`,
-        [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl]
+        [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl, parsed.tlsServername]
       );
       await client.query(
         `INSERT INTO device_credentials(device_id,algorithm,format_version,key_version,nonce,auth_tag,ciphertext)
@@ -257,7 +257,7 @@ export class DeviceRepository {
       `UPDATE managed_devices SET name=$2,location=$3,edition=$4,api_base_url=$5,updated_at=now()
        WHERE id=$1 AND is_demo=false
        RETURNING id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at`,
-      [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl, parsed.tlsServername]
+      [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl]
     );
     const row = result.rows[0];
     return row ? toProfile(row) : null;
