@@ -18,8 +18,10 @@ function safeErrorCode(error: unknown): string {
 }
 
 /**
- * Process one queued deployment. The API can only request a deployment by ID
- * and revision. All host paths and operations remain inside the host agent.
+ * Dispatch one queued deployment while holding the desired-revision row lock.
+ * A concurrent settings save must wait until the host has either verified the
+ * endpoint or completed rollback. This prevents a newer revision from being
+ * committed between the host's final revision check and API acknowledgement.
  */
 export async function dispatchHubDeployment(
   pool: pg.Pool,
@@ -46,11 +48,30 @@ export async function dispatchHubDeployment(
     return;
   }
 
+  await pool.query(
+    "UPDATE hub_access_deployments SET state='applying',updated_at=now() WHERE id=$1 AND state='validating'",
+    [deployment.id]
+  );
+
+  const db = await pool.connect();
+  let transactionOpen = false;
   try {
-    await pool.query(
-      "UPDATE hub_access_deployments SET state='applying',updated_at=now() WHERE id=$1 AND state='validating'",
-      [deployment.id]
+    await db.query("BEGIN");
+    transactionOpen = true;
+    const current = await db.query<{ desired_revision: number }>(
+      "SELECT desired_revision FROM hub_access_deployment_state WHERE id=1 FOR UPDATE"
     );
+    if (Number(current.rows[0]?.desired_revision) !== deployment.desired_revision) {
+      await db.query(
+        `UPDATE hub_access_deployments SET state='failed',safe_error_code='STALE_DEPLOYMENT',
+            finished_at=now(),updated_at=now() WHERE id=$1`,
+        [deployment.id]
+      );
+      await db.query("COMMIT");
+      transactionOpen = false;
+      return;
+    }
+
     const result = await requestHostDeployment(
       options.socketPath,
       createHostDeploymentRequest(deployment.id, deployment.desired_revision),
@@ -58,51 +79,37 @@ export async function dispatchHubDeployment(
     );
 
     if (result.state === "succeeded") {
-      const db = await pool.connect();
-      try {
-        await db.query("BEGIN");
-        const current = await db.query(
-          "SELECT desired_revision FROM hub_access_deployment_state WHERE id=1 FOR UPDATE"
-        );
-        if (Number(current.rows[0]?.desired_revision) !== deployment.desired_revision) {
-          await db.query(
-            `UPDATE hub_access_deployments SET state='failed',safe_error_code='STALE_DEPLOYMENT',
-                finished_at=now(),updated_at=now() WHERE id=$1`,
-            [deployment.id]
-          );
-        } else {
-          await db.query(
-            `UPDATE hub_access_deployments SET state='succeeded',applied_origin=$2,
-                rollback_succeeded=NULL,finished_at=now(),updated_at=now() WHERE id=$1`,
-            [deployment.id, result.appliedOrigin]
-          );
-          await db.query(
-            `UPDATE hub_access_deployment_state SET applied_revision=$1,applied_at=now(),
-                applied_by=(SELECT actor_id FROM hub_access_deployments WHERE id=$2),updated_at=now()
-              WHERE id=1 AND desired_revision=$1`,
-            [deployment.desired_revision, deployment.id]
-          );
-        }
-        await db.query("COMMIT");
-      } catch (error) {
-        await db.query("ROLLBACK");
-        throw error;
-      } finally {
-        db.release();
-      }
-      return;
+      await db.query(
+        `UPDATE hub_access_deployments SET state='succeeded',applied_origin=$2,
+            rollback_succeeded=NULL,finished_at=now(),updated_at=now() WHERE id=$1`,
+        [deployment.id, result.appliedOrigin]
+      );
+      await db.query(
+        `UPDATE hub_access_deployment_state SET applied_revision=$1,applied_at=now(),
+            applied_by=(SELECT actor_id FROM hub_access_deployments WHERE id=$2),updated_at=now()
+          WHERE id=1 AND desired_revision=$1`,
+        [deployment.desired_revision, deployment.id]
+      );
+    } else {
+      await db.query(
+        `UPDATE hub_access_deployments SET state=$2,safe_error_code=$3,
+            rollback_succeeded=$4,finished_at=now(),updated_at=now() WHERE id=$1`,
+        [deployment.id, result.state, result.errorCode, result.rollbackSucceeded]
+      );
     }
-
-    await pool.query(
-      `UPDATE hub_access_deployments SET state=$2,safe_error_code=$3,
-          rollback_succeeded=$4,finished_at=now(),updated_at=now() WHERE id=$1`,
-      [deployment.id, result.state, result.errorCode, result.rollbackSucceeded]
-    );
+    await db.query("COMMIT");
+    transactionOpen = false;
   } catch (error) {
+    if (transactionOpen) {
+      try { await db.query("ROLLBACK"); } catch { /* transaction may already be closed */ }
+      transactionOpen = false;
+    }
     await pool.query(
       `UPDATE hub_access_deployments SET state='failed',safe_error_code=$2,
           finished_at=now(),updated_at=now() WHERE id=$1 AND state NOT IN ('succeeded','rolled_back')`,
       [deployment.id, safeErrorCode(error)]
     );
+  } finally {
+    db.release();
   }
 }
