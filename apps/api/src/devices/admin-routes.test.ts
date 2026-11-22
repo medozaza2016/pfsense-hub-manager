@@ -1,4 +1,6 @@
 import Fastify, { type FastifyRequest } from "fastify";
+import { readFileSync } from "node:fs";
+import { X509Certificate } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 const { tlsConnectMock } = vi.hoisted(() => ({ tlsConnectMock: vi.fn() }));
 vi.mock("node:tls", () => ({ connect: tlsConnectMock }));
@@ -110,6 +112,45 @@ describe("managed-device administrator routes", () => {
     }));
     expect(response.body).not.toContain("temporary-key");
     expect(state.devices.create).not.toHaveBeenCalled();
+    await state.app.close();
+  });
+
+  it("discovers a firewall certificate using the pinned safe destination", async () => {
+    const state = setup();
+    await state.ready;
+    tlsConnectMock.mockReset();
+    const certificate = new X509Certificate(readFileSync(new URL("../pfsense/fixtures/firewall-test-cert.pem", import.meta.url)));
+    const listeners: Record<string, () => void> = {};
+    const socket = {
+      once: vi.fn((event: string, callback: () => void) => { listeners[event] = callback; return socket; }),
+      getPeerCertificate: vi.fn(() => ({ raw: certificate.raw })),
+      end: vi.fn(),
+      destroy: vi.fn()
+    };
+    tlsConnectMock.mockImplementation(() => {
+      queueMicrotask(() => listeners.secureConnect?.());
+      return socket;
+    });
+
+    const response = await state.app.inject({
+      method: "POST",
+      url: "/api/v1/devices/discover-certificate",
+      payload: { apiBaseUrl: "https://192.168.10.1:10443" }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({
+      fingerprint256: certificate.fingerprint256,
+      subject: certificate.subject,
+      issuer: certificate.issuer
+    });
+    expect(tlsConnectMock).toHaveBeenCalledWith(expect.objectContaining({
+      host: "192.168.10.1",
+      port: 10443,
+      rejectUnauthorized: false,
+      servername: undefined
+    }));
+    expect(socket.end).toHaveBeenCalledOnce();
     await state.app.close();
   });
 
