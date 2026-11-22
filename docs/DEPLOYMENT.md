@@ -83,7 +83,7 @@ Before running the installer:
 Then run:
 
 ```bash
-sudo /opt/pfsense-hub/host-agent/install-linux.sh
+sudo bash /opt/pfsense-hub/host-agent/install-linux.sh
 ```
 
 The installer does not enable Tailscale HTTPS, modify ACLs, configure Funnel, or change the currently running web binding. After installation, recreate only the API container so its Unix-socket mount and supplementary group are applied:
