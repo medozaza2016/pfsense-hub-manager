@@ -31,6 +31,15 @@ describe("Hub access endpoint validation", () => {
     expect(result.success).toBe(true);
   });
 
+
+  it("rejects a Tailscale IP as an HTTPS endpoint because certificates use MagicDNS", () => {
+    const result = hubAccessEndpointsSchema.safeParse(allMethods({
+      local: { enabled: false },
+      tailscale: { addressType: "tailscale_ip", address: "100.64.0.2", enabled: true }
+    }));
+    expect(result.success).toBe(false);
+  });
+
   it("preserves an incomplete address selection on an inactive tab", () => {
     const result = hubAccessEndpointsSchema.safeParse(allMethods({
       tailscale: { addressType: "magic_dns", address: null, enabled: false }
