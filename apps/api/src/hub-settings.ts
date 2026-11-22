@@ -49,4 +49,9 @@ export const hubAccessEndpointsSchema = z.object({
   }
 });
 
+export const deploymentConfirmationSchema = z.object({
+  confirmation: z.literal("APPLIED"),
+  expectedRevision: z.number().int().min(1)
+}).strict();
+
 export type HubAccessEndpoint = z.infer<typeof hubAccessEndpointSchema>;
