@@ -1,6 +1,6 @@
 [Unit]
 Description=pfSense Hub Manager restricted deployment agent
-After=network-online.target tailscaled.service docker.service
+After=network-online.target tailscaled.service
 Wants=network-online.target
 
 [Service]
