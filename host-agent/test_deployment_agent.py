@@ -211,5 +211,17 @@ class DeploymentAgentTests(unittest.TestCase):
                 "POSTGRES_PASSWORD=keep-this\\nHUB_BIND_ADDRESS=192.168.1.20\\nWEB_PORT=8080\\n"
             )
 
+
+    @patch.object(agent, "run_fixed")
+    def test_compose_recreation_targets_only_web_without_build_or_dependencies(self, run_fixed):
+        agent.compose_web_recreate(self.config)
+        self.assertEqual(run_fixed.call_count, 2)
+        self.assertEqual(run_fixed.call_args_list[0].args[0][-2:], ["config", "--quiet"])
+        self.assertEqual(
+            run_fixed.call_args_list[1].args[0][-5:],
+            ["up", "-d", "--no-deps", "web"]
+        )
+        self.assertEqual(run_fixed.call_args_list[1].kwargs, {"timeout": 60})
+
 if __name__ == "__main__":
     unittest.main()
