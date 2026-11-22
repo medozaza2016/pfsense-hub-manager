@@ -345,3 +345,29 @@ The milestone sequence is:
 ### Verification gate
 
 Before merging the implementation branch, run API tests, web and API typechecks, production builds, migration tests against a fresh database and an existing-data copy, `docker compose config`, and a full local Compose rebuild. Exercise the onboarding and connection-test flows in the browser. Verify credential encryption/decryption, key failure behavior, authorization, TLS validation, multi-device isolation, audit coverage, and no secret leakage. Record the actual command outputs and do not mark skipped checks as passed.
+
+
+## Hub-independent installation and first-run bootstrap, November 22, 2026
+
+**Status:** Approved target, documentation-only pass. Installer, Compose, API, and environment-template code have not been changed in this increment.
+
+### Required implementation
+- [ ] Fresh Hub starts with zero registered firewalls and no firewall-specific environment variables or secret files.
+- [ ] Keep `.env.example` limited to Hub infrastructure settings. Keep the application encryption key and code-server password in protected secret files.
+- [ ] Update Windows PowerShell and Linux Bash installation workflows to generate Hub secrets, protect the application encryption key, preserve a recovery copy, validate Compose, and detect existing state before writing.
+- [ ] Remove API startup dependencies on `PFSENSE_DEVICE_ID`, `PFSENSE_DEVICE_NAME`, `PFSENSE_EDITION`, `PFSENSE_API_BASE_URL`, and the global pfSense API-key secret.
+- [ ] Stop automatically inserting a firewall record during API startup.
+- [ ] Complete first-run administrator setup with an empty Sites inventory.
+- [ ] Generate each site's UUID in the backend during GUI registration.
+- [ ] Store each site's credential encrypted in PostgreSQL and keep HTTPS origin and TLS trust configuration independent.
+- [ ] Migrate the existing environment-configured firewall without changing its UUID or losing credentials, polling history, or audit records.
+- [ ] Verify equivalent behavior on Windows Docker Desktop and Linux Docker Compose.
+
+### Delivery order
+1. Merge the documentation-only pull request into `main`.
+2. Create a fresh implementation branch from updated `main`, only after explicit authorization.
+3. Implement API, database, Compose, environment-template, PowerShell, and Bash changes together.
+4. Test clean zero-site installation on both platforms and migration of the existing Linux installation.
+5. Merge implementation only after tests, migration checks, TLS verification, and browser acceptance pass.
+
+See [Hub Installation and First-Run Bootstrap](INSTALLATION-BOOTSTRAP.md) and [Multi-site Onboarding](MULTI-SITE-ONBOARDING-PLAN.md). The current installation remains legacy and must not be represented as supporting the target flow.
