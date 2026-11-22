@@ -56,6 +56,7 @@ The supported Windows workflow is local development with Docker Desktop, not an 
 From PowerShell at the repository root, on a clean local development checkout:
 
 ```powershell
+if (Test-Path .env) { throw "An .env file already exists. Preserve it and inspect the current setup before proceeding." }
 Copy-Item .env.example .env
 New-Item -ItemType Directory -Force .\secrets\runtime, .\certs, .\run\host-agent | Out-Null
 if (-not (Test-Path .\secrets\pfsense_api_key)) {
