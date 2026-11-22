@@ -1,4 +1,5 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { loadConfig, loadApiKey, loadEncryptionKey } from "./config.js";
 import { createPool } from "./db/pool.js";
@@ -16,6 +17,7 @@ import { dispatchHubDeployment } from "./hub-deployment-service.js";
 const config = loadConfig();
 const apiKey = await loadApiKey(config.PFSENSE_API_KEY_FILE);
 const encryptionKey = await loadEncryptionKey(config.APP_ENCRYPTION_KEY_FILE);
+const deploymentAgentToken = config.HUB_DEPLOYMENT_AGENT_TOKEN ?? null;
 const pool = createPool(config);
 await migrate(pool);
 const devices = new DeviceRepository(pool, encryptionKey);
@@ -73,6 +75,15 @@ async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promi
 app.addHook("onRequest", async (request, reply) => {
   (request as typeof request & { metricStart?: bigint }).metricStart = process.hrtime.bigint();
   const path = (request.raw.url ?? "").split("?")[0] ?? "";
+  if (path === "/api/v1/internal/host-deployment-config" && request.method === "GET") {
+    const authorization = request.headers.authorization ?? "";
+    const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+    const expected = deploymentAgentToken ?? "";
+    const valid = Boolean(expected) && Buffer.byteLength(supplied) === Buffer.byteLength(expected)
+      && timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
+    if (!valid) return reply.code(401).send({ error: { code: "HOST_AGENT_AUTHENTICATION_REQUIRED" } });
+    return;
+  }
   if (!path.startsWith("/api/v1/") || path === "/api/v1/version" || path.startsWith("/api/v1/auth/")) return;
   const token = getCookie(request.headers.cookie);
   const admin = token ? await findSession(pool, token) : null;
@@ -310,6 +321,51 @@ app.post("/api/v1/alerts/:alertId/resolve", async (request, reply) => {
   if (!result.rowCount) return reply.code(409).send({ error: { code:"ALERT_NOT_OPEN",message:"Alert is already resolved or no longer exists." } });
   await appendAudit(pool,{actorId:actor.id,actorUsername:actor.username,action:"alert.resolve",outcome:"success",targetType:"alert",targetId:alertId,summary:"Resolved alert",requestId:request.id});
   return { data:{ resolved:true } };
+});
+
+app.get("/api/v1/internal/host-deployment-config", async (request, reply) => {
+  if (!deploymentAgentToken) return reply.code(503).send({ error: { code: "HOST_AGENT_NOT_CONFIGURED" } });
+  const parsed = z.object({
+    deploymentId: z.string().uuid(),
+    desiredRevision: z.coerce.number().int().min(1)
+  }).strict().safeParse(request.query);
+  if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_DEPLOYMENT_REQUEST" } });
+  const deployment = await pool.query<{ id: string; desired_revision: number; requested_method: "local" | "tailscale" | "hostname"; state: string }>(
+    `SELECT id,desired_revision,requested_method,state FROM hub_access_deployments
+      WHERE id=$1 AND desired_revision=$2`,
+    [parsed.data.deploymentId, parsed.data.desiredRevision]
+  );
+  const row = deployment.rows[0];
+  if (!row || !["validating", "applying", "verifying"].includes(row.state)) {
+    return reply.code(409).send({ error: { code: "DEPLOYMENT_NOT_CURRENT" } });
+  }
+  const state = await pool.query<{ desired_revision: number }>(
+    "SELECT desired_revision FROM hub_access_deployment_state WHERE id=1"
+  );
+  if (Number(state.rows[0]?.desired_revision) !== parsed.data.desiredRevision) {
+    return reply.code(409).send({ error: { code: "STALE_DEPLOYMENT" } });
+  }
+  const endpoints = await pool.query<{
+    method: "local" | "tailscale" | "hostname";
+    address_type: string | null;
+    address: string | null;
+    https_port: number;
+    enabled: boolean;
+  }>(
+    `SELECT method,address_type,address,https_port,enabled FROM hub_access_endpoints
+      WHERE method=$1`,
+    [row.requested_method]
+  );
+  const endpoint = endpoints.rows[0];
+  if (!endpoint || !endpoint.enabled) return reply.code(409).send({ error: { code: "DEPLOYMENT_ENDPOINT_INVALID" } });
+  return { data: {
+    deploymentId: row.id,
+    desiredRevision: row.desired_revision,
+    method: endpoint.method,
+    addressType: endpoint.address_type,
+    address: endpoint.address,
+    port: endpoint.https_port
+  } };
 });
 
 app.get("/api/v1/hub-settings", async () => {
