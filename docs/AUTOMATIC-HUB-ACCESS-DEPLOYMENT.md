@@ -26,13 +26,18 @@ The existing endpoint settings and desired/applied revision model remain the sou
 9. The browser navigates to the returned origin only after a successful status response. The Hub Settings page now displays the most recently successful applied origin as a recovery link. Browser reachability from the administrator's current device is still not proven by the host-side health probe.
 10. If apply or verification fails, the agent restores the previous environment value, recreates only the web service, verifies the previous origin, and records whether rollback succeeded. Never claim rollback succeeded without a successful recovery probe.
 
-## TLS deployment gate
+## TLS and Tailscale deployment model
 
-The current web container's Nginx configuration listens on plain HTTP at container port 8080. The Compose host-port mapping changes only the host address and port; it does not terminate TLS. The Hub Settings field is currently named `httpsPort`, but that name does not make the published endpoint HTTPS. In particular, mapping host port 443 to container port 8080 still serves HTTP.
+The current web container's Nginx configuration listens on plain HTTP at container port 8080. A Compose host-port mapping changes only the host address and port; it does not terminate TLS. The Hub Settings field is currently named `httpsPort`, but that name does not make the published endpoint HTTPS. Mapping host port 443 to container port 8080 still serves HTTP.
 
-The API-to-agent configuration contract now explicitly declares `https`, and the deployment protocol rejects an `http://` success origin. The host agent must not construct or report an `https://` origin until a real TLS termination layer is implemented and its certificate and hostname are verified. It must also not expose administrator access over plain HTTP on a LAN, Tailscale, or public interface as a silent fallback. This is a release blocker for remote access deployment.
+TLS is mode-specific:
 
-Before enabling remote host deployment, choose and implement an explicit TLS architecture, including certificate provisioning/renewal, hostname validation, listener ownership, health probing over HTTPS, and rollback behavior. The agent must control only a fixed, documented configuration surface. It must not accept arbitrary certificate paths, proxy directives, or shell commands from the API. Tailscale configuration remains outside this project and must not be changed by the agent.
+- **Tailscale:** use an already-installed and authenticated Tailscale client on the Linux host, with Tailscale Serve configured to terminate HTTPS and proxy to the Hub's loopback-only HTTP listener. Tailscale manages the HTTPS certificate. The Hub host agent must not install, authenticate, reconfigure, or otherwise take ownership of Tailscale. It may validate the configured Serve endpoint and verify the exact HTTPS origin and health endpoint. It must not report success if Serve is absent, targets the wrong local service, or the HTTPS probe fails. The expected public origin is the selected MagicDNS hostname, not a Tailscale IP address, because certificate hostname validation must match the issued name.
+- **LAN and Custom:** these modes still require an explicitly configured TLS termination layer with a valid certificate and hostname/IP identity appropriate to the endpoint. A PEM upload or another trusted reverse proxy may be used, but neither is silently assumed to exist.
+
+The API-to-agent contract requires an `https://` success origin and rejects plaintext success responses. For Tailscale mode, this origin is verified through Tailscale Serve. For LAN and Custom, it must be verified through their separately configured TLS termination layer. No mode may silently fall back to remote plaintext HTTP.
+
+The agent must control only a fixed, documented configuration surface. It must not accept arbitrary certificate paths, proxy directives, Tailscale commands, shell commands, or arbitrary service names from the API.
 
 ## Host agent security boundary
 
