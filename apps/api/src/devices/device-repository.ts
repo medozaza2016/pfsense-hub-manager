@@ -373,7 +373,7 @@ export class DeviceRepository {
       `SELECT t.format_version,t.key_version,t.nonce,t.auth_tag,t.ciphertext
        FROM device_tls_trust t
        JOIN managed_devices d ON d.id=t.device_id
-       WHERE t.device_id=$1 AND d.is_demo=false AND d.enabled=true AND d.archived_at IS NULL`,
+       WHERE t.device_id=$1 AND d.is_demo=false AND d.archived_at IS NULL`,
       [id]
     );
     const row = result.rows[0];
