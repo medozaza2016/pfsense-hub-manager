@@ -150,7 +150,7 @@ export class DeviceRepository {
   async listProfiles(): Promise<ManagedDeviceProfile[]> {
     const result = await this.pool.query<DeviceRow>(
       `SELECT id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at
-       FROM managed_devices ORDER BY name,id`
+       FROM managed_devices WHERE archived_at IS NULL ORDER BY name,id`
     );
     return result.rows.map(toProfile);
   }
@@ -159,7 +159,7 @@ export class DeviceRepository {
     const id = deviceIdSchema.parse(deviceId);
     const result = await this.pool.query<DeviceRow>(
       `SELECT id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at
-       FROM managed_devices WHERE id=$1`,
+       FROM managed_devices WHERE id=$1 AND archived_at IS NULL`,
       [id]
     );
     const row = result.rows[0];
@@ -263,7 +263,7 @@ export class DeviceRepository {
     const parsed = updateDeviceProfileSchema.parse(input);
     const result = await this.pool.query<DeviceRow>(
       `UPDATE managed_devices SET name=$2,location=$3,edition=$4,api_base_url=$5,updated_at=now()
-       WHERE id=$1 AND is_demo=false
+       WHERE id=$1 AND is_demo=false AND archived_at IS NULL
        RETURNING id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at`,
       [id, parsed.name, parsed.location, parsed.edition, parsed.apiBaseUrl]
     );
@@ -276,12 +276,34 @@ export class DeviceRepository {
     if (typeof enabled !== "boolean") throw new Error("Device enabled state must be a boolean.");
     const result = await this.pool.query<DeviceRow>(
       `UPDATE managed_devices SET enabled=$2,updated_at=now()
-       WHERE id=$1 AND is_demo=false
+       WHERE id=$1 AND is_demo=false AND archived_at IS NULL
        RETURNING id,name,location,edition,api_base_url,tls_servername,enabled,is_demo,created_at,updated_at`,
       [id, enabled]
     );
     const row = result.rows[0];
     return row ? toProfile(row) : null;
+  }
+
+  /**
+   * Archives a real device without deleting its polling history or audit trail.
+   * Encrypted connection material is purged in the same transaction.
+   */
+  async archive(deviceId: string): Promise<boolean> {
+    const id = deviceIdSchema.parse(deviceId);
+    return withTransaction(this.pool, async client => {
+      const device = await client.query<{ id: string }>(
+        "SELECT id FROM managed_devices WHERE id=$1 AND is_demo=false AND archived_at IS NULL FOR UPDATE",
+        [id]
+      );
+      if (!device.rowCount) return false;
+      await client.query(
+        "UPDATE managed_devices SET enabled=false,archived_at=now(),updated_at=now() WHERE id=$1",
+        [id]
+      );
+      await client.query("DELETE FROM device_credentials WHERE device_id=$1", [id]);
+      await client.query("DELETE FROM device_tls_trust WHERE device_id=$1", [id]);
+      return true;
+    });
   }
 
   async rotateCredential(deviceId: string, apiKey: string): Promise<boolean> {
@@ -292,7 +314,7 @@ export class DeviceRepository {
     const encrypted = encryptDeviceCredential(apiKey, this.encryptionKey, id);
     return withTransaction(this.pool, async client => {
       const device = await client.query<{ id: string }>(
-        "SELECT id FROM managed_devices WHERE id=$1 AND is_demo=false FOR UPDATE",
+        "SELECT id FROM managed_devices WHERE id=$1 AND is_demo=false AND archived_at IS NULL FOR UPDATE",
         [id]
       );
       if (!device.rowCount) return false;
@@ -351,7 +373,7 @@ export class DeviceRepository {
       `SELECT t.format_version,t.key_version,t.nonce,t.auth_tag,t.ciphertext
        FROM device_tls_trust t
        JOIN managed_devices d ON d.id=t.device_id
-       WHERE t.device_id=$1 AND d.is_demo=false AND d.enabled=true`,
+       WHERE t.device_id=$1 AND d.is_demo=false AND d.enabled=true AND d.archived_at IS NULL`,
       [id]
     );
     const row = result.rows[0];
@@ -375,7 +397,7 @@ export class DeviceRepository {
       `SELECT c.format_version,c.key_version,c.nonce,c.auth_tag,c.ciphertext
        FROM device_credentials c
        JOIN managed_devices d ON d.id=c.device_id
-       WHERE c.device_id=$1 AND d.is_demo=false AND d.enabled=true`,
+       WHERE c.device_id=$1 AND d.is_demo=false AND d.enabled=true AND d.archived_at IS NULL`,
       [id]
     );
     const row = result.rows[0];
