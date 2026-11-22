@@ -2,7 +2,14 @@
 
 ## Status and scope
 
-This document defines the implementation contract for automatic application of the LAN, Tailscale, and Custom access method selected in Administration → Hub Settings. The feature is not operational until the host agent, API orchestration, database lifecycle, UI redirect, and host integration tests described here are implemented and verified.
+This document defines the implementation contract for automatic application of the LAN, Tailscale, and Custom access method selected in Administration → Hub Settings.
+
+Implementation status on `feature/multi-site-onboarding`:
+- Implemented: deployment history migration, strict API-to-agent request/response schemas, bounded Unix-socket client, queued deployment creation in the same transaction as endpoint settings, deployment status/history API, fail-closed behavior when no agent socket is configured, and frontend status polling/redirect after a verified success response.
+- Not implemented: Linux host agent, its trusted configuration retrieval mechanism, fixed host-side Compose wrapper, host socket/service installation, real host-side apply and rollback, end-to-end tests, and Windows host adapter.
+- Not verified: API/web typecheck, unit tests, production builds, Linux integration, and browser redirect behavior. Do not rebuild or deploy based on this partial implementation.
+
+The feature is not operational until the remaining host integration and verification described here are complete.
 
 The existing endpoint settings and desired/applied revision model remain the source of truth. Saving an endpoint is no longer intended to be an administrator attestation. A successful save must enqueue a deployment against the exact desired revision and return a deployment identifier and current status.
 
@@ -10,7 +17,7 @@ The existing endpoint settings and desired/applied revision model remain the sou
 
 1. The authenticated administrator submits the complete three-endpoint configuration.
 2. The API validates the complete configuration, persists it transactionally, increments the desired revision, and creates a deployment record for that revision.
-3. The API submits only the deployment identifier and validated desired revision to the restricted host agent. The agent independently reloads and validates the approved configuration. It never accepts arbitrary shell commands, Compose arguments, file paths, service names, ports, or environment variable names.
+3. The API submits only the deployment identifier and validated desired revision to the restricted host agent. The agent must independently retrieve the approved configuration from a narrowly authenticated API endpoint or another explicitly provisioned read-only source, then validate it. This retrieval path is still to be implemented; the agent must not be given unrestricted database or Docker access merely to obtain settings. It never accepts arbitrary shell commands, Compose arguments, file paths, service names, ports, or environment variable names.
 4. The agent serializes deployments with a host lock and snapshots the currently applied binding before making changes.
 5. The agent verifies the requested bind address is assigned to an eligible host interface. For the default local mode, it uses loopback. For a remote IP bind, the address must be assigned locally. A hostname is a reachability name, not a bind address. Do not bind to wildcard addresses.
 6. The agent changes only HUB_BIND_ADDRESS in the managed deployment environment file, validates the fixed Compose project configuration, and recreates only the web service. It must not restart the API, database, code-server, unrelated projects, or remove volumes.
@@ -45,7 +52,7 @@ The production Linux agent must not be assumed to work on Windows. Until a separ
 
 Add a deployment history table keyed by a generated deployment ID, with desired revision, requested mode, state, safe error code, started/finished timestamps, applied origin, rollback outcome, and actor. States are queued, validating, applying, verifying, succeeded, rolling_back, rolled_back, and failed. Store no secrets or arbitrary command output.
 
-The API must expose current desired endpoint settings and applied revision, a save operation that persists desired settings and initiates deployment, deployment status lookup by opaque deployment ID, and bounded deployment history for administrators.
+The API currently exposes current desired endpoint settings and applied revision, a save operation that persists desired settings and queues deployment, deployment status lookup by opaque deployment ID, and bounded deployment history for administrators. The agent transport is fail-closed and does not apply configuration until the Linux host agent is installed and configured.
 
 All mutation routes require an administrator session and server-side authorization. Reject stale desired revisions with HTTP 409. Deployment requests are idempotent per desired revision. Do not accept a browser-supplied applied status, host path, arbitrary bind address, or arbitrary origin.
 
