@@ -282,6 +282,49 @@ describe("DeviceRepository per-device TLS trust", () => {
 });
 
 
+
+describe("DeviceRepository archival", () => {
+  const deviceId = "11111111-1111-4111-8111-111111111111";
+
+  it("archives a real device, purges secrets, and preserves polling history", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [{ id: deviceId }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+    const client = makePoolClient(query);
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.archive(deviceId)).resolves.toBe(true);
+    expect(query.mock.calls.map(call => String(call[0]).trim().split(/\\s+/)[0])).toEqual([
+      "BEGIN", "SELECT", "UPDATE", "DELETE", "DELETE", "COMMIT"
+    ]);
+    expect(String(query.mock.calls[2]?.[0])).toContain("archived_at=now()");
+    expect(String(query.mock.calls[3]?.[0])).toContain("device_credentials");
+    expect(String(query.mock.calls[4]?.[0])).toContain("device_tls_trust");
+    expect(query.some?.(() => false)).toBeUndefined();
+    expect(query.mock.calls.some(call => String(call[0]).includes("poll_runs"))).toBe(false);
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it("does not archive missing or demo devices", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+    const client = makePoolClient(query);
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const repository = new DeviceRepository(pool, key);
+
+    await expect(repository.archive(deviceId)).resolves.toBe(false);
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(String(query.mock.calls[2]?.[0])).toBe("COMMIT");
+  });
+});
+
 describe("DeviceRepository legacy bootstrap", () => {
   const bootstrap = {
     id: "22222222-2222-4222-8222-222222222222",
