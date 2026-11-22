@@ -547,7 +547,7 @@ function HubSettingsPage(){
  async function save(event:React.FormEvent){
   event.preventDefault();setSaving(true);setMessage("");
   try{
-   const payload=endpoints.map(({method,addressType,address,httpsPort,enabled})=>({method,addressType,address:address?.trim()||null,httpsPort,enabled:method===activeMethod}));
+   const payload=endpoints.map(({method,addressType,address,httpsPort})=>({method,addressType,address:address?.trim()||null,httpsPort,enabled:method===activeMethod}));
    const response=await fetch("/api/v1/hub-settings/access-endpoints",{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoints:payload})});
    const result=await response.json();
    if(!response.ok)throw new Error(result.error?.message??"Unable to save Hub access settings.");
