@@ -96,6 +96,25 @@ describe("DevicePfSenseClientFactory", () => {
 
 
 
+  it("does not use legacy CA when the bootstrap identity is incomplete", async () => {
+    const incompleteBootstrapConfig = {
+      ...config,
+      PFSENSE_DEVICE_ID: deviceId,
+      PFSENSE_DEVICE_NAME: undefined
+    } as AppConfig;
+    const repository = makeRepository({ listProfiles: async () => [profile()] });
+    const buildClient = vi.fn(() => ({} as PfSenseClient));
+    const factory = new DevicePfSenseClientFactory(incompleteBootstrapConfig, repository, buildClient);
+
+    await factory.create(deviceId);
+
+    expect(buildClient).toHaveBeenCalledWith(
+      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.1" }),
+      apiKey,
+      { mode: "system", servername: null }
+    );
+  });
+
   it("does not apply the legacy global CA to unrelated managed devices", async () => {
     const unrelatedId = "22222222-2222-4222-8222-222222222222";
     const repository = makeRepository({ listProfiles: async () => [profile({ id: unrelatedId })] });
