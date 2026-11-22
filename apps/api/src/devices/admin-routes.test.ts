@@ -136,18 +136,20 @@ describe("managed-device administrator routes", () => {
     const response = await state.app.inject({
       method: "POST",
       url: "/api/v1/devices/discover-certificate",
-      payload: { apiBaseUrl: "https://192.168.10.1:10443" }
+      payload: { apiBaseUrl: "https://192.168.10.1:10443", tlsServername: "firewall.test" }
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().data).toMatchObject({
       fingerprint256: certificate.fingerprint256,
       subject: certificate.subject,
-      issuer: certificate.issuer
+      issuer: certificate.issuer,
+      tlsServernameUsed: "firewall.test"
     });
     expect(tlsConnectMock).toHaveBeenCalledWith(expect.objectContaining({
       host: "192.168.10.1",
       port: 10443,
+      servername: "firewall.test",
       rejectUnauthorized: false
     }));
     expect(socket.end).toHaveBeenCalledOnce();
