@@ -17,6 +17,11 @@ class DeploymentAgentTests(unittest.TestCase):
             "api_token": "x" * 40,
             "socket_path": "/tmp/agent.sock",
             "tailscale_binary": "/usr/bin/tailscale",
+            "docker_binary": "/usr/bin/docker",
+            "ip_binary": "/usr/sbin/ip",
+            "project_dir": "/opt/pfsense-hub",
+            "compose_file": "/opt/pfsense-hub/compose.yaml",
+            "env_file": "/opt/pfsense-hub/.env",
             "web_local_url": "http://127.0.0.1:8080",
         }
         self.request = {
@@ -116,6 +121,82 @@ class DeploymentAgentTests(unittest.TestCase):
             ["/usr/bin/tailscale", "funnel", "status", "--json"], timeout=10
         )
 
+
+
+    @patch.object(agent, "verify_https_with_retries")
+    @patch.object(agent, "compose_web_recreate")
+    @patch.object(agent, "write_bind_address")
+    @patch.object(agent, "resolve_bind_address", return_value="192.168.1.20")
+    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"))
+    @patch.object(agent, "get_deployment")
+    def test_applies_local_bind_address_and_verifies_external_tls(self, get_deployment, read_bind, resolve, write_bind, recreate, verify):
+        endpoint = {
+            "deploymentId": self.request["deploymentId"],
+            "desiredRevision": 3,
+            "method": "local",
+            "scheme": "https",
+            "addressType": "ip",
+            "address": "192.168.1.20",
+            "port": 443,
+            "previousAppliedOrigin": "https://old.example.com",
+        }
+        get_deployment.return_value = endpoint
+        result = agent.deploy(self.config, self.request)
+        self.assertEqual(result, {"state": "succeeded", "appliedOrigin": "https://192.168.1.20"})
+        write_bind.assert_called_once_with(self.config, "192.168.1.20")
+        recreate.assert_called_once_with(self.config)
+        verify.assert_called_once_with("https://192.168.1.20")
+
+    @patch.object(agent, "verify_https_with_retries", side_effect=[
+        agent.AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED"), None
+    ])
+    @patch.object(agent, "compose_web_recreate")
+    @patch.object(agent, "write_bind_address")
+    @patch.object(agent, "resolve_bind_address", return_value="192.168.1.20")
+    @patch.object(agent, "read_bind_address", return_value=("HUB_BIND_ADDRESS=127.0.0.1\\n", "127.0.0.1"))
+    @patch.object(agent, "get_deployment")
+    def test_restores_previous_bind_and_verifies_previous_origin_after_failure(self, get_deployment, read_bind, resolve, write_bind, recreate, verify):
+        get_deployment.return_value = {
+            **self.endpoint,
+            "method": "hostname",
+            "addressType": "hostname",
+            "address": "hub.example.com",
+            "port": 443,
+            "previousAppliedOrigin": "https://old.example.com",
+        }
+        result = agent.deploy(self.config, self.request)
+        self.assertEqual(result, {
+            "state": "rolled_back",
+            "errorCode": "TLS_OR_ENDPOINT_VERIFICATION_FAILED",
+            "rollbackSucceeded": True,
+        })
+        self.assertEqual(write_bind.call_args_list[0].args, (self.config, "192.168.1.20"))
+        self.assertEqual(write_bind.call_args_list[1].args, (self.config, "127.0.0.1"))
+        self.assertEqual(recreate.call_count, 2)
+        verify.assert_any_call("https://hub.example.com")
+        verify.assert_any_call("https://old.example.com")
+
+    @patch.object(agent, "socket.getaddrinfo", return_value=[(2, 1, 6, "", ("192.168.1.20", 0))])
+    @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("192.168.1.20")})
+    def test_resolves_hostname_only_to_an_address_assigned_to_this_host(self, assigned, getaddrinfo):
+        endpoint = {
+            "method": "hostname",
+            "addressType": "hostname",
+            "address": "hub.example.com",
+        }
+        self.assertEqual(agent.resolve_bind_address(endpoint, self.config), "192.168.1.20")
+
+    @patch.object(agent, "socket.getaddrinfo", return_value=[(2, 1, 6, "", ("192.168.1.30", 0))])
+    @patch.object(agent, "assigned_interface_addresses", return_value={agent.ipaddress.ip_address("192.168.1.20")})
+    def test_rejects_hostname_that_does_not_resolve_to_a_local_interface(self, assigned, getaddrinfo):
+        endpoint = {
+            "method": "hostname",
+            "addressType": "hostname",
+            "address": "other.example.com",
+        }
+        with self.assertRaises(agent.AgentError) as caught:
+            agent.resolve_bind_address(endpoint, self.config)
+        self.assertEqual(caught.exception.code, "HOST_BIND_ADDRESS_NOT_ASSIGNED")
 
 if __name__ == "__main__":
     unittest.main()
