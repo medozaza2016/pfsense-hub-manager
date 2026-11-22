@@ -71,7 +71,7 @@ The automatic access deployment feature is disabled by default with HUB_ACCESS_D
 The Linux agent supports:
 
 - **LAN and Custom:** the selected hostname/IP must resolve to a private address assigned to the Hub host. Publicly routable addresses are rejected. A trusted HTTPS reverse proxy must already be configured to terminate TLS and forward to the selected host address on port 8080. The agent changes only HUB_BIND_ADDRESS in the fixed project .env file, validates the fixed Compose configuration, recreates only the web service, and verifies the HTTPS endpoint. If verification fails, it restores the previous bind address, recreates only web, and verifies the previous successful origin before reporting rollback success.
-- **Tailscale MagicDNS:** Tailscale HTTPS must already be enabled and an operator-managed private Serve route must already proxy the selected MagicDNS name to http://127.0.0.1:8080. The agent verifies host identity, CertDomains, Serve target, Funnel state, TLS, and application health. It does not configure or modify Tailscale Serve, Funnel, ACLs, DNS, or tailnet HTTPS.
+- **Tailscale MagicDNS:** Tailscale HTTPS certificates must already be enabled and the host must be connected. The agent verifies the local MagicDNS identity and CertDomains, then creates the fixed private Serve proxy to http://127.0.0.1:8080 when selected in Hub Settings. It refuses conflicting routes and never configures Funnel, ACLs, DNS, or tailnet HTTPS.
 
 Tailscale IP addresses are rejected for HTTPS because the automatically provisioned Tailscale certificate is issued for the MagicDNS name, not the IP address. Tailscale notes that device certificate names are published in the public Certificate Transparency ledger, so review the machine name before enabling HTTPS. See the [Tailscale Serve documentation](https://tailscale.com/docs/features/tailscale-serve) and [Serve CLI reference](https://tailscale.com/docs/reference/tailscale-cli/serve).
 
@@ -103,9 +103,9 @@ Check the agent with systemctl status pfsense-hub-deployment-agent and inspect i
 
 ### Local development and production boundary
 
-Windows 11 / Docker Desktop development does not run this Linux host agent. Leave HUB_DEPLOYMENT_AGENT_TOKEN and HUB_DEPLOYMENT_AGENT_SOCKET empty in local development. Keep HUB_ACCESS_DEPLOYMENT_ENABLED=false. The UI and API feature gate remain disabled until Linux host integration tests pass. Ordinary local development and the existing loopback web endpoint remain available.
+Windows 11 / Docker Desktop development does not run this Linux host agent. Leave HUB_DEPLOYMENT_AGENT_TOKEN and HUB_DEPLOYMENT_AGENT_SOCKET empty in local development. Keep HUB_ACCESS_DEPLOYMENT_ENABLED=false. After host-agent tests pass and the Linux service is verified, set HUB_ACCESS_DEPLOYMENT_ENABLED=true to activate Hub Settings deployments. Ordinary local development and the existing loopback web endpoint remain available.
 
-LAN and Custom require an already configured TLS termination layer. Hub Manager does not provision certificates, DNS, or reverse proxies. Tailscale Serve must also be configured outside Hub Manager. The host agent applies only the fixed web bind address and verifies the resulting HTTPS endpoint.
+LAN and Custom require an already configured TLS termination layer. Hub Manager does not provision certificates, DNS, or reverse proxies. For Tailscale, the host agent can configure the single fixed Serve route after the administrator selects Tailscale in Hub Settings. Tailnet HTTPS must be enabled in the Tailscale administration console first.
 
 ## Windows 11 local development workflow, current baseline
 
