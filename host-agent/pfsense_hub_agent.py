@@ -241,7 +241,7 @@ def resolve_bind_address(endpoint: dict[str, Any], config: dict[str, Any]) -> st
         raise AgentError("HOST_BIND_ADDRESS_NOT_ASSIGNED")
     eligible = sorted(matches, key=lambda item: (item.version != 4, str(item)))
     selected = eligible[0]
-    if method == "hostname" and selected.is_loopback:
+    if selected.is_loopback:
         raise AgentError("HOST_BIND_LOOPBACK_NOT_ALLOWED")
     if not selected.is_private and not selected.is_loopback:
         raise AgentError("HOST_BIND_PUBLIC_ADDRESS_NOT_ALLOWED")
