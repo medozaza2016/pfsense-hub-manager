@@ -1,5 +1,20 @@
 # Roadmap
 
+## Automatic Hub access deployment, November 21, 2026
+
+**Implementation branch:** `feature/automatic-hub-access-deployment`
+
+- [x] Create a dedicated implementation branch from `feature/multi-site-onboarding`.
+- [x] Document the required automatic deployment lifecycle, restricted host-agent boundary, rollback behavior, browser redirect contract, and acceptance tests in [Automatic Hub Access Deployment](AUTOMATIC-HUB-ACCESS-DEPLOYMENT.md).
+- [ ] Implement the Linux host agent and least-privilege service installation.
+- [ ] Implement API deployment orchestration, persistent deployment history, idempotency, and status polling.
+- [ ] Replace the administrator attestation action with automatic deployment feedback.
+- [ ] Implement browser redirect after verified success and recovery navigation on failure.
+- [ ] Add API, agent, Compose, and browser integration tests.
+- [ ] Validate on the actual Proxmox Linux host before enabling remote access.
+
+**Safety boundary:** The current implementation remains save-only until every unchecked item is implemented and verified. Windows Docker Desktop must not pretend the Linux production agent is available. No automatic deployment or remote access is enabled by this documentation commit.
+
 ## Hub access settings increment, November 21, 2026
 
 **Implementation branch:** `feature/multi-site-onboarding`
