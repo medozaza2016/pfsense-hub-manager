@@ -109,26 +109,25 @@ export const pfSenseOperations=Object.keys(routes) as PfSenseOperation[];
  * for firmware/package variation, but a wrong top-level shape is never success.
  */
 const recordSchema=z.record(z.string(),z.unknown());
-const recordsSchema=z.array(recordSchema);
-// Version payloads vary across pfSense package releases. Require a non-empty
-// version object/string while preserving the upstream fields for later mapping.
+const recordsSchema=z.array(z.unknown());
+const nonEmptyObjectSchema=z.object({}).passthrough().refine(value=>Object.keys(value).length>0,"Expected a non-empty object.");
 const versionSchema=z.union([
  z.string().min(1),
- z.object({}).passthrough().refine(value=>Object.values(value).some(item=>typeof item==="string"&&item.trim().length>0),"Expected a non-empty version object.")
+ nonEmptyObjectSchema
 ]);
-const firewallStateSizeSchema=z.union([
+const stateSizeSchema=z.union([
  z.number().finite().nonnegative(),
- z.object({}).passthrough().refine(value=>Object.values(value).some(item=>typeof item==="number"&&Number.isFinite(item)&&item>=0),"Expected a non-negative state size.")
+ nonEmptyObjectSchema
 ]);
 const dataSchemas:Record<PfSenseOperation,z.ZodType>={
- system:recordSchema,
+ system:nonEmptyObjectSchema,
  gateways:recordsSchema,
  interfaces:recordsSchema,
  services:recordsSchema,
  version:versionSchema,
  arpTable:recordsSchema,
  firewallStates:recordsSchema,
- firewallStateSize:firewallStateSizeSchema
+ firewallStateSize:stateSizeSchema
 };
 
 export function validatePfSenseOperationData(operation:PfSenseOperation,data:unknown):void {
