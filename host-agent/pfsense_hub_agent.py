@@ -141,7 +141,7 @@ def write_bind_address(config: dict[str, Any], address: str) -> None:
     try:
         metadata = path.lstat()
         if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
-                or metadata.st_gid != 0 or metadata.st_mode & 0o022):
+                or metadata.st_gid != 0 or metadata.st_mode & 0o077):
             raise AgentError("ENV_FILE_PERMISSIONS_INVALID")
         content = path.read_text(encoding="utf-8")
         mode = stat.S_IMODE(metadata.st_mode)
