@@ -51,20 +51,24 @@ The API container reads the application encryption key from /run/secrets/app_enc
 ## Updates and backup
 Back up PostgreSQL and the runtime encryption key separately. Protect the recovery copy independently. A database backup without its corresponding encryption key cannot restore credentials. Also back up .env, the pfSense API key, code-server password, CA certificate, and any persistent workspace or editor volumes that need preservation.
 
-## Security limitations before production
-- No manager-user authentication or role-based authorization is implemented. Keep the web UI bound to localhost or the host's Tailscale interface only. Restrict tailnet access with Tailscale ACLs or grants. Tailscale network access is not a substitute for manager-user authentication and authorization.
-- The first firewall is still configured from environment variables. Multi-device CRUD and credential lifecycle APIs are not implemented.
+## Security and operational status
+
+- Manager-user authentication, administrator/user roles, session authorization, and administrator-only Hub access mutations are implemented. Tailscale ACLs/grants remain an additional network control, not a replacement for application authorization.
+- The first firewall still uses the legacy environment-configured bootstrap. Multi-device registration and credential lifecycle are implemented on the current development branch, but production rollout and Linux deployment are not yet verified.
 - Key rotation and Linux key provisioning remain outstanding.
 - Docker Compose file secrets are not encrypted at rest.
 - Windows host ACLs do not by themselves prove container-side access restrictions.
-- The eight upstream routes are fixed in code. No arbitrary proxy, command execution, or write operation exists.
+- The eight upstream firewall routes remain a fixed read-only allowlist. No arbitrary proxy, command execution, or firewall configuration write operation exists.
 
+## GUI-managed Hub access settings, implemented desired-state workflow
 
-## GUI-managed Hub access settings, planned behavior
+Administration → Hub Settings stores Local, Tailscale, and Hostname/IP endpoint preferences in PostgreSQL. Each endpoint has its own enabled state, address type, address, and HTTPS port. Migration `012_hub_access_endpoints.sql` copies the previous single-method preference into the new endpoint table.
 
-The initial installation remains bound to `127.0.0.1`. The future Administration → Hub Settings page will store optional Tailscale IPv4 and later hostname/proxy settings in PostgreSQL. Entering an address does not install Tailscale, configure DNS, create a proxy, change Docker's host-port publication, or prove remote reachability.
+Saving settings updates the **desired configuration revision** only. It does not change Docker's published host binding, install or configure Tailscale, configure DNS or a reverse proxy, or test reachability. The API's deployment-confirmation operation records an administrator attestation that an operator has applied the requested host changes. It does not perform or independently verify those changes.
 
-Do not change `HUB_BIND_ADDRESS` or enable a remote binding until manager authentication/authorization and a reviewed apply workflow exist. Docker host-port publication is controlled outside the application container. A future apply mechanism must be narrowly scoped, validate that the address belongs to a host interface, preserve rollback to the previous binding, and report applied state separately from reachability. Do not mount the Docker socket into the web or API container. See `HUB-ACCESS-CONFIGURATION.md` and DEC-025.
+The Compose web port is published on `127.0.0.1` by default. For a Tailscale-only host binding, `HUB_BIND_ADDRESS` must be deliberately set to the Tailscale IPv4 address assigned to the machine running Docker, followed by the required Compose service recreation. A Tailscale MagicDNS name is an alternative address to record in Hub Settings, not a host bind address. Do not use the pfSense firewall's Tailscale address for the Hub endpoint unless the Hub itself is running on that firewall.
+
+Keep the current local binding until the host-side deployment procedure is deliberately performed and tested. Never use `0.0.0.0` as a convenience fallback, do not publish the API or PostgreSQL ports, and do not mount the Docker socket into the web or API container. See `HUB-ACCESS-CONFIGURATION.md` and DEC-025.
 
 
 ## Windows 11 local development workflow, current baseline
