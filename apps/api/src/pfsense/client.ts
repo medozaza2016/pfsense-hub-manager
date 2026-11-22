@@ -13,6 +13,21 @@ const routes={
 } as const;
 export type PfSenseOperation=keyof typeof routes;
 
+export type PfSenseTlsTrust =
+ | { mode: "system" }
+ | { mode: "custom-ca"; certificateAuthority: Buffer };
+
+export function selectTlsCa(trust: PfSenseTlsTrust | undefined, legacyCa?: Buffer): Buffer | undefined {
+ if (trust?.mode === "system") return undefined;
+ if (trust?.mode === "custom-ca") {
+  if (!Buffer.isBuffer(trust.certificateAuthority) || trust.certificateAuthority.length === 0 || trust.certificateAuthority.length > 64 * 1024) {
+   throw new Error("The device TLS trust bundle is invalid.");
+  }
+  return trust.certificateAuthority;
+ }
+ return legacyCa;
+}
+
 type PinnedLookup = (
  hostname: string,
  options: LookupOptions,
@@ -36,13 +51,14 @@ export function createPinnedLookup(expectedHostname: string, address: { address:
 export class PfSenseClient{
  private readonly base:URL;
  private readonly dispatcher:Promise<Agent>;
- constructor(private readonly config:AppConfig,private readonly key:string){
+ constructor(private readonly config:AppConfig,private readonly key:string,tlsTrust?:PfSenseTlsTrust){
   const base=new URL(config.PFSENSE_API_BASE_URL);
   this.base=base;
   this.dispatcher=(async()=>{
    const destination=await resolveSafeDeviceDestination(base.hostname);
-   const caPath=process.env.PFSENSE_CA_FILE;
-   const ca=caPath?await readFile(caPath):undefined;
+   const legacyCaPath=tlsTrust === undefined ? process.env.PFSENSE_CA_FILE : undefined;
+   const legacyCa=legacyCaPath?await readFile(legacyCaPath):undefined;
+   const ca=selectTlsCa(tlsTrust,legacyCa);
    return new Agent({connect:{
     ...(ca?{ca}:{}),
     rejectUnauthorized:true,
