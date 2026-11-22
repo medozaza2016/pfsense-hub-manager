@@ -166,6 +166,9 @@ def assigned_interface_addresses(config: dict[str, Any]) -> set[ipaddress.IPv4Ad
                 local = info.get("local")
                 if not local:
                     continue
+                flags = set(info.get("flags") or [])
+                if flags.intersection({"tentative", "deprecated"}):
+                    continue
                 address = ipaddress.ip_address(local)
                 if not address.is_unspecified and not address.is_multicast and not address.is_link_local:
                     addresses.add(address)
