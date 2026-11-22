@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { DataTable, Feedback, ListToolbar } from "./components/ui";
 import "./components/ui.css";
 import { useToast } from "./components/ToastProvider";
@@ -115,6 +116,8 @@ function Metric({icon,label,value,detail,tone}:{icon:IconName;label:string;value
 function Panel({title,action,children,className=""}:{title:string;action?:ReactNode;children:React.ReactNode;className?:string}){return <section className={"panel "+className}><div className="panel-heading"><h2>{title}</h2>{action}</div>{children}</section>}
 
 export default function App(){
+ const location = useLocation();
+ const routerNavigate = useNavigate();
  const [authMode,setAuthMode]=useState<"checking"|"setup"|"login"|"ready">("checking");
  const [authUser,setAuthUser]=useState("");
  useEffect(()=>{let active=true;(async()=>{try{const status=await fetch("/api/v1/auth/status",{credentials:"same-origin"});const body=await status.json();if(!active)return;if(body.data?.setupRequired){setAuthMode("setup");return;}const me=await fetch("/api/v1/auth/me",{credentials:"same-origin"});if(!active)return;if(me.ok){const result=await me.json();setAuthUser(result.data?.username??"Administrator");setAuthMode("ready");}else setAuthMode("login");}catch{if(active)setAuthMode("login");}})();return()=>{active=false;}},[]);
@@ -149,9 +152,13 @@ export default function App(){
  const [mobileTab,setMobileTab]=useState("Overview");
  useEffect(()=>{if(authMode!=="ready")return;let active=true;apiRequest<ManagedDeviceRecord[]>("/api/v1/devices").then(records=>{if(!active)return;setLocalSites(records.map(record=>({id:record.id,name:record.name,location:record.location,edition:record.edition==="plus"?"Plus":record.edition==="ce"?"CE":"Unknown",address:"Not configured",state:record.connectionState==="reachable"?"online":record.connectionState==="unreachable"?"offline":"unknown",lastSeen:record.isDemo?"Development sample · not connected":record.lastConnectionCheckAt?new Date(record.lastConnectionCheckAt).toLocaleString():"Awaiting verified status",isDemo:record.isDemo})));}).catch(error=>{if(active)notify(error instanceof Error?error.message:"Unable to load managed sites.","error");});return()=>{active=false;};},[authMode]);
  const filteredSites=useMemo(()=>localSites.filter(s=>filter==="All"||s.state===filter.toLowerCase()),[localSites,filter]);
- function go(id:Page){setPage(id);setMenuOpen(false);setQuery("");}
- function openSite(d:Device){setSelected(d);go("overview");}
- function backHub(){setSelected(null);go("overview");}
+ const hubPaths:Record<string,string>={overview:"/",sites:"/sites",connectivity:"/connectivity",alerts:"/alerts","hub-settings":"/settings/hub",users:"/settings/users",audit:"/settings/audit","app-settings":"/settings/application"};
+ const siteSegments:Record<string,string>={overview:"overview",monitoring:"monitoring",interfaces:"interfaces",rules:"rules",aliases:"aliases",nat:"nat",routing:"routing",gateways:"gateways",dhcp:"dhcp",dns:"dns",services:"services",certificates:"certificates",vpn:"vpn",compatibility:"compatibility","site-settings":"settings"};
+ const segmentPages:Record<string,Page>=Object.fromEntries(Object.entries(siteSegments).map(([key,value])=>[value,key as Page]));
+ function go(id:Page){setPage(id);setMenuOpen(false);setQuery("");routerNavigate(selected?"/sites/"+selected.id+"/"+(siteSegments[id]??"overview"):(hubPaths[id]??"/"));}
+ function openSite(d:Device){setSelected(d);setPage("overview");setMenuOpen(false);routerNavigate("/sites/"+d.id+"/overview");}
+ function backHub(){setSelected(null);setPage("overview");routerNavigate("/");}
+ useEffect(()=>{const parts=location.pathname.split("/").filter(Boolean);if(parts[0]==="sites"&&parts.length>=2){const nextPage=segmentPages[parts[2]??"overview"]??"overview";setPage(nextPage);const found=localSites.find(site=>site.id===parts[1]);if(found)setSelected(found);else if(localSites.length)setSelected(null);return;}const hubPage:Record<string,Page>={"/":"overview","/sites":"sites","/connectivity":"connectivity","/alerts":"alerts","/settings/hub":"hub-settings","/settings/users":"users","/settings/audit":"audit","/settings/application":"app-settings"};setPage(hubPage[location.pathname]??"overview");setSelected(null);},[location.pathname,localSites]);
  async function refresh(){try{const records=await apiRequest<ManagedDeviceRecord[]>("/api/v1/devices");setLocalSites(records.map(record=>({id:record.id,name:record.name,location:record.location,edition:record.edition==="plus"?"Plus":record.edition==="ce"?"CE":"Unknown",address:"Not configured",state:record.connectionState==="reachable"?"online":record.connectionState==="unreachable"?"offline":"unknown",lastSeen:record.isDemo?"Development sample · not connected":record.lastConnectionCheckAt?new Date(record.lastConnectionCheckAt).toLocaleString():"Awaiting verified status",isDemo:record.isDemo})));setRefreshCount(x=>x+1);notify("Managed-site inventory refreshed from the Hub API.","success");}catch(error){notify(error instanceof Error?error.message:"Unable to refresh managed-site inventory.","error");}}
  function openAddSite(){setFormName("");setFormLocation("");setFormEdition("ce");setFormApiBaseUrl("");setFormApiKey("");setFormCaBundle("");setFormCaFileName("");setFormCaFileError("");setFormTlsServername("");setCertificateDiscovery(null);setFingerprintVerified(false);setRegistrationVerified(false);setFormError("");setCreatedDeviceId("");setConnectionTestResult("");setDialog("add-site");}
  async function importCaFile(file:File|null){setFormCaFileError("");if(!file)return;if(!/\.(pem|crt|cer)$/i.test(file.name)){setFormCaFileError("Choose a .pem, .crt, or .cer certificate file.");return;}if(file.size>60*1024){setFormCaFileError("The certificate file must be 60 KB or smaller.");return;}try{const pem=(await file.text()).trim();if(!pem.includes("-----BEGIN CERTIFICATE-----")){setFormCaFileError("The selected file does not contain a PEM certificate.");return;}setFormCaBundle(pem);setFormCaFileName(file.name);setRegistrationVerified(false);setConnectionTestResult("");}catch{setFormCaFileError("The selected certificate file could not be read.");}}
