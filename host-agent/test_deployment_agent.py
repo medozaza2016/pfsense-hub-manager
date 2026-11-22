@@ -86,7 +86,7 @@ class DeploymentAgentTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "TAILSCALE_FUNNEL_ALREADY_CONFIGURED")
 
     @patch.object(agent, "verify_https")
-    @patch.object(agent, "run_fixed", return_value="")
+    @patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{}}')
     @patch.object(agent, "serve_status")
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
@@ -102,7 +102,7 @@ class DeploymentAgentTests(unittest.TestCase):
         self.assertEqual(get_deployment.call_count, 2)
 
     @patch.object(agent, "verify_https", side_effect=agent.AgentError("TLS_OR_ENDPOINT_VERIFICATION_FAILED"))
-    @patch.object(agent, "run_fixed", return_value="")
+    @patch.object(agent, "run_fixed", return_value='{"AllowFunnel":{}}')
     @patch.object(agent, "serve_status")
     @patch.object(agent, "tailscale_identity", return_value=("hub.example.ts.net", {"100.64.0.2"}, {"hub.example.ts.net"}))
     @patch.object(agent, "get_deployment")
