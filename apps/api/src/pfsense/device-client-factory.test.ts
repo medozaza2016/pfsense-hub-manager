@@ -78,6 +78,30 @@ describe("DevicePfSenseClientFactory", () => {
     );
   });
 
+  it("tests a temporary registration profile with strict system TLS and closes the client", async () => {
+    const repository = makeRepository();
+    const client = {
+      get: vi.fn(async () => ({ data: { version: "2.8.1" } })),
+      close: vi.fn(async () => undefined)
+    } as unknown as PfSenseClient;
+    const buildClient = vi.fn(() => client);
+    const factory = new DevicePfSenseClientFactory(config, repository, buildClient);
+
+    await expect(factory.testConnection({
+      apiBaseUrl: "https://192.168.10.9",
+      apiKey: "temporary-registration-key"
+    })).resolves.toBeUndefined();
+
+    expect(buildClient).toHaveBeenCalledWith(
+      expect.objectContaining({ PFSENSE_API_BASE_URL: "https://192.168.10.9" }),
+      "temporary-registration-key",
+      { mode: "system", servername: null }
+    );
+    expect(client.get).toHaveBeenCalledWith("version");
+    expect(client.close).toHaveBeenCalledOnce();
+    expect(repository.listProfiles).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["missing", []],
     ["disabled", [profile({ enabled: false })]],
