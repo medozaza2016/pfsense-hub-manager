@@ -222,6 +222,7 @@ export async function registerDeviceAdminRoutes(
     }
 
     const actor = actorFor(request);
+    const connectionCheckStartedAt = Date.now();
     try {
       await clientFactory.testConnection(parsed.data);
     } catch (error) {
@@ -230,7 +231,8 @@ export async function registerDeviceAdminRoutes(
         error: { code: "CONNECTION_TEST_FAILED", message: "Firewall connection test failed. Registration was not saved.", errorClass }
       });
     }
-    const profile = await devices.create(parsed.data);
+    const connectionCheckDurationMs = Math.max(0, Date.now() - connectionCheckStartedAt);
+    const profile = await devices.create(parsed.data, connectionCheckDurationMs);
     await appendAudit(pool, {
       actorId: actor.id,
       actorUsername: actor.username,
