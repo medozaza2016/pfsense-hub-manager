@@ -362,6 +362,7 @@ app.get("/api/v1/internal/host-deployment-config", async (request, reply) => {
     deploymentId: row.id,
     desiredRevision: row.desired_revision,
     method: endpoint.method,
+    scheme: "https",
     addressType: endpoint.address_type,
     address: endpoint.address,
     port: endpoint.https_port
