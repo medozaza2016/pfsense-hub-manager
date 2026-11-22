@@ -16,7 +16,8 @@ export type PfSenseOperation=keyof typeof routes;
 
 export type PfSenseTlsTrust =
  | { mode: "system"; servername?: string | null }
- | { mode: "custom-ca"; certificateAuthority: Buffer; servername?: string | null };
+ | { mode: "custom-ca"; certificateAuthority: Buffer; servername?: string | null }
+ | { mode: "legacy-ca-file"; servername?: string | null };
 
 export function selectTlsCa(trust: PfSenseTlsTrust | undefined, legacyCa?: Buffer): Buffer | undefined {
  if (trust?.mode === "system") return undefined;
@@ -26,6 +27,7 @@ export function selectTlsCa(trust: PfSenseTlsTrust | undefined, legacyCa?: Buffe
   }
   return trust.certificateAuthority;
  }
+ if (trust?.mode === "legacy-ca-file") return legacyCa;
  return legacyCa;
 }
 
@@ -59,7 +61,10 @@ export class PfSenseClient{
   this.base=base;
   this.dispatcher=(async()=>{
    const destination=await resolveSafeDeviceDestination(base.hostname);
-   const legacyCaPath=tlsTrust === undefined ? process.env.PFSENSE_CA_FILE : undefined;
+   // The legacy bootstrap path explicitly opts into its historical global CA file.
+   // Managed devices pass system/custom-ca trust and never inherit this global CA.
+   const useLegacyCaFile=tlsTrust?.mode==="legacy-ca-file"||tlsTrust===undefined;
+   const legacyCaPath=useLegacyCaFile?process.env.PFSENSE_CA_FILE:undefined;
    const legacyCa=legacyCaPath?await readFile(legacyCaPath):undefined;
    const ca=selectTlsCa(tlsTrust,legacyCa);
    return new Agent({connect:{
@@ -90,8 +95,44 @@ export class PfSenseClient{
   let json:unknown;try{json=JSON.parse(text);}catch{throw new PfSenseApiError("Firewall returned invalid JSON.","invalid_response");}
   const parsed=envelope.safeParse(json);if(!parsed.success)throw new PfSenseApiError("Firewall response did not match the expected API envelope.","invalid_response");
   if(parsed.data.code!==undefined&&parsed.data.code>=400)throw new PfSenseApiError("Firewall API reported an unsuccessful operation.",parsed.data.code===401?"authentication":parsed.data.code===403?"authorization":"remote_server",parsed.data.code);
+  validatePfSenseOperationData(operation,parsed.data.data);
   return parsed.data;
  }
  async close(){await (await this.dispatcher).close();}
 }
 export const pfSenseOperations=Object.keys(routes) as PfSenseOperation[];
+
+/**
+ * Validate the minimum response contract for each approved read-only endpoint.
+ * Keep endpoint-specific schemas deliberately narrow: a field may be optional
+ * for firmware/package variation, but a wrong top-level shape is never success.
+ */
+const recordSchema=z.record(z.string(),z.unknown());
+const recordsSchema=z.array(recordSchema);
+const versionSchema=z.union([
+ z.string().min(1),
+ z.number().finite(),
+ z.object({}).passthrough()
+]);
+const firewallStateSizeSchema=z.union([
+ z.number().finite().nonnegative(),
+ z.object({}).passthrough()
+]);
+const dataSchemas:Record<PfSenseOperation,z.ZodType>={
+ system:recordSchema,
+ gateways:recordsSchema,
+ interfaces:recordsSchema,
+ services:recordsSchema,
+ version:versionSchema,
+ arpTable:recordsSchema,
+ firewallStates:recordsSchema,
+ firewallStateSize:firewallStateSizeSchema
+};
+
+export function validatePfSenseOperationData(operation:PfSenseOperation,data:unknown):void {
+ const parsed=dataSchemas[operation].safeParse(data);
+ if(!parsed.success) throw new PfSenseApiError(
+  `Firewall returned an invalid data shape for the ${operation} operation.`,
+  "invalid_response"
+ );
+}
