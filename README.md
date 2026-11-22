@@ -79,7 +79,7 @@ Not yet selected. Do not assume this project is open source until a license is e
 ## Current development baseline, November 21, 2026
 
 - **Repository branch:** `main`.
-- **Verified main commit:** `fa2d524d746213972b1c085f8737d427b134b012`, synchronized with `origin/main` in the user's Windows working copy. The working tree was reported clean.
+- **Code baseline before this documentation pass:** `fa2d524d746213972b1c085f8737d427b134b012`, synchronized with `origin/main` in the user's Windows working copy. This documentation pass adds six commits to `main`; the user's local checkout must pull those documentation commits before development.
 - **Development workstation:** Windows 11, VS Code, Docker Desktop, local development.
 - **Production direction:** Linux deployment on the existing Proxmox LXC remains the intended target. Local Windows development and Linux deployment are separate environments.
 - **Merged implementation:** PR #5 is merged. It includes the shared frontend listing components, API-backed User Management, Audit Logs and Alerts, and development-only seed support.
@@ -88,6 +88,6 @@ Not yet selected. Do not assume this project is open source until a license is e
 - **Administration boundary:** User Management, Audit Logs, and Alerts are API-backed. Alert production is associated with a requested device overview, not an independent background polling scheduler.
 - **Verification boundary:** Earlier development sessions recorded 52 passing API tests, but that result is not a fresh verification of the current `main` commit. Run the complete local validation sequence before beginning feature implementation.
 - **Next milestone:** Secure multi-site onboarding and per-device connection management. The implementation plan is [Multi-site Onboarding](docs/MULTI-SITE-ONBOARDING-PLAN.md).
-- **Branch workflow:** Complete and review the documentation baseline on `main) first. Create a dedicated development branch only after the documentation pass is complete and the user is ready to begin implementation. Do not create, switch, or delete branches without the user's explicit authorization.
+- **Branch workflow:** Complete and review the documentation baseline on `main` first. Create a dedicated development branch only after the documentation pass is complete and the user is ready to begin implementation. Do not create, switch, or delete branches without the user's explicit authorization.
 
 Use `docs/ROADMAP.md` for milestone order, `docs/MULTI-SITE-ONBOARDING-PLAN.md` for the next implementation scope, and `docs/INTEGRATION-STATUS.md` for verified integration facts.
