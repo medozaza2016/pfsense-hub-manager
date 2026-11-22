@@ -21,7 +21,7 @@ describe("Hub deployment dispatcher", () => {
     expect(query).toHaveBeenCalledTimes(2);
     expect(query.mock.calls[0]?.[0]).toContain("state='validating'");
     expect(query.mock.calls[1]?.[0]).toContain("state='failed'");
-    expect(query.mock.calls[1]?.[1]).toContain("HOST_AGENT_NOT_CONFIGURED");
+    expect(query.mock.calls[1]?.[0]).toContain("HOST_AGENT_NOT_CONFIGURED");
   });
 
   it("fails closed when the configured socket path is an empty string", async () => {
@@ -38,7 +38,7 @@ describe("Hub deployment dispatcher", () => {
 
     expect(query).toHaveBeenCalledTimes(2);
     expect(query.mock.calls[1]?.[0]).toContain("state='failed'");
-    expect(query.mock.calls[1]?.[1]).toContain("HOST_AGENT_NOT_CONFIGURED");
+    expect(query.mock.calls[1]?.[0]).toContain("HOST_AGENT_NOT_CONFIGURED");
   });
 
   it("does not dispatch a deployment that was already claimed", async () => {
