@@ -54,17 +54,17 @@ export class PfSenseProvider {
     const latestCheckByDevice = new Map(checks.rows.map(check => [check.device_id, check]));
     return profiles.map(device => {
       const latestCheck = latestCheckByDevice.get(device.id);
-      return ({
-      id: device.id,
-      name: device.name,
-      location: device.location,
-      edition: device.edition,
-      release: null,
-      enabled: device.enabled,
-      isDemo: device.isDemo,
-      connectionState: latestCheck ? (latestCheck.outcome === "success" ? "reachable" : "unreachable") : "unknown",
-      lastConnectionCheckAt: latestCheck ? new Date(latestCheck.completed_at).toISOString() : null
-    });
+      return {
+        id: device.id,
+        name: device.name,
+        location: device.location,
+        edition: device.edition,
+        release: null,
+        enabled: device.enabled,
+        isDemo: device.isDemo,
+        connectionState: latestCheck ? (latestCheck.outcome === "success" ? "reachable" : "unreachable") : "unknown",
+        lastConnectionCheckAt: latestCheck ? new Date(latestCheck.completed_at).toISOString() : null
+      };
     });
   }
 
