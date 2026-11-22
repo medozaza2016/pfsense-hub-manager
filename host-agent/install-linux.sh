@@ -67,7 +67,8 @@ if [[ ! "$API_PORT" =~ ^[0-9]{1,5}$ ]] || (( API_PORT < 1 || API_PORT > 65535 ))
   exit 1
 fi
 
-install -d -m 0750 "$CONFIG_DIR" /run/pfsense-hub "$PROJECT_DIR/run/host-agent" /usr/local/libexec
+install -d -m 0750 "$CONFIG_DIR" /run/pfsense-hub "$PROJECT_DIR/run/host-agent"
+install -d -m 0755 /usr/local/libexec
 if ! getent group pfsense-hub-agent >/dev/null; then
   if getent group 2000 >/dev/null; then echo "GID 2000 is already assigned. Resolve this before installing." >&2; exit 1; fi
   groupadd --gid 2000 pfsense-hub-agent
