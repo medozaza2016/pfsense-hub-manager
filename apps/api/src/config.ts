@@ -14,8 +14,14 @@ const schema = z.object({
  HUB_DEPLOYMENT_AGENT_SOCKET:z.union([z.string().trim().min(1),z.literal("")]).optional(),
  HUB_DEPLOYMENT_AGENT_TOKEN:z.union([z.string().min(32).max(256),z.literal("")]).optional(),
  HUB_DEPLOYMENT_AGENT_API_PORT:z.coerce.number().int().min(1).max(65535).default(3001),
- HUB_ACCESS_DEPLOYMENT_ENABLED:z.enum(["true","false"]).default("false").transform(value=>value==="true")
+ HUB_ACCESS_DEPLOYMENT_ENABLED:z.enum(["true","false"]).default("false").transform(value=>value==="true"),
+ HUB_HOST_MONITORING_ENABLED:z.enum(["true","false"]).default("false").transform(value=>value==="true"),
+ HUB_HOST_OPERATIONS_ENABLED:z.enum(["true","false"]).default("false").transform(value=>value==="true"),
+ HUB_HOST_OPERATION_TIMEOUT_MS:z.coerce.number().int().min(5000).max(600000).default(180000)
 }).superRefine((value,context)=>{
+ // Host operations are a strict superset of monitoring: refuse the incoherent pairing.
+ if(value.HUB_HOST_OPERATIONS_ENABLED && !value.HUB_HOST_MONITORING_ENABLED)
+  context.addIssue({code:"custom",path:["HUB_HOST_OPERATIONS_ENABLED"],message:"Requires HUB_HOST_MONITORING_ENABLED=true."});
  const bootstrapRequested=Boolean(value.PFSENSE_DEVICE_ID||value.PFSENSE_DEVICE_NAME||value.PFSENSE_API_BASE_URL);
  if(!bootstrapRequested) return;
  if(!value.PFSENSE_DEVICE_ID) context.addIssue({code:"custom",path:["PFSENSE_DEVICE_ID"],message:"Required when legacy firewall bootstrap is configured."});

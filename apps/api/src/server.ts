@@ -13,6 +13,8 @@ import { registry, requests, requestDuration, polls, pollErrors, pollDuration, d
 import { appendAudit, upsertAlert } from "./audit.js";
 import { hubAccessEndpointsSchema } from "./hub-settings.js";
 import { dispatchHubDeployment } from "./hub-deployment-service.js";
+import { createHostSystemService } from "./host-system/service.js";
+import { registerHostSystemRoutes } from "./host-system/routes.js";
 
 const config = loadConfig();
 const bootstrapApiKey = config.PFSENSE_DEVICE_ID
@@ -26,6 +28,7 @@ const devices = new DeviceRepository(pool, encryptionKey);
 const clientFactory = new DevicePfSenseClientFactory(config, devices);
 const provider = new PfSenseProvider(clientFactory, devices, config, bootstrapApiKey, pool);
 await provider.ensureDevice();
+const hostSystem = createHostSystemService(config);
 const app = Fastify({
   logger: { level: config.NODE_ENV === "production" ? "info" : "debug", redact: ["req.headers.x-api-key", "req.headers.authorization", "req.headers.cookie"] },
   bodyLimit: 65536,
@@ -105,6 +108,7 @@ app.addHook("preHandler", async (request, reply) => {
     || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
     || (path === "/api/v1/hub-settings/access-endpoints" && request.method === "PUT")
     || path.startsWith("/api/v1/hub-settings/deployments")
+    || path === "/api/v1/system/compose/validate"
     || (path.startsWith("/api/v1/alerts/") && request.method !== "GET")
     || (path === "/api/v1/devices" && request.method !== "GET")
     || (path.startsWith("/api/v1/devices/") && (request.method !== "GET" || path.endsWith("/connection-test")));
@@ -552,6 +556,7 @@ app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
   return reply.code(failures === 8 ? 502 : 200).send({ data: result?.results ?? {}, meta: { deviceId, outcome: failures === 0 ? "success" : "partial", failedOperations: failures, durationMs: Date.now() - started } });
 });
 await registerDeviceAdminRoutes(app, { devices, clientFactory, pool });
+await registerHostSystemRoutes(app, { service: hostSystem, pool });
 
 app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: { code: "NOT_FOUND", message: "Route not found." } }));
 app.setErrorHandler((error, request, reply) => {
@@ -588,6 +593,8 @@ async function recoverQueuedHubDeployments(): Promise<void> {
 
 await app.listen({ host: config.HOST, port: config.PORT });
 app.log.info("pfSense Hub Manager API started");
+// Settle host operations left open by a previous process before the first client poll.
+void hostSystem.reconcile(pool).catch(() => undefined);
 void recoverQueuedHubDeployments();
 const deploymentWorkerTimer = setInterval(() => void recoverQueuedHubDeployments(), 5_000);
 deploymentWorkerTimer.unref();

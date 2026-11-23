@@ -31,7 +31,8 @@ export function sanitizeAuditMetadata(value: unknown, depth = 0): unknown {
   return String(value).slice(0, 100);
 }
 
-export async function appendAudit(pool: pg.Pool, event: AuditEvent): Promise<void> {
+/** `PoolClient` is accepted so an audit event can commit with its subject in one transaction. */
+export async function appendAudit(pool: pg.Pool | pg.PoolClient, event: AuditEvent): Promise<void> {
   const metadata = sanitizeAuditMetadata(event.metadata ?? {});
   await pool.query(
     `INSERT INTO audit_events(actor_id,actor_username,actor_type,action,outcome,target_type,target_id,summary,request_id,metadata)

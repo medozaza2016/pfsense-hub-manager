@@ -1,8 +1,16 @@
 import { z } from "zod";
 
-/** Strict request sent over the private API-to-host-agent Unix socket. */
+/** Single source of the API-to-host-agent protocol version. */
+export const HOST_AGENT_PROTOCOL_VERSION = 2;
+
+/**
+ * Strict request sent over the private API-to-host-agent Unix socket.
+ * Version 2 adds an explicit operation discriminator so the agent can reject
+ * unknown capabilities instead of guessing from the request shape.
+ */
 export const hostDeploymentRequestSchema = z.object({
-  protocolVersion: z.literal(1),
+  protocolVersion: z.literal(HOST_AGENT_PROTOCOL_VERSION),
+  operation: z.literal("deployment.apply"),
   deploymentId: z.string().uuid(),
   desiredRevision: z.number().int().min(1)
 }).strict();
@@ -33,7 +41,12 @@ export type HostDeploymentResult = z.infer<typeof hostDeploymentResultSchema>;
  * own root-owned configuration.
  */
 export function createHostDeploymentRequest(deploymentId: string, desiredRevision: number): HostDeploymentRequest {
-  return hostDeploymentRequestSchema.parse({ protocolVersion: 1, deploymentId, desiredRevision });
+  return hostDeploymentRequestSchema.parse({
+    protocolVersion: HOST_AGENT_PROTOCOL_VERSION,
+    operation: "deployment.apply",
+    deploymentId,
+    desiredRevision
+  });
 }
 
 export function parseHostDeploymentResult(value: unknown): HostDeploymentResult {

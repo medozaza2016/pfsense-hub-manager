@@ -33,7 +33,8 @@ class DeploymentAgentTests(unittest.TestCase):
             "web_local_url": "http://127.0.0.1:8080",
         }
         self.request = {
-            "protocolVersion": 1,
+            "protocolVersion": 2,
+            "operation": "deployment.apply",
             "deploymentId": "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1",
             "desiredRevision": 3,
         }

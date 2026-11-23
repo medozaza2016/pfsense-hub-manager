@@ -1,11 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { createHostDeploymentRequest, parseHostDeploymentResult } from "./deployment-agent-protocol.js";
+import { createHostDeploymentRequest, hostDeploymentRequestSchema, parseHostDeploymentResult } from "./deployment-agent-protocol.js";
 
 describe("host deployment protocol", () => {
   it("creates a minimal versioned request", () => {
     expect(createHostDeploymentRequest("00000000-0000-4000-8000-000000000001", 7)).toEqual({
-      protocolVersion: 1, deploymentId: "00000000-0000-4000-8000-000000000001", desiredRevision: 7
+      protocolVersion: 2,
+      operation: "deployment.apply",
+      deploymentId: "00000000-0000-4000-8000-000000000001",
+      desiredRevision: 7
     });
+  });
+
+  it("requires the operation discriminator on version 2 requests", () => {
+    expect(() => hostDeploymentRequestSchema.parse({
+      protocolVersion: 2,
+      deploymentId: "00000000-0000-4000-8000-000000000001",
+      desiredRevision: 7
+    })).toThrow();
+    expect(() => hostDeploymentRequestSchema.parse({
+      protocolVersion: 1,
+      operation: "deployment.apply",
+      deploymentId: "00000000-0000-4000-8000-000000000001",
+      desiredRevision: 7
+    })).toThrow();
   });
 
   it("rejects arbitrary operational instructions in requests", () => {

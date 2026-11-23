@@ -37,7 +37,8 @@ afterEach(async () => {
 });
 
 const request = {
-  protocolVersion: 1 as const,
+  protocolVersion: 2 as const,
+  operation: "deployment.apply" as const,
   deploymentId: "a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1",
   desiredRevision: 4
 };
