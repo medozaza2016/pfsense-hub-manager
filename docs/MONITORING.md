@@ -5,7 +5,7 @@ The Fastify backend owns per-device polling and exports application metrics. Pol
 
 ## Background polling (DEC-043)
 
-Implemented but disabled by default (`PFSENSE_POLLING_ENABLED=false`); it has not yet been enabled on a running installation, so treat current dashboards as the request-triggered baseline until an operator activates it.
+Implemented and enabled in the local Docker Compose deployment on November 23, 2026, where consecutive scheduled cycles were observed. It still defaults to `PFSENSE_POLLING_ENABLED=false`, so an installation that has not activated it remains on the request-triggered baseline.
 
 | Behavior | Value |
 |---|---|

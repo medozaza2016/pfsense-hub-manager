@@ -97,5 +97,7 @@ Implemented November 23, 2026 as DEC-043.
 
 Full checks on the implementation commit: API suite **27 files / 335 tests passed** (21 new), API and web typecheck exit 0, production build exit 0 with unchanged web hashes (`index-RBcacaty.js`, `index-DyUEt6w2.css`). The rebuilt `api` container runs with the flag false, is healthy, and logs no scheduler start line.
 
-**Not verified:** no live scheduled poll has been observed against a firewall. The flag stays `false` by default, and enabling it is an operator action on a running installation (`PFSENSE_POLLING_ENABLED=true`, recreate the `api` service, then confirm `poll_runs` growth and the absence of a new alert). Until that is done, do not claim continuous monitoring as live-verified in an operator environment.
+Live activation on November 23, 2026 confirmed the cadence: with `PFSENSE_POLLING_ENABLED=true`, eight consecutive cycles of all eight operations succeeded at 70–79 s spacing (60 s interval plus 0–15 s jitter plus collection time) with no page request, no duplicate rows, no alert, and no `warn`/`error` log line (closeout section 16). The flag still fails closed on an unrecognised value such as `yes` rather than reading it as `false`.
+
+**Not verified:** a repeated poll failure producing one deduplicated alert that auto-resolves on recovery, a page load inside the interval reporting `cacheHit: true`, and a retention prune that removes and audits real rows. Enabling the flag remains an operator action on a running installation; the cadence is verified, the failure and retention paths are not.
 

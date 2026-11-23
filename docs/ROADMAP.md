@@ -2,7 +2,7 @@
 
 **Last reconciled:** November 23, 2026  
 **Active branch:** `main`  
-**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. System Monitoring & Recovery is implemented, live-verified, and locked (DEC-039, DEC-040). The Application Settings page was retired on November 23, 2026 (DEC-041). Read-only site telemetry from the eight approved endpoints is merged into `main` (DEC-042, `d979354`) and live-verified against the registered Plus firewall. An opt-in background polling scheduler with bounded retention is implemented and tested (DEC-043) but ships disabled and has not yet been observed on a running installation. Deferred verification items are listed in the relevant sections below.
+**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. System Monitoring & Recovery is implemented, live-verified, and locked (DEC-039, DEC-040). The Application Settings page was retired on November 23, 2026 (DEC-041). Read-only site telemetry from the eight approved endpoints is merged into `main` (DEC-042, `d979354`) and live-verified against the registered Plus firewall. An opt-in background polling scheduler with bounded retention is implemented, tested, and enabled in the local Docker Compose deployment, where it was observed completing consecutive scheduled cycles on November 23, 2026 (DEC-043); its failure, cache-hit, and pruning paths remain unverified. Deferred verification items are listed in the relevant sections below.
 
 This roadmap is the current planning source. For exact command output, test counts, skipped tests, clean-install evidence, and known verification gaps, see [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 
@@ -32,7 +32,7 @@ This roadmap is the current planning source. For exact command output, test coun
 - [x] Fixed read-only allowlist of eight pfSense GET operations. No firewall configuration writes or generic upstream proxy.
 - [x] Sanitized site snapshot collected once per navigation window, with a 10 s success / 2 s failure in-process cache and per-operation history in `poll_runs` (DEC-042).
 - [x] Deduplicated poll alerting that auto-resolves after a fully successful collection.
-- [x] Opt-in background polling scheduler (DEC-043): 60 s default interval, fleet concurrency 2, 0–15 s jitter, 30/60/120/300 s bounded backoff, per-device isolation, cache write-through, graceful shutdown, and 30-day `poll_runs` retention pruned in bounded batches. Disabled by default and still unused on a live installation.
+- [x] Opt-in background polling scheduler (DEC-043): 60 s default interval, fleet concurrency 2, 0–15 s jitter, 30/60/120/300 s bounded backoff, per-device isolation, cache write-through, graceful shutdown, and 30-day `poll_runs` retention pruned in bounded batches. Disabled by default; enabled and observed collecting consecutive scheduled cycles in the local Docker Compose deployment on November 23, 2026.
 
 ### Linux installation and Hub access deployment
 
@@ -79,14 +79,14 @@ These are real gaps; do not describe them as completed.
 
 The queue below is the agreed order. Take the first item whose gate is open; do not start a later item to avoid an open gate.
 
-1. **Enable and observe background polling on a running installation.** Gate: an operator-approved maintenance window on the deployment host. The scheduler is implemented, tested, and disabled by default (DEC-043). Remaining work is live evidence: set `PFSENSE_POLLING_ENABLED=true`, recreate the `api` service, then confirm scheduled `poll_runs` growth without a page request, that a repeated failure produces one deduplicated alert and auto-resolves on recovery, that a page load inside the interval reports `cacheHit: true`, and that the retention prune runs and audits. Do not claim active continuous monitoring until this is recorded.
+1. **Complete the background polling activation record.** Activation itself is done: `PFSENSE_POLLING_ENABLED=true` in the local deployment on November 23, 2026, after which the scheduler ran eight consecutive cycles (eight operations each, all `success`, 70–79 s spacing at a 60 s interval plus 0–15 s jitter and collection time) with no page request, no new alert, and no `warn`/`error` log line. Still unrecorded: a repeated failure producing one deduplicated alert that auto-resolves on recovery, a page load inside the interval reporting `cacheHit: true`, and a retention prune that actually deletes and audits rows (the startup prune found only history younger than 30 days, so it removed nothing). Do not claim active continuous monitoring as operator-verified beyond the cadence evidence.
 2. **Second-device (pfSense CE) comparison.** Gate: the CE firewall is connected. Blocked on the operator, not on engineering.
 3. **Exact REST API package version and architecture record.** Gate: a read-only check on the firewall itself; no approved manager endpoint exposes either value, so it cannot be collected through the Hub.
 4. **Page-by-page visual acceptance against the approved mockup.** Gate: the mockup image, which is not present in this checkout.
 5. **Backup/restore, key rotation, and recovery drills.** Gate: an operator maintenance window on the Proxmox LXC; each drill risks the only existing development data.
 6. **Access-deployment failure/rollback drill and LAN/Custom reverse-proxy test.** Gate: a second operator-managed host and a trusted reverse proxy.
 
-Reconciled November 23, 2026: the trusted-TLS verification item that previously led this list is now satisfied and moved to the delivered record below. The background polling scheduler that led this list is now delivered and tested (DEC-043); only live activation and observation remain, which is why item 1 is now that observation rather than the implementation.
+Reconciled November 23, 2026: the trusted-TLS verification item that previously led this list is now satisfied and moved to the delivered record below. The background polling scheduler that led this list is now delivered, tested, running in the local deployment, and observed on cadence (DEC-043); only its failure, cache-hit, and pruning evidence remain, which is why item 1 is now that evidence rather than the implementation.
 
 ### Installation, backup, and recovery
 
@@ -102,7 +102,7 @@ Reconciled November 23, 2026: the trusted-TLS verification item that previously 
 - [ ] Record the exact installed pfSense REST API package version and confirm release/architecture compatibility.
 - [ ] Connect the second pfSense CE firewall when the user is ready.
 - [ ] Validate independent operation against two real firewall profiles.
-- [x] Implement the opt-in background polling scheduler with bounded concurrency, retry/backoff, and independent per-device outcomes (DEC-043). Disabled by default and not yet activated on a running installation.
+- [x] Implement the opt-in background polling scheduler with bounded concurrency, retry/backoff, and independent per-device outcomes (DEC-043). Disabled by default; running in the local deployment since November 23, 2026.
 - [ ] Enable and observe scheduled polling and alert production on a running installation, then define notification behavior. **Roadmap section 3.1 item 1.**
 
 ### Product experience and data coverage
