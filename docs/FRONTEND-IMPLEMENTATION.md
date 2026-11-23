@@ -87,3 +87,20 @@ Windows 11 with VS Code and Docker Desktop is the local development platform. It
 ## Historical implementation notes
 
 Earlier sections of this document described the frontend-first preview phase and the pre-onboarding `main` baseline. Those were accurate when written but are superseded by the current implementation status above. Retain those historical decisions only where they explain why some screens remain preview-only.
+
+## Application Settings page redesign, November 22, 2026
+
+The target layout is documented in [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md) and follows the mockup supplied during the November 22 design review.
+
+The page contains exactly two cards:
+
+- **General:** Application name with an **Edit** action, and Display timezone with a **Change** action.
+- **Preferences:** Automatic polling, Email notifications, and Require confirmation, each with its supporting description and a right-aligned switch.
+
+At desktop widths the cards sit side by side; at tablet and mobile widths they stack. Preserve the existing light workspace, navy sidebar, blue action treatment, typography, spacing, and shared component conventions.
+
+**Current behavior boundary:** The preference switches are local React state only. They do not persist to PostgreSQL or control a backend service. The General actions are preview affordances, not persisted settings. The mockup's switch positions are illustrative, not approved operational defaults. The redesign must not show a successful save or imply that polling, email delivery, or confirmation enforcement is active.
+
+**Scope:** Do not add System Information, Maintenance, Backup & Restore, or host/Docker controls to this page as part of this design increment. Do not create API routes, migrations, background jobs, notification providers, or backend enforcement in the visual redesign. Track that work in the future functional items in [Roadmap](ROADMAP.md).
+
+**Acceptance:** Match the supplied mockup's page title/subtitle, two-card structure, labels, descriptions, actions, alignment, and responsive behavior. Verify keyboard operation, visible focus, accessible switch labels, and no horizontal overflow at narrow widths. Browser visual acceptance remains pending until the redesigned page is implemented and tested.
