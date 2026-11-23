@@ -7,6 +7,7 @@ import { migrate } from "./db/migrate.js";
 import { DevicePfSenseClientFactory } from "./pfsense/device-client-factory.js";
 import { PfSenseProvider } from "./pfsense/provider.js";
 import { ObservationCache } from "./pfsense/observation-cache.js";
+import { PollScheduler } from "./pfsense/poll-scheduler.js";
 import { registerObservationRoutes } from "./pfsense/observation-routes.js";
 import type { SiteSnapshot } from "./pfsense/observations.js";
 import { DeviceRepository } from "./devices/device-repository.js";
@@ -567,14 +568,33 @@ async function recoverQueuedHubDeployments(): Promise<void> {
   }
 }
 
+// Background polling is opt-in (DEC-043). It shares the request path's
+// collection, health recorder, and cache so scheduled and manual polls cannot
+// diverge. Exactly one API replica may schedule; disable the flag on any other.
+const pollScheduler = config.PFSENSE_POLLING_ENABLED
+  ? new PollScheduler(
+      { provider, devices, cache: observationCache, pool, log: app.log },
+      {
+        intervalMs: config.PFSENSE_POLLING_INTERVAL_MS,
+        concurrency: config.PFSENSE_POLLING_CONCURRENCY,
+        jitterMs: config.PFSENSE_POLLING_JITTER_MS,
+        successCacheTtlMs: Math.min(config.PFSENSE_POLLING_INTERVAL_MS, 600_000),
+        failureCacheTtlMs: config.PFSENSE_OBSERVATION_ERROR_CACHE_MS,
+        retentionDays: config.PFSENSE_POLLING_RETENTION_DAYS
+      }
+    )
+  : null;
+
 await app.listen({ host: config.HOST, port: config.PORT });
 app.log.info("pfSense Hub Manager API started");
+pollScheduler?.start();
 // Settle host operations left open by a previous process before the first client poll.
 void hostSystem.reconcile(pool).catch(() => undefined);
 void recoverQueuedHubDeployments();
 const deploymentWorkerTimer = setInterval(() => void recoverQueuedHubDeployments(), 5_000);
 deploymentWorkerTimer.unref();
 const shutdown = async () => {
+  pollScheduler?.stop();
   clearInterval(deploymentWorkerTimer);
   await app.close();
   await pool.end();

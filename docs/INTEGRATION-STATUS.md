@@ -134,7 +134,7 @@ This section describes code capability separately from the historical live test 
 
 - No second real firewall has been registered and validated as part of this closeout. The deferred CE firewall remains unconnected.
 - The capability view is derived from each device's own recorded `poll_runs` (DEC-042), not from a hard-coded list: `supported: false` only for `unsupported`, `authorization`, and `authentication` refusals, `supported: null` for transport/TLS/rate-limit/schema failures, and `unverified` for a device with no polling history. This still does not prove compatibility across every Plus/CE release or API package version.
-- The background polling scheduler, bounded concurrency, retry/backoff, and continuous alert production are not implemented as a production scheduler. Some collection and alert generation is request-triggered.
+- The background polling scheduler, bounded concurrency, retry/backoff, and poll-history retention are implemented and unit-tested (DEC-043) but ship disabled, so a running installation still collects only when a site page is opened until the flag is enabled.
 - Several firewall-domain UI pages still contain preview fixtures rather than live device-specific data.
 - Audit/alert retention, database backup/restore, and disaster recovery require separate policy and drills.
 - Firewall configuration-changing operations remain out of scope. No generic proxy or arbitrary upstream route is exposed.
@@ -165,4 +165,4 @@ DEC-042 replaced the illustrative fixtures on Overview, Monitoring, Interfaces, 
 - ARP and firewall-state responses contribute counts and a state limit only; serial numbers, Netgate IDs, MAC addresses, hardware interface names, monitor/source addresses, and counters are not modeled in the manager, so they cannot be returned, logged, or persisted.
 - The same session exposed a defect: the compatibility queries projected `device_id` from `managed_devices`, whose key is `id`, so `GET /api/v1/devices` returned `500` and the site list failed to load. The projection is now `id AS device_id`, the SQL was executed against the live schema before the image rebuild, and the repository tests pin the projection. See [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md) section 15.1.
 
-Still unverified after this session: a CE comparison, page-by-page visual acceptance against the approved mockup, and any continuous background polling — collection is still request-triggered through the snapshot route and its 10-second cache.
+Still unverified after this session: a CE comparison, page-by-page visual acceptance against the approved mockup, and live background polling — the scheduler is implemented and unit-tested but ships disabled (DEC-043), so collection in the running installation is still request-triggered through the snapshot route and its 10-second cache.

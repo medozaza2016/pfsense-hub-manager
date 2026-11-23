@@ -79,6 +79,21 @@ export class ObservationCache<T> {
     return { value: await inflight, cacheHit: false };
   }
 
+  /**
+   * Seeds the cache with a value obtained outside this cache.
+   *
+   * Background polling uses it so a scheduled collection also serves page loads
+   * instead of each navigation triggering its own upstream collection. An
+   * in-flight request already owns the entry, so its result - which is at least
+   * as fresh - is allowed to win rather than being overwritten here.
+   */
+  store(key: string, value: T, ttlMs: number): void {
+    assertTtl("ttlMs", ttlMs);
+    if (this.entries.get(key)?.inflight) return;
+    this.entries.set(key, { expiresAt: this.now() + ttlMs, value });
+    this.evictOverflow(key);
+  }
+
   /** Drops a device's cached observation, for example after disabling it. */
   invalidate(key: string): void {
     this.entries.delete(key);

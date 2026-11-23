@@ -32,7 +32,16 @@ Expose Prometheus-format metrics from Fastify at `/metrics`. It is available onl
 Prometheus is optional for the first scaffold. Add it when historical time-series, alerting, or external dashboards justify it. PostgreSQL stores application data and selected operational history, not every scrape sample.
 
 ## Open parameters
-Polling interval, per-device concurrency, histogram buckets, retention, exact operation groups, and metrics access control remain to be decided.
+Histogram buckets and metrics access control remain to be decided. The polling interval, fleet concurrency, backoff, and `poll_runs` retention are decided in DEC-043.
+
+## Scheduled polling, November 23, 2026
+
+Background polling (DEC-043) deliberately emits exactly the same series as a page-triggered collection, because it calls the same `pollObserver` recorder from the same eight-operation path. Consequences to keep in mind when reading dashboards:
+
+- There is no `trigger` label. A scheduled poll and a page-triggered poll are indistinguishable in `pfsense_poll_*`; separating them would add a high-cardinality label for little value, so use the collection cadence (`pfsense_last_successful_poll_timestamp_seconds`) instead.
+- A poll served from the scheduler's cache write-through emits no poll metrics, matching the existing rule that cache hits do not count as upstream operations.
+- A failed scheduled collection increments `pfsense_poll_errors_total` per failed operation and sets `pfsense_device_up` to `0`; a fully successful one sets it to `1`. A device the scheduler could not even start collecting (removed, disabled, or archived mid-cycle) updates neither, because no upstream operation ran.
+- History retention never changes counters. `poll_runs` pruning deletes rows and writes one `polling.history_pruned` audit event; it does not touch `pfsense_poll_*` or alert state.
 
 ## Per-operation polling labels, November 23, 2026
 

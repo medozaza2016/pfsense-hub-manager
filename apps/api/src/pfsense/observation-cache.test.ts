@@ -91,4 +91,31 @@ describe("ObservationCache", () => {
     expect(() => makeCache({ successTtlMs: -1 })).toThrow();
     expect(() => makeCache({ maxEntries: 0 })).toThrow();
   });
+
+  it("serves a stored value for its own ttl and no longer", async () => {
+    const cache = makeCache();
+    cache.store("a", "scheduled", 30_000);
+
+    clock += 29_999;
+    expect(await cache.get("a", async () => "fresh", () => false)).toEqual({ value: "scheduled", cacheHit: true });
+    clock += 2;
+    expect(await cache.get("a", async () => "fresh", () => false)).toEqual({ value: "fresh", cacheHit: false });
+  });
+
+  it("leaves an in-flight request's fresher result in place", async () => {
+    const cache = makeCache();
+    let release: (value: string) => void = () => undefined;
+    const pending = cache.get("a", () => new Promise<string>(resolve => { release = resolve; }), () => false);
+
+    cache.store("a", "scheduled", 30_000);
+    release("fresh");
+
+    await expect(pending).resolves.toEqual({ value: "fresh", cacheHit: false });
+    expect(await cache.get("a", async () => "other", () => false)).toEqual({ value: "fresh", cacheHit: true });
+  });
+
+  it("rejects an invalid store ttl", () => {
+    expect(() => makeCache().store("a", "x", -1)).toThrow();
+    expect(() => makeCache().store("a", "x", 600_001)).toThrow();
+  });
 });

@@ -59,7 +59,7 @@ The system shall account for pfSense edition, release, API package version, and 
 
 ### FR-4: Read-only monitoring
 
-The initial milestone shall retrieve only explicitly approved read-only information. The initial verified Plus endpoint set is recorded in docs/API-SPECIFICATION.md. The final dashboard metrics and polling frequency remain open.
+The initial milestone shall retrieve only explicitly approved read-only information. The initial verified Plus endpoint set is recorded in docs/API-SPECIFICATION.md. The final dashboard metrics remain open. Polling frequency is no longer open: background polling runs every 60 seconds with jitter and bounded backoff when an installation opts in (DEC-043).
 
 ### FR-5: Unified dashboard
 
@@ -138,7 +138,7 @@ The first milestone is acceptable when:
 3. Will the backend require a private connector/agent?
 4. Which authentication method will administrators use to sign in?
 7. How will encrypted firewall API credentials and the application encryption key be backed up, recovered, rotated, and revoked?
-8. PostgreSQL is approved for device inventory, status history, users, and audit records. The schema, retention, and backup policy still need to be designed.
+8. PostgreSQL is approved for device inventory, status history, users, and audit records. The schema, retention, and backup policy still need to be designed. The `poll_runs` window is decided at 30 days (DEC-043); retention and backup for the remaining tables are still open.
 9. What are the exact CE release, Plus release, API package versions, and architectures at both locations?
 10. Which API endpoints and capabilities are verified on each installation?
 11. Is the product single-administrator initially, or must it support multiple users and roles?
@@ -188,7 +188,7 @@ See `API-SPECIFICATION.md`, `API-MATRIX.md`, `API-COMPATIBILITY.md`, `METRICS.md
 
 ## 16. Initial application foundation implementation
 
-The current feature branch includes the React/Vite frontend, Fastify/TypeScript backend, PostgreSQL migrations, Docker Compose deployment, fixed read-only provider for eight GET routes, strict TLS verification with optional device-scoped CA trust, per-device credential encryption, database-backed manager authentication and roles, site onboarding/lifecycle APIs, audit/alert APIs, metrics and health/readiness routes, and the Linux Host Agent for GUI-managed Hub access. A clean Debian 13 install and Tailscale Hub access were verified on November 22, 2026. Continuous background polling, two-real-firewall compatibility validation, broader live telemetry, backup/restore, key rotation, and firewall configuration writes remain incomplete. No hosted CI workflow is used in the current project workflow.
+The current feature branch includes the React/Vite frontend, Fastify/TypeScript backend, PostgreSQL migrations, Docker Compose deployment, fixed read-only provider for eight GET routes, strict TLS verification with optional device-scoped CA trust, per-device credential encryption, database-backed manager authentication and roles, site onboarding/lifecycle APIs, audit/alert APIs, metrics and health/readiness routes, and the Linux Host Agent for GUI-managed Hub access. A clean Debian 13 install and Tailscale Hub access were verified on November 22, 2026. Background polling is implemented as an opt-in scheduler (DEC-043) but has not been enabled or observed on a running installation. Two-real-firewall compatibility validation, broader live telemetry, backup/restore, key rotation, and firewall configuration writes remain incomplete. No hosted CI workflow is used in the current project workflow.
 
 
 ## 17. Frontend workspace foundation
@@ -217,4 +217,4 @@ Alerts are persisted separately from audit events. The initial rule creates or u
 
 ## Current implementation note, November 22, 2026
 
-The current code and verified delivery status are summarized in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md). The product requirements above remain the intended product scope; they must not be interpreted as a claim that every requirement has been delivered. In particular, no firewall configuration-changing operation is currently implemented, the second CE firewall is deferred, continuous background polling is not implemented, and the exact REST API package version remains unrecorded. The first Plus firewall's trusted TLS connection is no longer outstanding: the manager collected all eight approved operations over a validating connection on November 23, 2026.
+The current code and verified delivery status are summarized in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md). The product requirements above remain the intended product scope; they must not be interpreted as a claim that every requirement has been delivered. In particular, no firewall configuration-changing operation is currently implemented, the second CE firewall is deferred, background polling is implemented but disabled by default and not yet observed on a running installation (DEC-043), and the exact REST API package version remains unrecorded. The first Plus firewall's trusted TLS connection is no longer outstanding: the manager collected all eight approved operations over a validating connection on November 23, 2026.

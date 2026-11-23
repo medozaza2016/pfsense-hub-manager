@@ -1,7 +1,29 @@
 # Monitoring and Operations
 
 ## Initial model
-The Fastify backend owns per-device polling and exports application metrics. Poll devices independently so one outage does not block others. Start with backend-local scheduling, not a separate worker container.
+The Fastify backend owns per-device polling and exports application metrics. Poll devices independently so one outage does not block others. Scheduling is backend-local, not a separate worker container.
+
+## Background polling (DEC-043)
+
+Implemented but disabled by default (`PFSENSE_POLLING_ENABLED=false`); it has not yet been enabled on a running installation, so treat current dashboards as the request-triggered baseline until an operator activates it.
+
+| Behavior | Value |
+|---|---|
+| Interval per enabled, non-demo device | 60 s (`PFSENSE_POLLING_INTERVAL_MS`, 15 s–1 h) |
+| Devices collected at once | 2 (`PFSENSE_POLLING_CONCURRENCY`, 1–8) |
+| Jitter | 0–15 s on first sighting and each success (`PFSENSE_POLLING_JITTER_MS`) |
+| Retry after failure | 30 → 60 → 120 → 300 s cap, floored at the interval, reset on a fully successful collection |
+| `poll_runs` retention | 30 days (`PFSENSE_POLLING_RETENTION_DAYS`), bounded 5,000-row batches at startup and every 24 h |
+| Cache | A scheduled success serves page loads for one interval; a failed collection keeps the 2 s failure window |
+| Lifecycle | One scheduler per API process, started after migrations and listen, stopped on `SIGINT`/`SIGTERM`; no leader election |
+
+Operational implications:
+
+- A disabled, archived, or demo device is dropped from the schedule on the next cycle without a restart. No manual step is required to stop polling a firewall.
+- A failing device produces at most one open alert per device because the existing `device-poll:<deviceId>` dedup key is reused; recovery auto-resolves it and writes one `alert.auto_resolve` audit event.
+- The scheduler never polls *more* often than the configured interval, even while backing off, so a long interval cannot accidentally increase firewall load during an outage.
+- Retention deletes history only. It never deletes alerts or audit events, and it writes `polling.history_pruned` only when rows were actually removed.
+- A second API replica must not also schedule. The current Compose project runs a single `api` service; scaling it out requires a separate decision (DEC-043).
 
 ## Health signals
 - Backend availability and uptime.
@@ -29,7 +51,9 @@ See `METRICS.md` for names and label rules.
 Use bounded retries with backoff for transient failures. Do not retry authentication or authorization failures indefinitely.
 
 ## Alerts
-Thresholds are not set yet. Establish baselines before defining alerts for backend outage, sustained device outage, excessive poll failures/latency, repeated TLS/authentication errors, and storage or backup failures. Do not invent service-level objectives before agreeing on targets.
+Two poll-alert behaviors exist today. A read-only collection that fails any of its eight operations raises one deduplicated alert with key `device-poll:<deviceId>` (`warning`, or `critical` when all eight fail), and the first fully successful collection auto-resolves it and writes an `alert.auto_resolve` audit event. There is no duration or count threshold, no flapping suppression beyond deduplication, and no notification delivery.
+
+Thresholds for backend outage, sustained device outage, excessive poll latency, repeated TLS/authentication errors, and storage or backup failures are not set yet. Establish baselines before defining them. Do not invent service-level objectives before agreeing on targets.
 
 ## Prometheus
 Prometheus is optional, not required in the initial Compose stack. If adopted, scrape the restricted `/metrics` endpoint and define retention and alert routing.

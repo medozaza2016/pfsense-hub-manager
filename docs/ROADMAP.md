@@ -2,7 +2,7 @@
 
 **Last reconciled:** November 23, 2026  
 **Active branch:** `main`  
-**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. System Monitoring & Recovery is implemented, live-verified, and locked (DEC-039, DEC-040). The Application Settings page was retired on November 23, 2026 (DEC-041). Read-only site telemetry from the eight approved endpoints is merged into `main` (DEC-042, `d979354`) and live-verified against the registered Plus firewall. Deferred verification items are listed in the relevant sections below.
+**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. System Monitoring & Recovery is implemented, live-verified, and locked (DEC-039, DEC-040). The Application Settings page was retired on November 23, 2026 (DEC-041). Read-only site telemetry from the eight approved endpoints is merged into `main` (DEC-042, `d979354`) and live-verified against the registered Plus firewall. An opt-in background polling scheduler with bounded retention is implemented and tested (DEC-043) but ships disabled and has not yet been observed on a running installation. Deferred verification items are listed in the relevant sections below.
 
 This roadmap is the current planning source. For exact command output, test counts, skipped tests, clean-install evidence, and known verification gaps, see [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 
@@ -27,7 +27,12 @@ This roadmap is the current planning source. For exact command output, test coun
 - [x] Administrator-only certificate discovery, fingerprint confirmation, pre-registration connection test, and registration.
 - [x] Administrator-only profile edit, enable/disable, credential rotation, TLS trust set/remove, explicit connection test, and non-destructive archive.
 - [x] Per-device client factory and provider collection using the device's own HTTPS origin, credential, TLS trust, and optional server name.
+### Read-only monitoring and poll history
+
 - [x] Fixed read-only allowlist of eight pfSense GET operations. No firewall configuration writes or generic upstream proxy.
+- [x] Sanitized site snapshot collected once per navigation window, with a 10 s success / 2 s failure in-process cache and per-operation history in `poll_runs` (DEC-042).
+- [x] Deduplicated poll alerting that auto-resolves after a fully successful collection.
+- [x] Opt-in background polling scheduler (DEC-043): 60 s default interval, fleet concurrency 2, 0–15 s jitter, 30/60/120/300 s bounded backoff, per-device isolation, cache write-through, graceful shutdown, and 30-day `poll_runs` retention pruned in bounded batches. Disabled by default and still unused on a live installation.
 
 ### Linux installation and Hub access deployment
 
@@ -64,7 +69,7 @@ This roadmap is the current planning source. For exact command output, test coun
 
 Four Windows tests are intentionally skipped by the test file on Windows: they exercise the Unix-domain-socket client. Skipped tests are not passed. The Linux installer performed a real API-to-agent Unix-socket and bearer-authentication handshake.
 
-The table above is the historical Windows 11 installation record from November 22, 2026. The current Linux baseline is **25 test files / 314 tests passed**, both typechecks and both production builds passing, as recorded in [closeout section 15](VERIFICATION-AND-CLOSEOUT.md#15-site-telemetry-increment-november-23-2026). Do not quote the Windows figures as the current count.
+The table above is the historical Windows 11 installation record from November 22, 2026. The current Linux baseline is **27 test files / 335 tests passed**, both typechecks and both production builds passing, as recorded in [closeout section 16](VERIFICATION-AND-CLOSEOUT.md#16-background-polling-scheduler-november-23-2026). Do not quote the Windows figures as the current count.
 
 ## 3. Remaining acceptance and hardening
 
@@ -74,14 +79,14 @@ These are real gaps; do not describe them as completed.
 
 The queue below is the agreed order. Take the first item whose gate is open; do not start a later item to avoid an open gate.
 
-1. **Background polling scheduler and continuous alert production.** Gate: an approved polling cadence and history-retention decision recorded in `docs/DECISIONS.md` before any code. The parameters and recommended defaults are drafted in [Background polling design proposal](BACKGROUND-POLLING-DESIGN.md) (P-1 to P-10) and are **not approved**. `docs/PRD.md` still lists polling frequency as open, and this roadmap states that continuous monitoring must not be claimed until the scheduler exists. It is the only queued item that closes a documented product requirement (the continuous-polling and last-successful-communication part of FR-4/FR-5, with per-device isolation for FR-2/FR-6) without an external dependency.
+1. **Enable and observe background polling on a running installation.** Gate: an operator-approved maintenance window on the deployment host. The scheduler is implemented, tested, and disabled by default (DEC-043). Remaining work is live evidence: set `PFSENSE_POLLING_ENABLED=true`, recreate the `api` service, then confirm scheduled `poll_runs` growth without a page request, that a repeated failure produces one deduplicated alert and auto-resolves on recovery, that a page load inside the interval reports `cacheHit: true`, and that the retention prune runs and audits. Do not claim active continuous monitoring until this is recorded.
 2. **Second-device (pfSense CE) comparison.** Gate: the CE firewall is connected. Blocked on the operator, not on engineering.
 3. **Exact REST API package version and architecture record.** Gate: a read-only check on the firewall itself; no approved manager endpoint exposes either value, so it cannot be collected through the Hub.
 4. **Page-by-page visual acceptance against the approved mockup.** Gate: the mockup image, which is not present in this checkout.
 5. **Backup/restore, key rotation, and recovery drills.** Gate: an operator maintenance window on the Proxmox LXC; each drill risks the only existing development data.
 6. **Access-deployment failure/rollback drill and LAN/Custom reverse-proxy test.** Gate: a second operator-managed host and a trusted reverse proxy.
 
-Reconciled November 23, 2026: the trusted-TLS verification item that previously led this list is now satisfied and moved to the delivered record below.
+Reconciled November 23, 2026: the trusted-TLS verification item that previously led this list is now satisfied and moved to the delivered record below. The background polling scheduler that led this list is now delivered and tested (DEC-043); only live activation and observation remain, which is why item 1 is now that observation rather than the implementation.
 
 ### Installation, backup, and recovery
 
@@ -97,8 +102,8 @@ Reconciled November 23, 2026: the trusted-TLS verification item that previously 
 - [ ] Record the exact installed pfSense REST API package version and confirm release/architecture compatibility.
 - [ ] Connect the second pfSense CE firewall when the user is ready.
 - [ ] Validate independent operation against two real firewall profiles.
-- [ ] Implement a production background polling scheduler, bounded concurrency, retry/backoff, and independent per-device outcomes. **Next increment; see section 3.1 for the gate.**
-- [ ] Complete continuous alert production and define retention/notification behavior. **Follows the scheduler.**
+- [x] Implement the opt-in background polling scheduler with bounded concurrency, retry/backoff, and independent per-device outcomes (DEC-043). Disabled by default and not yet activated on a running installation.
+- [ ] Enable and observe scheduled polling and alert production on a running installation, then define notification behavior. **Roadmap section 3.1 item 1.**
 
 ### Product experience and data coverage
 
@@ -121,7 +126,7 @@ Reconciled November 23, 2026: the trusted-TLS verification item that previously 
 - No remote shell, arbitrary host command execution, or Docker socket mount in application containers.
 - No automatic installation/authentication of Tailscale, tailnet HTTPS enrollment, ACL/grant changes, DNS changes, Funnel, certificate issuance, or reverse-proxy provisioning.
 - No assumption that the eight selected GET operations work on every Plus/CE release or API package version.
-- No claim of continuous monitoring until the background scheduler is implemented and tested.
+- No claim of active continuous monitoring until the scheduler is enabled and observed on a running installation; it is implemented and unit-tested but ships disabled (DEC-043).
 - No production-ready claim.
 
 ## 5. Development and delivery workflow

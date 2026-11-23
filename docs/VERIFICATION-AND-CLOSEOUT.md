@@ -118,7 +118,7 @@ The following are not covered by the successful installation/access test and mus
 - A second real firewall, including the deferred pfSense CE site, has not been connected and validated.
 - The first Plus firewall's historical eight-endpoint diagnostic test used a temporary TLS verification bypass. That bypass is historical: on November 23, 2026 the manager client collected all eight operations over a validating TLS connection using a device-scoped CA bundle and a pinned server name, so a separate trusted-certificate validation is no longer outstanding. See section 15.2.
 - The exact installed pfSense REST API package version is not recorded.
-- Background polling scheduling, bounded concurrency, retry/backoff, and continuous alert generation are not implemented as a production scheduler. Some polling is request-triggered.
+- Background polling scheduling, bounded concurrency, retry/backoff, and poll-history retention are implemented and unit-tested but ship disabled (`PFSENSE_POLLING_ENABLED=false`, DEC-043), so collection in a running installation remains request-triggered through the snapshot route and its cache until an operator activates them. See section 16.
 - Firewall configuration-changing operations are not implemented or authorized. The integration remains a fixed read-only GET allowlist.
 - The remaining preview pages do not all display live firewall telemetry.
 - Windows Docker Desktop has no production-equivalent systemd Host Agent. Automatic host access deployment is Linux-only.
@@ -315,4 +315,30 @@ The roadmap and PRD carried an open item to "verify a trusted TLS connection to 
 | Verification cannot be disabled | `rejectUnauthorized: true` is unconditional in the client constructor; no option or environment value turns it off |
 | Live proof | The November 23 authenticated snapshot returned `200` with all eight operations `success` over that connection, and the inventory recorded `compatibility` `verified` |
 
-**What this does not close:** the exact REST API package version (no approved endpoint exposes it), CPU architecture reporting, the CE comparison, visual acceptance, or continuous polling. The November 19 `curl -k` diagnostic is retained in [Integration Status](INTEGRATION-STATUS.md) as history only and is no longer cited as outstanding work.
+**What this does not close:** the exact REST API package version (no approved endpoint exposes it), CPU architecture reporting, the CE comparison, visual acceptance, or live activation of background polling (implemented as an opt-in scheduler, DEC-043). The November 19 `curl -k` diagnostic is retained in [Integration Status](INTEGRATION-STATUS.md) as history only and is no longer cited as outstanding work.
+
+## 16. Background polling scheduler, November 23, 2026
+
+**Scope:** a scheduler that decides when the existing eight-operation collection runs, plus bounded retention of the history that collection produces. Recorded as DEC-043; parameters approved in [Background Polling Design](BACKGROUND-POLLING-DESIGN.md) section 2.
+
+| Area | Implementation |
+|---|---|
+| Trigger and cadence | `apps/api/src/pfsense/poll-scheduler.ts`: one timer per API process, sleeps to the earliest due device, bounded by one interval; overlap skipped, not queued |
+| Isolation | Per-device `try`/`catch`; a throw or timeout marks only that device and schedules its backoff |
+| Same collection path | `provider.collect(deviceId, pollObserver(deviceId))`, then the shared `recordPollHealth`, `pfsense_device_up`, and cache write-through. No new route, upstream call, or firewall permission |
+| Backoff | `[30s, 60s, 120s, 300s]` cap, floored at the configured interval, reset on a fully successful collection |
+| Retention | `apps/api/src/pfsense/poll-retention.ts`: `poll_runs` only, `LIMIT 5,000` per statement, startup and every 24 h, audited as `polling.history_pruned` when rows were removed |
+| Cache | `ObservationCache.store()` seeded for one interval on success, the existing 2 s window on failure, an in-flight request wins |
+| Enablement | `PFSENSE_POLLING_ENABLED=false` default; `server.ts` constructs nothing when false, and `shutdown()` stops the scheduler |
+
+**Checks observed on this increment:**
+
+| Check | Result |
+|---|---|
+| API tests | `27 test files / 335 tests passed` (21 new: scheduler 14, retention 4, cache write-through 3) |
+| API and web typecheck | exit 0 |
+| Production build | exit 0; unchanged web output `index-RBcacaty.js`, `index-DyUEt6w2.css` |
+| Deployed flag-off path | Rebuilt `api` container: `PFSENSE_POLLING_ENABLED=false` in its environment, healthy, serving `GET /api/v1/devices/:id/snapshot` `200`, and no `Background firewall polling started` log line |
+| Security boundary | Unchanged: no new route or method, no caller-supplied destination, no write operation, no firewall permission change |
+
+**Not verified:** no live scheduled poll, live deduplicated poll alert, or live retention prune has been observed. The scheduler ships disabled, and enabling it is an operator action on a running installation. Until the roadmap item is recorded with that evidence, describe background polling as implemented and tested, not as active continuous monitoring.
