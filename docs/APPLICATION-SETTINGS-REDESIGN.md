@@ -178,7 +178,7 @@ Independent of the choice:
 - the shared placeholder card component: the `General` and `Preferences` cards, both placeholder actions, the three local-only switches, and the component-scoped toggle state;
 - the same block where it had been reused inside Site Settings under a *Site preferences* heading. That copy presented Hub-wide values — application name, display timezone, and a global confirmation switch — on a per-site page, which no requirement approved. The page-specific styles were removed from `apps/web/src/style.css`.
 
-**Retained:** the Device profile panel in Site Settings with its edit, enable/disable, credentials/TLS, and archive actions; Hub Settings; User Management; Audit Logs; and System Monitoring & Recovery. The `.switch` rules stay because User Management uses them for account status. The generic `.settings-grid` and `.settings-row` helper rules are now unused; they are safe to delete in a later stylesheet cleanup that can also review the grouped auth-form selectors they appear in, and they change no behavior while they remain.
+**Retained:** the Device profile panel in Site Settings with its edit, enable/disable, credentials/TLS, and archive actions; Hub Settings; User Management; Audit Logs; and System Monitoring & Recovery. The `.switch` rules stay because User Management uses them for account status. The generic `.settings-grid` and `.settings-row` helper rules were also deleted in a follow-up commit, including the `.settings-grid` fragments inside the grouped auth-form selectors and the mobile grid override. No live component referenced them, so the deletion changed no behavior.
 
 **Not added:** no API route, database migration, settings table, scheduler, notification provider, role rule, or audit event. Nothing is persisted and no capability is implied by the remaining interface.
 
@@ -191,7 +191,7 @@ Independent of the choice:
 | Email notifications | Deferred release requirement, explicitly not implemented |
 | Require confirmation | Enforced per action by FR-9, DEC-031 (typed archive phrase), and DEC-039 (typed stack Stop phrase) — not a switchable preference |
 
-**Verification:** `npm run typecheck` exit 0 and `npm run build --workspace @pfsense-hub/web` exit 0, producing `index-CNcMdfiw.js` and `index-JAy8gOY-.css`. The built bundle contains no `Application Settings`, `Automatic polling`, `app-settings`, or `app-setting-row` string, and does contain the `/settings/application` to `/settings/hub` redirect. Details and remaining gaps are in [Verification and documentation closeout](VERIFICATION-AND-CLOSEOUT.md) section 14.
+**Verification:** `npm run typecheck`, `npm test` (22 files, 275 tests), and `npm run build --workspace @pfsense-hub/web` exit 0. The current bundle is `index-ee0p_jPM.js` with `index-Dde5v36r.css`; the first retirement build produced `index-CNcMdfiw.js` and `index-JAy8gOY-.css`. The built bundle contains no `Application Settings`, `Automatic polling`, `app-settings`, or `app-setting-row` string and does contain the `/settings/application` to `/settings/hub` redirect, and the built stylesheet contains no `app-settings`, `app-setting-row`, `settings-grid`, or `settings-row` rule. Details and remaining gaps are in [Verification and documentation closeout](VERIFICATION-AND-CLOSEOUT.md) section 14.
 
 ## Related documentation
 
