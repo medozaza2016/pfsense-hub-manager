@@ -138,8 +138,11 @@ python3 -m unittest discover -s host-agent -p 'test_*.py' -v
 The approved page scope follows the supplied mockup: one **General** card and one **Preferences** card. The immediate work is the visual redesign and responsive layout. Do not expand this page with System Information, Maintenance, Backup & Restore, or host/Docker administration as part of this increment.
 
 - [x] Document the approved two-card layout, exact labels/descriptions, scope boundaries, and acceptance criteria.
-- [ ] Redesign the Application Settings frontend to match the supplied mockup at desktop, tablet, and mobile widths.
-- [ ] Keep controls clearly preview-only until their corresponding functional work is implemented. Do not claim that local state changes are persisted or enforced.
+- [x] Implement the Application Settings frontend placeholder with the approved two-card layout, responsive stacking, General actions, and Preferences switches.
+- [x] Keep controls clearly preview-only. Local switch state is not persisted or enforced, and the General actions explicitly report that editing/selection is not available yet.
+- [ ] Complete browser visual acceptance across desktop, tablet, and mobile viewports.
+- [ ] Future phase: implement the Application name edit workflow, including validation, authorization, persistence, and audit behavior.
+- [ ] Future phase: implement the Display timezone selection workflow and define timezone behavior for UI timestamps and scheduled jobs.
 - [ ] Future phase: define and persist the Hub application name and timezone behavior.
 - [ ] Future phase: design and implement the Hub-wide polling policy, scheduler, interval, concurrency, retries, and relationship to per-site polling enablement.
 - [ ] Future phase: design and implement email notification events, recipients, provider configuration, secret handling, retries, and delivery history.
