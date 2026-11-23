@@ -2,7 +2,7 @@
 
 **Last reconciled:** November 23, 2026  
 **Active branch:** `main`  
-**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. System Monitoring & Recovery is implemented, live-verified, and locked (DEC-039, DEC-040). The Application Settings page was retired on November 23, 2026 (DEC-041). Deferred verification items are listed in the relevant sections below.
+**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. System Monitoring & Recovery is implemented, live-verified, and locked (DEC-039, DEC-040). The Application Settings page was retired on November 23, 2026 (DEC-041). Read-only site telemetry from the eight approved endpoints is merged into `main` (DEC-042, `d979354`) and live-verified against the registered Plus firewall. Deferred verification items are listed in the relevant sections below.
 
 This roadmap is the current planning source. For exact command output, test counts, skipped tests, clean-install evidence, and known verification gaps, see [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 
@@ -64,9 +64,24 @@ This roadmap is the current planning source. For exact command output, test coun
 
 Four Windows tests are intentionally skipped by the test file on Windows: they exercise the Unix-domain-socket client. Skipped tests are not passed. The Linux installer performed a real API-to-agent Unix-socket and bearer-authentication handshake.
 
+The table above is the historical Windows 11 installation record from November 22, 2026. The current Linux baseline is **25 test files / 314 tests passed**, both typechecks and both production builds passing, as recorded in [closeout section 15](VERIFICATION-AND-CLOSEOUT.md#15-site-telemetry-increment-november-23-2026). Do not quote the Windows figures as the current count.
+
 ## 3. Remaining acceptance and hardening
 
 These are real gaps; do not describe them as completed.
+
+### 3.1 Next increment in sequence
+
+The queue below is the agreed order. Take the first item whose gate is open; do not start a later item to avoid an open gate.
+
+1. **Background polling scheduler and continuous alert production.** Gate: an approved polling cadence and history-retention decision recorded in `docs/DECISIONS.md` before any code. The parameters and recommended defaults are drafted in [Background polling design proposal](BACKGROUND-POLLING-DESIGN.md) (P-1 to P-10) and are **not approved**. `docs/PRD.md` still lists polling frequency as open, and this roadmap states that continuous monitoring must not be claimed until the scheduler exists. It is the only queued item that closes a documented product requirement (the continuous-polling and last-successful-communication part of FR-4/FR-5, with per-device isolation for FR-2/FR-6) without an external dependency.
+2. **Second-device (pfSense CE) comparison.** Gate: the CE firewall is connected. Blocked on the operator, not on engineering.
+3. **Exact REST API package version and architecture record.** Gate: a read-only check on the firewall itself; no approved manager endpoint exposes either value, so it cannot be collected through the Hub.
+4. **Page-by-page visual acceptance against the approved mockup.** Gate: the mockup image, which is not present in this checkout.
+5. **Backup/restore, key rotation, and recovery drills.** Gate: an operator maintenance window on the Proxmox LXC; each drill risks the only existing development data.
+6. **Access-deployment failure/rollback drill and LAN/Custom reverse-proxy test.** Gate: a second operator-managed host and a trusted reverse proxy.
+
+Reconciled November 23, 2026: the trusted-TLS verification item that previously led this list is now satisfied and moved to the delivered record below.
 
 ### Installation, backup, and recovery
 
@@ -78,12 +93,12 @@ These are real gaps; do not describe them as completed.
 
 ### Firewall compatibility and collection
 
-- [ ] Verify a trusted TLS connection to the first Plus firewall without a certificate-validation bypass.
+- [x] Verify a trusted TLS connection to the first Plus firewall without a certificate-validation bypass. Satisfied November 23, 2026 through the manager client rather than a manual test: the registered `pfsense-HOME` profile carries a device-scoped CA bundle (`device_tls_trust`) and a pinned TLS server name, `apps/api/src/pfsense/client.ts` sets `rejectUnauthorized: true` and pins `checkServerIdentity` to that name, and the live eight-operation snapshot authenticated over that connection. The historical `curl -k` diagnostic recorded in [Integration Status](INTEGRATION-STATUS.md) remains historical only and is not the evidence for this item.
 - [ ] Record the exact installed pfSense REST API package version and confirm release/architecture compatibility.
 - [ ] Connect the second pfSense CE firewall when the user is ready.
 - [ ] Validate independent operation against two real firewall profiles.
-- [ ] Implement a production background polling scheduler, bounded concurrency, retry/backoff, and independent per-device outcomes.
-- [ ] Complete continuous alert production and define retention/notification behavior.
+- [ ] Implement a production background polling scheduler, bounded concurrency, retry/backoff, and independent per-device outcomes. **Next increment; see section 3.1 for the gate.**
+- [ ] Complete continuous alert production and define retention/notification behavior. **Follows the scheduler.**
 
 ### Product experience and data coverage
 

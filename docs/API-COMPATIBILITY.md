@@ -26,7 +26,7 @@ Track each dimension independently. An operation can be specified but unknown on
 | Architecture | ARM, ARM Cortex-A53 |
 | REST API package version | Not recorded |
 | Authentication | Dedicated regular user `pfsense_hub`, API key |
-| TLS | Self-signed certificate, diagnostic verification bypass only |
+| TLS | Self-signed certificate; manager connects with a device-scoped CA bundle and pinned server name, certificate validation enabled. Historical manual tests used a temporary diagnostic bypass only |
 
 Eight GET operations returned HTTP 200 from the manager LXC: `/api/v2/status/system`, `/api/v2/status/gateways`, `/api/v2/status/interfaces`, `/api/v2/status/services`, `/api/v2/system/version`, `/api/v2/diagnostics/arp_table`, `/api/v2/firewall/states`, and `/api/v2/firewall/states/size`. See `INTEGRATION-STATUS.md`.
 

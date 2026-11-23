@@ -116,7 +116,7 @@ The Linux agent provisions only the fixed private Tailscale Serve route to the l
 The following are not covered by the successful installation/access test and must not be represented as complete:
 
 - A second real firewall, including the deferred pfSense CE site, has not been connected and validated.
-- The first Plus firewall's historical eight-endpoint diagnostic test used a temporary TLS verification bypass. The application enforces TLS, but a separately recorded, trusted certificate validation against that firewall remains outstanding.
+- The first Plus firewall's historical eight-endpoint diagnostic test used a temporary TLS verification bypass. That bypass is historical: on November 23, 2026 the manager client collected all eight operations over a validating TLS connection using a device-scoped CA bundle and a pinned server name, so a separate trusted-certificate validation is no longer outstanding. See section 15.2.
 - The exact installed pfSense REST API package version is not recorded.
 - Background polling scheduling, bounded concurrency, retry/backoff, and continuous alert generation are not implemented as a production scheduler. Some polling is request-triggered.
 - Firewall configuration-changing operations are not implemented or authorized. The integration remains a fixed read-only GET allowlist.
@@ -303,3 +303,16 @@ After the API image was rebuilt, an authenticated session loaded the site list a
 - Regression guard: the repository tests now assert that the compatibility projection is `id AS device_id` from `managed_devices`.
 
 **Lesson recorded:** a mocked `Pool` proves mapping logic, not SQL validity. Any new statement against `managed_devices`, `poll_runs`, `device_credentials`, `device_tls_trust`, or `alerts` is now checked against the live schema before the image is rebuilt.
+
+### 15.2 Trusted TLS connection closed as a documented item
+
+The roadmap and PRD carried an open item to "verify a trusted TLS connection to the first Plus firewall without a certificate-validation bypass", inherited from the November 19 manual test that used `curl -k`. That item is now satisfied by manager evidence rather than by a new manual test:
+
+| Check | Evidence |
+|---|---|
+| Trust mode in use | `device_tls_trust` holds one encrypted CA bundle for the registered device, so the client factory selects `custom-ca` and never the legacy global CA file |
+| Certificate identity | The profile pins `tls_servername`; `apps/api/src/pfsense/client.ts` sets `checkServerIdentity` against that exact name, so an IP-addressed URL still verifies the firewall's DNS identity |
+| Verification cannot be disabled | `rejectUnauthorized: true` is unconditional in the client constructor; no option or environment value turns it off |
+| Live proof | The November 23 authenticated snapshot returned `200` with all eight operations `success` over that connection, and the inventory recorded `compatibility` `verified` |
+
+**What this does not close:** the exact REST API package version (no approved endpoint exposes it), CPU architecture reporting, the CE comparison, visual acceptance, or continuous polling. The November 19 `curl -k` diagnostic is retained in [Integration Status](INTEGRATION-STATUS.md) as history only and is no longer cited as outstanding work.

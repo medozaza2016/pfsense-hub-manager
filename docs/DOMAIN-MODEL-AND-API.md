@@ -303,7 +303,7 @@ The current integration record confirms HTTP 200 from these eight read-only endp
 | `GET /api/v2/firewall/states` | Not exposed as individual entries in initial manager API |
 | `GET /api/v2/firewall/states/size` | FirewallStateSummary |
 
-The verified first firewall is a Netgate 2100 running pfSense Plus 26.07.2-RELEASE on ARM Cortex-A53. The exact REST API package version is not yet recorded. The successful tests used temporary TLS certificate verification bypass because the certificate was self-signed. Production adapter work must not proceed with TLS verification disabled.
+The verified first firewall is a Netgate 2100 running pfSense Plus 26.07.2-RELEASE on ARM Cortex-A53. The exact REST API package version is not yet recorded. The original successful manual tests used temporary TLS certificate verification bypass because the certificate was self-signed; that bypass is historical. The manager client now connects to this device with validation enabled, using a device-scoped CA bundle and a pinned TLS server name, and collected all eight approved operations over that connection on November 23, 2026.
 
 The supplied REST API permission inventory contains many additional methods, including configuration-changing methods. Their presence in that inventory does not make them part of this contract or authorize their use.
 

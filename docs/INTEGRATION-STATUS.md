@@ -1,8 +1,8 @@
 # Integration Status
 
-**Firewall integration last verified:** 2026-11-19 (America/New_York; command output timestamps were 2026-11-20 UTC)  
+**Firewall integration last verified:** 2026-11-19 manual endpoint test (America/New_York; command output timestamps were 2026-11-20 UTC); manager-verified snapshot November 23, 2026  
 **Application/install verification:** November 22, 2026  
-**Status:** First pfSense Plus REST API connection historically verified; current manager supports per-device profiles and GUI onboarding, but wider device compatibility remains unverified.  
+**Status:** First pfSense Plus REST API connection historically verified by manual test and now verified through the manager client with TLS validation enabled; current manager supports per-device profiles and GUI onboarding, but wider device compatibility remains unverified.  
 **Active implementation branch:** `main` (the `feature/multi-site-onboarding` work is merged)  
 **Environment:** Prepared Debian 13 Proxmox LXC, plus Windows 11 local development
 
@@ -67,7 +67,7 @@ Do not copy a real key into shell history, source files, issue comments, logs, o
 
 ## Known limitations and pending work
 
-1. Replace temporary certificate bypass with verified TLS trust.
+1. ~~Replace temporary certificate bypass with verified TLS trust.~~ Satisfied for the manager path on November 23, 2026: the manager client validates TLS with a device-scoped CA bundle and pinned server name (`rejectUnauthorized: true`, no insecure fallback). The November 19 `curl -k` test remains history only.
 2. Record the exact REST API package version and confirm compatibility for the installed Plus release and ARM architecture.
 3. Test the corresponding endpoints on pfSense CE when that firewall is connected.
 4. Investigate why the manager LXC cannot reach the public hostname on port 443, if that hostname is needed for the final design.
@@ -84,7 +84,7 @@ The existing 172.10.x.x addressing is intentionally being left unchanged for thi
 
 The repository now contains an initial Fastify backend provider wired to exactly the eight GET paths above. The manager API's read-only overview route invokes these operations sequentially, records per-operation outcome and duration in PostgreSQL, and emits bounded Prometheus metrics. ARP and firewall-state response rows are reduced to counts when the upstream data is an array; the raw rows are not returned or stored. System, gateway, interface, and service payloads are not exposed as raw records by the provider; only collection indicators/counts are returned. The state-size and version responses are included for initial inspection.
 
-This application implementation has since been built and deployed on the Linux LXC. The clean-install and Hub access evidence is recorded below and in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md). This project uses operator-run local checks; no hosted CI workflow is used in the current workflow. This application deployment result does not change the historical firewall TLS limitation above: the first Plus firewall's diagnostic curl test bypassed certificate validation, and a separately recorded trusted-certificate connection test against that firewall remains outstanding.
+This application implementation has since been built and deployed on the Linux LXC. The clean-install and Hub access evidence is recorded below and in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md). This project uses operator-run local checks; no hosted CI workflow is used in the current workflow. The historical firewall TLS limitation above is now superseded for the manager path: the first Plus firewall's diagnostic `curl` test bypassed certificate validation, but the manager client validates TLS with a device-scoped CA bundle and pinned server name and completed a full eight-operation collection over that connection on November 23, 2026. See the manager-verified section below.
 
 
 ## Local application verification update, November 22, 2026
@@ -133,7 +133,7 @@ This section describes code capability separately from the historical live test 
 ### Current limitations
 
 - No second real firewall has been registered and validated as part of this closeout. The deferred CE firewall remains unconnected.
-- The capability endpoint reports the implementation's fixed operation list; this does not prove compatibility across every Plus/CE release or API package version.
+- The capability view is derived from each device's own recorded `poll_runs` (DEC-042), not from a hard-coded list: `supported: false` only for `unsupported`, `authorization`, and `authentication` refusals, `supported: null` for transport/TLS/rate-limit/schema failures, and `unverified` for a device with no polling history. This still does not prove compatibility across every Plus/CE release or API package version.
 - The background polling scheduler, bounded concurrency, retry/backoff, and continuous alert production are not implemented as a production scheduler. Some collection and alert generation is request-triggered.
 - Several firewall-domain UI pages still contain preview fixtures rather than live device-specific data.
 - Audit/alert retention, database backup/restore, and disaster recovery require separate policy and drills.
@@ -151,6 +151,18 @@ This section describes code capability separately from the historical live test 
 
 ### Firewall integration verification status
 
-The first Plus firewall has a historical diagnostic record of eight successful GET calls, but that test used a self-signed certificate with temporary curl certificate bypass. The application client enforces TLS verification; a separately recorded trusted-certificate validation against that firewall remains pending. The installed REST API package version is not recorded. The second CE firewall remains intentionally deferred.
+The first Plus firewall has a historical diagnostic record of eight successful GET calls made with a self-signed certificate and temporary `curl` certificate bypass. That bypass is historical only. On November 23, 2026 the manager itself collected all eight operations over a **validating** TLS connection: the registered `pfsense-HOME` profile stores a device-scoped CA bundle and pins the TLS server name, and `apps/api/src/pfsense/client.ts` always sets `rejectUnauthorized: true` with `checkServerIdentity` pinned to that name. No insecure fallback exists in the client. The installed REST API package version is still not recorded (no approved endpoint exposes it), and the second CE firewall remains intentionally deferred.
 
 The application and Hub access installation verification is not evidence that two real firewall devices or all supported pfSense editions have been validated.
+
+## Manager-verified site telemetry, November 23, 2026
+
+DEC-042 replaced the illustrative fixtures on Overview, Monitoring, Interfaces, Gateways, Services, and Compatibility with one sanitized contract, `GET /api/v1/devices/:deviceId/snapshot`. This section records what the manager itself observed; the earlier sections describe the manual `curl` test.
+
+- The registered device is `pfsense-HOME`, edition `plus`, origin `https://172.10.50.1:10443`, pinned TLS server name, custom CA bundle present, enabled, not demo.
+- A live authenticated session produced a full snapshot: all eight operations recorded `success` in `poll_runs`, and no polling alert was raised.
+- Compatibility metadata now appears in the inventory: `release` `26.07.2-RELEASE`, `platform` `Netgate 2100`, `compatibility` `verified`, `apiPackageVersion` `null`. Architecture is not reported because no approved endpoint supplies it.
+- ARP and firewall-state responses contribute counts and a state limit only; serial numbers, Netgate IDs, MAC addresses, hardware interface names, monitor/source addresses, and counters are not modeled in the manager, so they cannot be returned, logged, or persisted.
+- The same session exposed a defect: the compatibility queries projected `device_id` from `managed_devices`, whose key is `id`, so `GET /api/v1/devices` returned `500` and the site list failed to load. The projection is now `id AS device_id`, the SQL was executed against the live schema before the image rebuild, and the repository tests pin the projection. See [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md) section 15.1.
+
+Still unverified after this session: a CE comparison, page-by-page visual acceptance against the approved mockup, and any continuous background polling — collection is still request-triggered through the snapshot route and its 10-second cache.

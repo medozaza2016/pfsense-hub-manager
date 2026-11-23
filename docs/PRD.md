@@ -115,7 +115,7 @@ The pfSense REST API discussed for this project is community-maintained and unof
 
 The first tested Plus firewall is a Netgate 2100 with an ARM Cortex-A53 processor and two CPU cores. Its reported pfSense release was 26.07.2-RELEASE. The exact REST API package version has not yet been recorded. ARM package availability and runtime behavior must be verified rather than assumed.
 
-The first integration used a dedicated regular user named pfsense_hub with an API key and eight GET privileges. All eight selected endpoints returned HTTP 200 from the manager LXC. The direct-IP certificate was self-signed and TLS verification was bypassed for diagnostics only. Production use requires verified TLS.
+The first integration used a dedicated regular user named pfsense_hub with an API key and eight GET privileges. All eight selected endpoints returned HTTP 200 from the manager LXC. The direct-IP certificate was self-signed and the historical manual test bypassed TLS verification for diagnostics only. Production use requires verified TLS, and the manager client now satisfies that: on November 23, 2026 it collected all eight operations over a validating connection using a device-scoped CA bundle and a pinned TLS server name, with `rejectUnauthorized: true` and no insecure fallback.
 
 The application must not expose firewall API endpoints to the public internet by default. A VPN or other private management path is preferred. The current manager-to-Plus test uses 172.10.50.1:10443. The second CE firewall is not yet connected, by design.
 
@@ -124,7 +124,7 @@ The application must not expose firewall API endpoints to the public internet by
 The first milestone is acceptable when:
 1. The repository contains approved architecture and security decisions.
 2. A firewall can be registered without storing credentials in frontend code or source control.
-3. The backend can establish a verified, secure connection to a test firewall over the approved network path.
+3. The backend can establish a verified, secure connection to a test firewall over the approved network path. *(Satisfied November 23, 2026 by a manager-collected snapshot over a validating TLS connection with a device-scoped CA bundle and pinned server name; see [Integration Status](INTEGRATION-STATUS.md).)*
 4. The application can report connection state and distinguish common failure categories.
 5. The application can retrieve a small, explicitly selected set of read-only information from a supported device.
 6. Unsupported edition/version capabilities are reported clearly.
@@ -163,7 +163,7 @@ As of 2026-11-19 (America/New_York), the manager LXC named pfsense-hub-manager s
 
 The API key and firewall serial/Netgate identifiers are intentionally not included in this repository. The diagnostic TLS bypass and public-hostname timeout are documented in docs/INTEGRATION-STATUS.md. The 172.10.x.x addressing is being retained for now at the user's direction. The second pfSense CE firewall connection is deferred until the user is ready.
 
-The frontend stack (React, TypeScript, Vite) and separate Node.js/TypeScript REST backend have been approved. The application scaffold is the next implementation step. See docs/ROADMAP.md for the remaining work and docs/DECISIONS.md for confirmed decisions versus open architecture choices.
+The frontend stack (React, TypeScript, Vite) and separate Node.js/TypeScript REST backend have been approved; both are implemented and merged. For the current implementation queue see [Roadmap](ROADMAP.md) section 3.1, and for confirmed versus open choices see [Decisions](DECISIONS.md).
 
 
 ## 15. Confirmed backend and API documentation requirements
@@ -217,4 +217,4 @@ Alerts are persisted separately from audit events. The initial rule creates or u
 
 ## Current implementation note, November 22, 2026
 
-The current code and verified delivery status are summarized in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md). The product requirements above remain the intended product scope; they must not be interpreted as a claim that every requirement has been delivered. In particular, no firewall configuration-changing operation is currently implemented, the second CE firewall is deferred, and the first Plus firewall still requires a separately verified trusted TLS connection and exact API package-version record.
+The current code and verified delivery status are summarized in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md). The product requirements above remain the intended product scope; they must not be interpreted as a claim that every requirement has been delivered. In particular, no firewall configuration-changing operation is currently implemented, the second CE firewall is deferred, continuous background polling is not implemented, and the exact REST API package version remains unrecorded. The first Plus firewall's trusted TLS connection is no longer outstanding: the manager collected all eight approved operations over a validating connection on November 23, 2026.
