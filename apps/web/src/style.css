@@ -194,3 +194,22 @@
 .hub-deployment-history-row time{grid-column:1 / -1;color:#718198;font-size:10px}
 .hub-deployment-history-row small{grid-column:1 / -1;color:#a14b35;font-size:10px}
 @media(max-width:600px){.hub-deployment-history-row{grid-template-columns:1fr auto}.hub-deployment-history-row span:nth-of-type(2){grid-column:1 / -1}}
+
+
+/* Application Settings page */
+.app-settings-heading{margin-bottom:22px}
+.app-settings-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:16px}
+.app-settings-card{min-width:0;padding:20px 22px}
+.app-settings-card .panel-heading{margin-bottom:8px;padding-bottom:13px;border-bottom:1px solid #e8edf4}
+.app-settings-card .panel-heading h2{font-size:16px;font-weight:750}
+.app-setting-row{min-height:76px;padding:16px 2px}
+.app-setting-row:last-child{border-bottom:0}
+.app-setting-row>div{min-width:0;gap:6px}
+.app-setting-row strong{font-size:13px;color:#0b1e3b}
+.app-setting-row span{font-size:12px;line-height:1.45;color:#66758c}
+.app-setting-row .secondary-button{flex:none;min-width:76px;min-height:34px;font-size:11px}
+.app-setting-row .switch{flex:none;cursor:pointer}
+.app-setting-row .switch:focus-visible,.app-setting-row .secondary-button:focus-visible{outline:3px solid #1764d54d;outline-offset:2px}
+.app-settings-note{margin:14px 2px 0;color:#718096;font-size:11px;line-height:1.5}
+@media(max-width:900px){.app-settings-grid{grid-template-columns:1fr;gap:12px}.app-settings-card{padding:16px 18px}}
+@media(max-width:560px){.app-settings-heading{margin-bottom:14px}.app-setting-row{min-height:68px;padding:13px 0}.app-setting-row strong{font-size:12px}.app-setting-row span{font-size:11px}.app-setting-row .secondary-button{min-width:68px;padding:7px 9px}}
