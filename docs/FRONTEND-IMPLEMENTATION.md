@@ -80,6 +80,14 @@ The clean Debian 13 install built the web image successfully. The user completed
 
 This is not a full visual acceptance pass for every screen, navigation item, modal, and viewport. Do not state that every page has been compared one-to-one against the approved mockup. Exact evidence and remaining gaps are in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 
+## Application Settings frontend placeholder status
+
+The Application Settings frontend placeholder is implemented on main in apps/web/src/App.tsx and apps/web/src/style.css. It follows DEC-035 and contains only the approved General and Preferences cards. The layout uses two columns on desktop and stacks at narrower breakpoints. The three preference switches update local React state only. The Application name Edit and Display timezone Change actions are placeholders that report the corresponding workflows are not available yet.
+
+**Frontend milestone:** Implemented. **Functional workflows:** Pending. No Application Settings value is currently persisted to PostgreSQL or enforced by an API, scheduler, notification service, or protected-action backend policy. Do not describe these controls as operational. The remaining workflow scope and acceptance boundary are tracked in Application Settings page redesign and Roadmap.
+
+Browser visual and interaction acceptance across desktop, tablet, and mobile remains pending. The implementation status above is based on source inspection, not a claim that a new browser test pass was performed in this documentation update.
+
 ## Platform boundary
 
 Windows 11 with VS Code and Docker Desktop is the local development platform. It runs the frontend and API but does not run the production Linux systemd Host Agent. Automatic host access deployment is Linux-only. A Windows host deployment adapter is not implemented.
