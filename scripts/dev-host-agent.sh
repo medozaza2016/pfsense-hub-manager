@@ -36,6 +36,32 @@ fail() {
   exit 1
 }
 
+# Read a process command line without leaking race noise when a process exits
+# between the /proc listing and the read.
+read_cmdline() {
+  { tr -d '\0' < "/proc/$1/cmdline"; } 2>/dev/null || true
+}
+
+# Identify the running agent by its exact command line, not by the pid file
+# alone: the process detaches into its own session, so the pid file can be lost
+# while the agent is still running, and a stale pid file would otherwise make
+# this harness delete a live agent's socket.
+scan_pid() {
+  local dir=""
+  local pid=""
+  local cmdline=""
+  for dir in /proc/[0-9]*; do
+    pid="${dir#/proc/}"
+    [[ "$pid" == "$$" ]] && continue
+    cmdline="$(read_cmdline "$pid")"
+    [[ -n "$cmdline" ]] || continue
+    case "$cmdline" in
+      *pfsense_hub_agent.py*--config*"$CONFIG"*) echo "$pid"; return 0 ;;
+    esac
+  done
+  return 0
+}
+
 detect_pid() {
   local pid=""
   local cmdline=""
@@ -43,10 +69,17 @@ detect_pid() {
     pid="$(cat "$PID_FILE" 2>/dev/null || true)"
   fi
   if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-    cmdline="$(tr -d '\0' < "/proc/$pid/cmdline" 2>/dev/null || true)"
+    cmdline="$(read_cmdline "$pid")"
     if [[ "$cmdline" == *pfsense_hub_agent.py* ]]; then
       echo "$pid"
+      return 0
     fi
+  fi
+  pid="$(scan_pid)"
+  if [[ -n "$pid" ]]; then
+    mkdir -p "$STATE_DIR"
+    echo "$pid" > "$PID_FILE" 2>/dev/null || true
+    echo "$pid"
   fi
   return 0
 }
@@ -69,16 +102,21 @@ start_agent() {
   chmod 0755 "$STATE_DIR"
   rm -f "$SOCKET" "$PID_FILE"
   : > "$LOG"
-  nohup /usr/bin/python3 "$AGENT" --config "$CONFIG" >>"$LOG" 2>&1 &
-  local agent_pid="$!"
-  echo "$agent_pid" > "$PID_FILE"
+  # setsid puts the agent in its own session and process group. Without it the
+  # agent inherits the launching shell's process group and dies when that
+  # terminal or tool session is torn down, leaving a stale socket that makes the
+  # API report HOST_AGENT_UNAVAILABLE.
+  if command -v setsid >/dev/null 2>&1; then
+    setsid /usr/bin/python3 "$AGENT" --config "$CONFIG" >>"$LOG" 2>&1 </dev/null &
+  else
+    nohup /usr/bin/python3 "$AGENT" --config "$CONFIG" >>"$LOG" 2>&1 </dev/null &
+  fi
 
+  local agent_pid=""
   local attempt
   for attempt in $(seq 1 20); do
-    if ! kill -0 "$agent_pid" 2>/dev/null; then
-      break
-    fi
-    if [[ -S "$SOCKET" ]]; then
+    agent_pid="$(detect_pid)"
+    if [[ -n "$agent_pid" && -S "$SOCKET" ]]; then
       echo "Host Agent started (pid $agent_pid)."
       echo "Socket: $SOCKET"
       echo "Log:    $LOG"
@@ -99,7 +137,9 @@ stop_agent() {
   local pid
   pid="$(detect_pid)"
   if [[ -z "$pid" ]]; then
-    rm -f "$PID_FILE"
+    # A socket without a live agent is stale: the API would report
+    # HOST_AGENT_UNAVAILABLE for a Hub that simply has no agent running.
+    rm -f "$PID_FILE" "$SOCKET"
     echo "Host Agent is not running."
     return 0
   fi
@@ -107,14 +147,14 @@ stop_agent() {
   local attempt
   for attempt in $(seq 1 20); do
     if ! kill -0 "$pid" 2>/dev/null; then
-      rm -f "$PID_FILE"
+      rm -f "$PID_FILE" "$SOCKET"
       echo "Host Agent stopped."
       return 0
     fi
     sleep 0.5
   done
   kill -9 "$pid" 2>/dev/null || true
-  rm -f "$PID_FILE"
+  rm -f "$PID_FILE" "$SOCKET"
   echo "Host Agent stopped."
 }
 
@@ -132,7 +172,12 @@ show_status() {
     echo "Configuration: missing ($CONFIG)"
   fi
   if [[ -S "$SOCKET" ]]; then
-    echo "Socket: present ($(stat -c '%U:%G %a' "$SOCKET"))"
+    if [[ -n "$pid" ]]; then
+      echo "Socket: present ($(stat -c '%U:%G %a' "$SOCKET"))"
+    else
+      echo "Socket: stale, no agent process ($(stat -c '%U:%G %a' "$SOCKET"))"
+      echo "        Start it with: bash $0 start"
+    fi
   else
     echo "Socket: missing"
   fi

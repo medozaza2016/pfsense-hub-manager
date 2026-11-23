@@ -282,6 +282,8 @@ bash scripts/dev-host-agent.sh stop
 
 The socket is `run/host-agent/agent.sock` and the log is `run/host-agent/agent.log`, both inside the checkout; neither is committed.
 
+`start` launches the agent in its own session, so it keeps running after the terminal that started it closes. It is still not a service: it does not survive a reboot, and while it is stopped the Hub reports `HOST_AGENT_UNAVAILABLE` for every deployment request. `status` distinguishes a running agent from a socket left behind by one that died, and `stop` removes a stale socket. If a deployment fails with `HOST_AGENT_UNAVAILABLE`, run `bash scripts/dev-host-agent.sh status` and then `start`.
+
 Tailscale Serve needs a one-time operator delegation, because `tailscale serve` refuses to run unprivileged otherwise:
 
 ```bash
