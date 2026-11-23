@@ -1,7 +1,7 @@
 # Frontend implementation and coverage
 
 **Last reconciled:** November 22, 2026  
-**Active branch:** `feature/multi-site-onboarding`
+**Active branch:** `main`
 
 ## Visual authority
 
@@ -23,7 +23,8 @@ The frontend is a React/TypeScript/Vite application. It uses the existing backen
 - **User Management:** API-backed user listing, creation, role/status changes, and password reset flows.
 - **Audit Logs:** API-backed audit events with sanitized metadata.
 - **Hub Settings:** Local, Tailscale, and Custom access method tabs, deployment state, revision tracking, last-verified recovery address, and recent deployment history.
-- **Application Settings:** application preference/security UI; do not assume all settings imply external integrations or infrastructure provisioning.
+- **Application Settings:** approved two-card General and Preferences frontend placeholder (DEC-035); values and switches are not persisted or enforced.
+- **System Monitoring & Recovery:** frontend-only Administration preview merged in PR #10; see [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md).
 
 ### Site workspace and data boundary
 
@@ -112,3 +113,27 @@ At desktop widths the cards sit side by side; at tablet and mobile widths they s
 **Scope:** Do not add System Information, Maintenance, Backup & Restore, or host/Docker controls to this page as part of this design increment. Do not create API routes, migrations, background jobs, notification providers, or backend enforcement in the visual redesign. Track that work in the future functional items in [Roadmap](ROADMAP.md).
 
 **Acceptance:** Match the supplied mockup's page title/subtitle, two-card structure, labels, descriptions, actions, alignment, and responsive behavior. Verify keyboard operation, visible focus, accessible switch labels, and no horizontal overflow at narrow widths. Browser visual acceptance remains pending until the redesigned page is implemented and tested.
+
+
+## System Monitoring & Recovery frontend preview
+
+**Status:** Frontend placeholder merged to `main` through [PR #10](https://github.com/medozaza2016/pfsense-hub-manager/pull/10). Functional host integration is not implemented.
+
+The page is a separate Administration destination at `/settings/system-recovery`. It must not be folded into Application Settings or confused with per-firewall/site Monitoring.
+
+The current UI includes:
+
+- Host resource cards for CPU utilization, memory utilization, disk utilization, and host uptime. All values are intentionally unavailable until a trusted host-agent data path exists.
+- A Docker Compose service list limited to Web, API, and PostgreSQL. Each service shows an unknown/not-connected state and disabled Start, Stop, and Restart controls.
+- A service-log panel with a disabled service selector/refresh action and an unavailable state.
+- A Compose configuration validation panel with a disabled action and no implied successful validation.
+- Whole-stack Start, Stop, and Restart controls, all disabled.
+- Host-side recovery guidance and a warning that stopping the stack makes the GUI unavailable.
+- A notice that code-server is excluded from the monitoring and operations allowlist.
+- A note that admin and user roles may view status, while operational actions are administrator-only and must be enforced by the API/host boundary.
+
+The preview deliberately uses placeholders instead of invented metrics or service states. It does not execute shell commands, invoke Docker, query the Host Agent, retrieve logs, or validate Compose. The page's disabled controls are not security enforcement; backend authorization and a narrowly scoped host-side management boundary are mandatory before enabling any action.
+
+**Observed verification boundary:** Source inspection confirms the route, navigation item, page renderer, and disabled preview controls exist on `main`. The user's screenshot of Application Settings did not display the System Monitoring & Recovery navigation item, so the running browser build has not yet been confirmed to contain the merged commit. Browser testing and responsive visual acceptance remain pending. No build or test run is claimed for this documentation update.
+
+See [System Monitoring & Recovery requirements and implementation plan](SYSTEM-MONITORING-RECOVERY.md) and DEC-026/DEC-027 for the complete approved scope and security boundaries.
