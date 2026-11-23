@@ -1,12 +1,12 @@
 # Roadmap
 
 **Last reconciled:** November 22, 2026  
-**Active branch:** `feature/multi-site-onboarding`  
-**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are implemented and locally verified. This branch has not been merged into `main`.
+**Active branch:** `main`  
+**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. The Application Settings visual placeholder and System Monitoring & Recovery frontend preview are also merged. Their future functional workflows and browser acceptance remain tracked below.
 
 This roadmap is the current planning source. For exact command output, test counts, skipped tests, clean-install evidence, and known verification gaps, see [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 
-## 1. Delivered on the active feature branch
+## 1. Delivered on `main`
 
 ### Hub application and manager administration
 
@@ -39,6 +39,8 @@ This roadmap is the current planning source. For exact command output, test coun
 - [x] Linux Host Agent supports assigned-interface validation, fixed web-only Compose operations, HTTPS verification, rollback, and the fixed private Tailscale Serve route.
 - [x] Hub Settings displays deployment state/history, last verified origin, and phase-specific save-button progress.
 - [x] Clean Debian 13 installation completed; all three containers healthy and the API-to-agent handshake verified.
+- [x] Application Settings frontend placeholder delivered with the approved General and Preferences cards (DEC-035). Functional workflows remain deferred.
+- [x] System Monitoring & Recovery frontend preview merged in PR #10. The page is separate from Application Settings and is explicitly not connected to live host data or operational controls.
 - [x] Tailscale MagicDNS endpoint successfully applied and browser-verified at configuration revision 2 / applied revision 2.
 
 ## 2. Verification completed
@@ -109,8 +111,8 @@ These are real gaps; do not describe them as completed.
 
 ## 5. Development and delivery workflow
 
-- The active implementation and documentation branch is `feature/multi-site-onboarding`.
-- The branch has not been merged into `main`. Do not merge, delete, or change branches without explicit user authorization.
+- The current working baseline is `main`, consistent with DEC-029 and DEC-030.
+- Create a dedicated feature branch for the next implementation only when authorized. Do not delete existing branches without separate review.
 - Hosted CI workflows are not used in the current project workflow. Run local checks and record exact outcomes.
 - Windows local validation from the repository root:
 
@@ -150,3 +152,42 @@ The approved page scope follows the supplied mockup: one **General** card and on
 - [ ] Future phase: define settings authorization, persistence, validation, audit requirements, and automated tests.
 
 **Implementation boundary:** This documentation/design milestone does not add API routes, database migrations, scheduler jobs, email delivery, or backend security enforcement. Functional wiring is explicitly deferred to the future items above.
+
+
+## System Monitoring & Recovery frontend preview, November 22, 2026
+
+**Delivery:** Merged into `main` through [PR #10](https://github.com/medozaza2016/pfsense-hub-manager/pull/10), squash merge commit `9a55bfc4c7e5e165b16881f752232168558fcae6`.
+
+The new Administration page is routed at `/settings/system-recovery` and appears as **System Monitoring & Recovery** in the Administration navigation. It is a frontend-only placeholder implementing the visible structure approved by DEC-026 and DEC-027. It does not call a host agent, read live metrics, retrieve logs, validate Compose, or execute Docker operations.
+
+Delivered UI sections:
+
+- [x] Dedicated Administration navigation item and route, separate from Application Settings and site-level Monitoring.
+- [x] Host resources: CPU, memory, disk, and host uptime cards. Values display an em dash and **No live data**; host agent connection is pending.
+- [x] Docker Compose service health for Web, API, and PostgreSQL, with unknown/not-connected status and disabled Start, Stop, and Restart controls.
+- [x] Service logs panel with a service selector and disabled refresh action, plus an explicit unavailable state.
+- [x] Compose configuration validation panel with a disabled validation action and no fabricated result.
+- [x] Whole-stack Start, Stop, and Restart controls shown disabled.
+- [x] Recovery guidance describing host access, project inspection, stack restoration, and post-recovery verification.
+- [x] Visible warning that stopping the stack makes the GUI unavailable and recovery must be performed from the host using Docker Desktop or Docker CLI.
+- [x] Explicit exclusion of browser-based code-server from the service allowlist.
+- [x] Visible access-model note: authenticated admin and user accounts may view status; operational controls are admin-only and require server-side authorization.
+- [x] Responsive presentation styles added for narrower screens.
+
+**Validation status:** Source inspection confirms the route, navigation item, page renderer, placeholder states, and disabled controls are present on `main`. The user's November 22 screenshot showed the Application Settings page, but did not show the new System Monitoring & Recovery navigation item. The runtime/build shown in that screenshot has not been confirmed to include the merged `main` commit. Browser verification of the new page and desktop/tablet/mobile visual acceptance remain pending. No new typecheck, test, or production build was run as part of this documentation update.
+
+### Future implementation work
+
+- [ ] Build the narrow Linux Host Agent interface for resource metrics, fixed service health, bounded log retrieval, Compose validation, and allowlisted service/stack operations.
+- [ ] Define the exact resource metric sources, units, sampling interval, refresh behavior, unavailable/error states, and retention (if any).
+- [ ] Define bounded log limits, redaction of secrets, output truncation, and permitted service identifiers.
+- [ ] Enforce the fixed project and service allowlists in the host-side boundary. Never mount the Docker socket into web/API containers or expose arbitrary shell/Compose execution.
+- [ ] Implement server-side authentication and role enforcement: authenticated admin/user may view status; only admin may invoke operational actions. Unauthenticated requests must be denied.
+- [ ] Implement and audit individual service start/stop/restart, whole-stack start/stop/restart, and Compose validation. Do not implement volume deletion.
+- [ ] Define operation lifecycle states, timeouts, concurrency/serialization, error reporting, and recovery behavior.
+- [ ] Document and test host-side recovery when the whole stack is stopped and the GUI is unavailable.
+- [ ] Add API/Host Agent unit and integration tests, including unauthorized role attempts, unknown service/project rejection, command allowlist enforcement, log redaction, and failure/timeout behavior.
+- [ ] Perform browser visual and interaction acceptance at desktop, tablet, and mobile widths after the runtime is rebuilt from the merged `main` branch.
+- [ ] Review rebuild/recreate, image updates, destructive database maintenance, and broader host management separately before considering them. They are not part of the approved initial scope.
+
+**Operational boundary:** The current merge is UI only. It does not add backend routes, database migrations, Host Agent commands, Docker socket access, or enabled operational actions. DEC-026 and DEC-027 remain the binding requirements for the future implementation.
