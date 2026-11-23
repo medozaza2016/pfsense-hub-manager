@@ -4,7 +4,7 @@
 **Decision:** DEC-031, DEC-032, and DEC-036
 **Implementation status:** The active feature branch supports a single-entry Linux installation on a clean Debian 13/systemd host. The main installer provisions the Hub and standard Host Agent, verifies their connection, and enables GUI-managed access deployment after health checks. A clean install completed successfully, and Hub Settings reported the Tailscale endpoint verified with desired and applied revision 2. The same script also provides an unprivileged `--local` development mode that starts the Hub from any checkout path without the Host Agent. Windows/Linux install-script parity is not claimed: Windows Docker Desktop is the local development platform and does not run the Linux systemd Host Agent. Reboot/restore, backup recovery, and migration acceptance remain outstanding.
 
-**Operator procedure:** Use the [Prepared Proxmox LXC quick start](DEPLOYMENT.md#prepared-proxmox-lxc-quick-start) for the standard two-command path. Use [Fresh Linux Host Setup](DEPLOYMENT.md#fresh-linux-host-setup) only for a plain Linux machine that still needs host prerequisites or Docker. This document records lifecycle requirements and acceptance criteria.
+**Operator procedure:** Use the [Prepared Proxmox LXC quick start](DEPLOYMENT.md#prepared-proxmox-lxc-quick-start-recommended) for the standard two-command path. Use [Fresh Linux Host Setup](DEPLOYMENT.md#fresh-linux-host-setup) only for a plain Linux machine that still needs host prerequisites or Docker. This document records lifecycle requirements and acceptance criteria.
 
 ## 1. Core installation rule
 

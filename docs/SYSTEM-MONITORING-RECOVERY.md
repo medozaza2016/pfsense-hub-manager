@@ -10,7 +10,7 @@ Provide a simple **System Monitoring & Recovery** area in the existing Administr
 
 This is distinct from:
 
-- **Application Settings**, which remains limited to the General and Preferences cards defined by DEC-035.
+- **Hub-wide application preferences**, which do not exist. The former Application Settings page was retired by DEC-041: application name and display timezone are not implemented, and Hub-wide polling, notification delivery, and confirmation preferences are not exposed as settings.
 - **Site Monitoring**, which concerns an individual managed pfSense firewall.
 
 The frontend route is `/settings/system-recovery`, with an Administration navigation item named **System Monitoring & Recovery**.
@@ -37,7 +37,7 @@ The page never fabricates resource values, service health, logs, validation resu
 
 The mobile bottom bar in the Hub context shows **Overview**, **Sites**, **Connectivity**, **Alerts**, and **System monitoring**. The former fifth tab, labelled *Settings*, is replaced because it matched no page and did nothing when tapped. The **System monitoring** tab opens `/settings/system-recovery` and is shown as selected whenever that page is active.
 
-Hub Settings, User Management, Audit Logs, and Application Settings remain reachable from the navigation menu, which the top-bar menu button opens. Site-level tabs are unchanged: Overview, Monitoring, Interfaces, Rules, and More.
+Hub Settings, User Management, and Audit Logs remain reachable from the navigation menu, which the top-bar menu button opens; the former Application Settings entry was retired by DEC-041. Site-level tabs are unchanged: Overview, Monitoring, Interfaces, Rules, and More.
 
 ## 3. Approved initial functional scope
 

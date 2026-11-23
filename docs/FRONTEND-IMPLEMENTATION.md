@@ -23,7 +23,7 @@ The frontend is a React/TypeScript/Vite application. It uses the existing backen
 - **User Management:** API-backed user listing, creation, role/status changes, and password reset flows.
 - **Audit Logs:** API-backed audit events with sanitized metadata.
 - **Hub Settings:** Local, Tailscale, and Custom access method tabs, deployment state, revision tracking, last-verified recovery address, and recent deployment history.
-- **Application Settings:** approved two-card General and Preferences frontend placeholder (DEC-035); values and switches are not persisted or enforced.
+- **Application Settings:** retired November 23, 2026 (DEC-041). The Administration entry, the `/settings/application` route, and the preview cards were removed; `/settings/application` now redirects to `/settings/hub`.
 - **System Monitoring & Recovery:** live Administration page at `/settings/system-recovery`, wired through the API to the restricted Host Agent (DEC-039). Also the Hub mobile **System monitoring** tab (DEC-040). See [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md).
 
 ### Site workspace and data boundary
@@ -81,15 +81,19 @@ The clean Debian 13 install built the web image successfully. The user completed
 
 This is not a full visual acceptance pass for every screen, navigation item, modal, and viewport. Do not state that every page has been compared one-to-one against the approved mockup. Exact evidence and remaining gaps are in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 
-## Application Settings frontend placeholder status
+## Application Settings retirement, November 23, 2026
 
-The Application Settings frontend placeholder is implemented on main in apps/web/src/App.tsx and apps/web/src/style.css. It follows DEC-035 and contains only the approved General and Preferences cards. The layout uses two columns on desktop and stacks at narrower breakpoints. The three preference switches update local React state only. The Application name Edit and Display timezone Change actions are placeholders that report the corresponding workflows are not available yet.
+The Hub-wide **Application Settings** page is retired by [DEC-041](DECISIONS.md#dec-041-retire-the-hub-wide-application-settings-page). It had no PRD requirement, and its five approved rows duplicated capabilities owned by Hub Settings (FR-13, DEC-025, DEC-033), the managed-site lifecycle (DEC-031), User Management and Audit Logs (DEC-028), or System Monitoring & Recovery (DEC-039), or described capabilities the project explicitly defers.
 
-**Frontend milestone:** Implemented. **Functional workflows:** Pending. No Application Settings value is currently persisted to PostgreSQL or enforced by an API, scheduler, notification service, or protected-action backend policy. Do not describe these controls as operational. The remaining workflow scope and acceptance boundary are tracked in Application Settings page redesign and Roadmap.
+Removed from `apps/web/src/App.tsx`: the Administration navigation entry, the `app-settings` page identifier, the `page === "app-settings"` render branch, the `pageTitle` value that fed only that branch, the `/settings/application` route-map entry, the placeholder settings card component, and its local toggle state. Removed from `apps/web/src/style.css`: the page-specific `.app-settings-*` and `.app-setting-row` rules. The `.switch` rules stay because User Management uses them for account status; the generic `.settings-grid` and `.settings-row` helpers are now unused and are left for a separate stylesheet cleanup.
 
-**Scope under review:** the product requirement for this page is not settled. The PRD defines no Application Settings requirement; Hub access configuration belongs to Hub Settings (PRD FR-13, DEC-025, DEC-033); per-site polling belongs to the site; and notification delivery, background scheduling, and confirmation enforcement are separately deferred capabilities. DEC-035 approves the page's visual structure only. Whether the page stays, is reduced, or is retired is an open decision recorded in [DECISIONS](DECISIONS.md) and evaluated in [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md#necessity-and-scope-evaluation-november-23-2026). Do not implement settings persistence or enforcement until that question is answered.
+The same placeholder block had also been reused inside Site Settings under a *Site preferences* heading, where it displayed Hub-wide values (application name, display timezone, a global confirmation switch) on a per-site page. It was removed with the page, so no fabricated preference switch remains anywhere in the interface. Site Settings keeps its Device profile panel and its existing edit, enable/disable, credentials/TLS, and archive actions.
 
-Browser visual and interaction acceptance across desktop, tablet, and mobile remains pending. The implementation status above is based on source inspection, not a claim that a new browser test pass was performed in this documentation update.
+`/settings/application` redirects to `/settings/hub` with a history replacement rather than silently resolving to the Hub overview, so an existing bookmark lands on a real page.
+
+**Not implemented:** application name and display timezone are not persisted or editable anywhere. If a requirement ever needs them, they belong to the Hub configuration surface under FR-13 and need their own contract. Per-site polling stays with the managed-site lifecycle, notification delivery stays a deferred release requirement, and confirmation stays an enforced per-action policy (FR-9, DEC-031, DEC-039).
+
+**Verification:** `npm run typecheck` and `npm run build --workspace @pfsense-hub/web` both exit 0 (`index-CNcMdfiw.js`, `index-JAy8gOY-.css`), and the built bundle no longer contains the page's labels or identifiers. See [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md) section 14.
 
 ## Platform boundary
 
@@ -99,29 +103,16 @@ Windows 11 with VS Code and Docker Desktop is the local development platform. It
 
 Earlier sections of this document described the frontend-first preview phase and the pre-onboarding `main` baseline. Those were accurate when written but are superseded by the current implementation status above. Retain those historical decisions only where they explain why some screens remain preview-only.
 
-## Application Settings page redesign, November 22, 2026
+## Application Settings page redesign, November 22, 2026 (superseded)
 
-The target layout is documented in [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md) and follows the mockup supplied during the November 22 design review.
-
-The page contains exactly two cards:
-
-- **General:** Application name with an **Edit** action, and Display timezone with a **Change** action.
-- **Preferences:** Automatic polling, Email notifications, and Require confirmation, each with its supporting description and a right-aligned switch.
-
-At desktop widths the cards sit side by side; at tablet and mobile widths they stack. Preserve the existing light workspace, navy sidebar, blue action treatment, typography, spacing, and shared component conventions.
-
-**Current behavior boundary:** The preference switches are local React state only. They do not persist to PostgreSQL or control a backend service. The General actions are preview affordances, not persisted settings. The mockup's switch positions are illustrative, not approved operational defaults. The redesign must not show a successful save or imply that polling, email delivery, or confirmation enforcement is active.
-
-**Scope:** Do not add System Information, Maintenance, Backup & Restore, or host/Docker controls to this page as part of this design increment. Do not create API routes, migrations, background jobs, notification providers, or backend enforcement in the visual redesign. Track that work in the future functional items in [Roadmap](ROADMAP.md).
-
-**Acceptance:** The page matches the supplied mockup's title/subtitle, two-card structure, labels, descriptions, actions, alignment, and responsive behavior. Keyboard operation, visible focus, accessible switch labels, and narrow-width overflow still require a recorded browser pass. The functional scope is additionally blocked on the open necessity decision described above.
+The November 22 design specification for the two-card page is superseded by DEC-041 and retained in [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md) as history. The General and Preferences cards no longer exist in the interface, so their layout, labels, switch behavior, and acceptance criteria are not implementation requirements.
 
 
 ## System Monitoring & Recovery
 
 **Status:** Implemented and live-verified (DEC-039); the implemented scope is locked in [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md) section 10.
 
-The page is a separate Administration destination at `/settings/system-recovery`. It must not be folded into Application Settings or confused with per-firewall/site Monitoring. It is also the target of the fifth Hub mobile bottom-bar tab, **System monitoring** (DEC-040).
+The page is a separate Administration destination at `/settings/system-recovery`. It must not be folded into Hub Settings or confused with per-firewall/site Monitoring. It is also the target of the fifth Hub mobile bottom-bar tab, **System monitoring** (DEC-040).
 
 The page renders live host data obtained through the API from the restricted Unix-socket Host Agent:
 
@@ -143,4 +134,4 @@ See [System Monitoring & Recovery requirements and implementation plan](SYSTEM-M
 
 At widths up to 760 px the Hub context shows a five-tab bottom bar: **Overview**, **Sites**, **Connectivity**, **Alerts**, and **System monitoring**. Each tab declares its target page explicitly instead of being matched to a label, so renaming a page label cannot silently misroute a tab. The selected tab is derived from the current page and carries `aria-current="page"`; two-word labels wrap inside the 62 px bar.
 
-The previous fifth tab was labelled *Settings* and matched no page, so tapping it moved the highlight without navigating. Hub Settings, User Management, Audit Logs, and Application Settings remain reachable from the slide-in navigation menu instead. Site-context tabs are unchanged: Overview, Monitoring, Interfaces, Rules, and More. See DEC-040.
+The previous fifth tab was labelled *Settings* and matched no page, so tapping it moved the highlight without navigating. Hub Settings, User Management, and Audit Logs remain reachable from the slide-in navigation menu instead; the former Application Settings entry was retired by DEC-041. Site-context tabs are unchanged: Overview, Monitoring, Interfaces, Rules, and More. See DEC-040.

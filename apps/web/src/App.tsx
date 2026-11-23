@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { DataTable, Feedback, ListToolbar } from "./components/ui";
 import "./components/ui.css";
@@ -43,7 +43,7 @@ function Icon({name,size=18}:{name:IconName;size?:number}) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>;
 }
 
-type Page = "overview"|"sites"|"connectivity"|"alerts"|"hub-settings"|"system-recovery"|"monitoring"|"interfaces"|"rules"|"aliases"|"nat"|"routing"|"gateways"|"dhcp"|"dns"|"services"|"certificates"|"vpn"|"compatibility"|"site-settings"|"users"|"audit"|"app-settings";
+type Page = "overview"|"sites"|"connectivity"|"alerts"|"hub-settings"|"system-recovery"|"monitoring"|"interfaces"|"rules"|"aliases"|"nat"|"routing"|"gateways"|"dhcp"|"dns"|"services"|"certificates"|"vpn"|"compatibility"|"site-settings"|"users"|"audit";
 type Device = {id:string;name:string;location:string|null;edition:string;address:string;state:"online"|"offline"|"unknown";lastSeen:string;isDemo?:boolean;enabled?:boolean};
 type ManagedDeviceRecord = {id:string;name:string;location:string|null;edition:string;enabled:boolean;isDemo:boolean;connectionState:"unknown"|"reachable"|"unreachable";lastConnectionCheckAt:string|null};
 const hubNav:{id:Page;label:string;icon:IconName;section:string}[]=[
@@ -73,7 +73,6 @@ const siteNav:{id:Page;label:string;icon:IconName;section:string}[]=[
 const adminNav:{id:Page;label:string;icon:IconName}[]=[
  {id:"users",label:"User Management",icon:"sites"},
  {id:"audit",label:"Audit Logs",icon:"file"},
- {id:"app-settings",label:"Application Settings",icon:"settings"},
  {id:"system-recovery",label:"System Monitoring & Recovery",icon:"monitor"}
 ];
 const titles:Record<Page,string>=Object.fromEntries([...hubNav,...siteNav,...adminNav].map(x=>[x.id,x.label])) as Record<Page,string>;
@@ -99,8 +98,7 @@ const descriptions:Record<string,string>={
  compatibility:"API package, release and capability compatibility",
  "site-settings":"Connection details and site-specific settings",
  users:"Manage application users and access roles",
- audit:"Review security-relevant activity and administrative events",
- "app-settings":"Application preferences, security and system configuration"
+ audit:"Review security-relevant activity and administrative events"
 };
 const mockRows:Record<string,string[][]>={
  interfaces:[["WAN","1.2.3.4","1.0 Gbps","Up"],["LAN","192.168.10.1","1.0 Gbps","Up"],["OPT1","192.168.20.1","1.0 Gbps","Up"]],
@@ -132,7 +130,6 @@ export default function App(){
  const [query,setQuery]=useState("");
  const [dialog,setDialog]=useState<"add-site"|"edit-site"|"archive-site"|"connection-security"|"profile"|"none">("none");
  const {notify}=useToast();
- const [toggleStates,setToggleStates]=useState<Record<string,boolean>>({"Automatic polling":true,"Email notifications":false,"Require confirmation":true});
  const [filter,setFilter]=useState("All");
  const [refreshCount,setRefreshCount]=useState(0);
  const [formName,setFormName]=useState("");
@@ -170,13 +167,13 @@ export default function App(){
  const [mobileTab,setMobileTab]=useState("Overview");
  useEffect(()=>{if(authMode!=="ready")return;let active=true;apiRequest<ManagedDeviceRecord[]>("/api/v1/devices").then(records=>{if(!active)return;setLocalSites(records.map(record=>({id:record.id,name:record.name,location:record.location,edition:record.edition==="plus"?"Plus":record.edition==="ce"?"CE":"Unknown",address:"Not configured",state:record.connectionState==="reachable"?"online":record.connectionState==="unreachable"?"offline":"unknown",lastSeen:record.lastConnectionCheckAt?new Date(record.lastConnectionCheckAt).toLocaleString():"Awaiting verified status",isDemo:record.isDemo,enabled:record.enabled})));}).catch(error=>{if(active)notify(error instanceof Error?error.message:"Unable to load managed sites.","error");});return()=>{active=false;};},[authMode]);
  const filteredSites=useMemo(()=>localSites.filter(s=>filter==="All"||s.state===filter.toLowerCase()),[localSites,filter]);
- const hubPaths:Record<string,string>={overview:"/",sites:"/sites",connectivity:"/connectivity",alerts:"/alerts","hub-settings":"/settings/hub",users:"/settings/users",audit:"/settings/audit","app-settings":"/settings/application","system-recovery":"/settings/system-recovery"};
+ const hubPaths:Record<string,string>={overview:"/",sites:"/sites",connectivity:"/connectivity",alerts:"/alerts","hub-settings":"/settings/hub",users:"/settings/users",audit:"/settings/audit","system-recovery":"/settings/system-recovery"};
  const siteSegments:Record<string,string>={overview:"overview",monitoring:"monitoring",interfaces:"interfaces",rules:"rules",aliases:"aliases",nat:"nat",routing:"routing",gateways:"gateways",dhcp:"dhcp",dns:"dns",services:"services",certificates:"certificates",vpn:"vpn",compatibility:"compatibility","site-settings":"settings"};
  const segmentPages:Record<string,Page>=Object.fromEntries(Object.entries(siteSegments).map(([key,value])=>[value,key as Page]));
  function go(id:Page){setPage(id);setMenuOpen(false);setQuery("");routerNavigate(selected?"/sites/"+selected.id+"/"+(siteSegments[id]??"overview"):(hubPaths[id]??"/"));}
  function openSite(d:Device){setSelected(d);setPage("overview");setMenuOpen(false);routerNavigate("/sites/"+d.id+"/overview");}
  function backHub(){setSelected(null);setPage("overview");routerNavigate("/");}
- useEffect(()=>{const parts=location.pathname.split("/").filter(Boolean);if(parts[0]==="sites"&&parts.length>=2){const nextPage=segmentPages[parts[2]??"overview"]??"overview";setPage(nextPage);const found=localSites.find(site=>site.id===parts[1]);if(found)setSelected(found);else if(localSites.length)setSelected(null);return;}const hubPage:Record<string,Page>={"/":"overview","/sites":"sites","/connectivity":"connectivity","/alerts":"alerts","/settings/hub":"hub-settings","/settings/users":"users","/settings/audit":"audit","/settings/application":"app-settings","/settings/system-recovery":"system-recovery"};setPage(hubPage[location.pathname]??"overview");setSelected(null);},[location.pathname,localSites]);
+ useEffect(()=>{if(location.pathname==="/settings/application"){routerNavigate("/settings/hub",{replace:true});return;}const parts=location.pathname.split("/").filter(Boolean);if(parts[0]==="sites"&&parts.length>=2){const nextPage=segmentPages[parts[2]??"overview"]??"overview";setPage(nextPage);const found=localSites.find(site=>site.id===parts[1]);if(found)setSelected(found);else if(localSites.length)setSelected(null);return;}const hubPage:Record<string,Page>={"/":"overview","/sites":"sites","/connectivity":"connectivity","/alerts":"alerts","/settings/hub":"hub-settings","/settings/users":"users","/settings/audit":"audit","/settings/system-recovery":"system-recovery"};setPage(hubPage[location.pathname]??"overview");setSelected(null);},[location.pathname,localSites]);
  async function refresh(){try{const records=await apiRequest<ManagedDeviceRecord[]>("/api/v1/devices");setLocalSites(records.map(record=>({id:record.id,name:record.name,location:record.location,edition:record.edition==="plus"?"Plus":record.edition==="ce"?"CE":"Unknown",address:"Not configured",state:record.connectionState==="reachable"?"online":record.connectionState==="unreachable"?"offline":"unknown",lastSeen:record.isDemo?"Development sample · not connected":record.lastConnectionCheckAt?new Date(record.lastConnectionCheckAt).toLocaleString():"Awaiting verified status",isDemo:record.isDemo,enabled:record.enabled})));setRefreshCount(x=>x+1);notify("Site inventory and connection status refreshed from the Hub API.","success");}catch(error){notify(error instanceof Error?error.message:"Unable to refresh managed-site inventory.","error");}}
  async function openEditSite(site:Device){setSiteActionError("");setSiteActionBusy(true);try{const profile=await apiRequest<{id:string;name:string;location:string|null;edition:"plus"|"ce"|"unknown";apiBaseUrl:string;tlsServername:string|null}>(`/api/v1/devices/${site.id}/profile`);setEditingSite(profile);setEditName(profile.name);setEditLocation(profile.location??"");setEditEdition(profile.edition);setEditApiBaseUrl(profile.apiBaseUrl);setEditTlsServername(profile.tlsServername??"");setDialog("edit-site");}catch(error){notify(error instanceof Error?error.message:"Unable to load the site profile.","error");}finally{setSiteActionBusy(false);}}
  async function saveSiteProfile(e:React.FormEvent){e.preventDefault();if(!editingSite)return;setSiteActionError("");setSiteActionBusy(true);try{const updated=await apiRequest<{id:string;name:string;location:string|null;edition:"plus"|"ce"|"unknown";enabled:boolean}>(`/api/v1/devices/${editingSite.id}`,{method:"PATCH",body:JSON.stringify({name:editName,location:editLocation||null,edition:editEdition,apiBaseUrl:editApiBaseUrl,tlsServername:editTlsServername||null})});setLocalSites(current=>current.map(site=>site.id===updated.id?{...site,name:updated.name,location:updated.location,edition:updated.edition==="plus"?"Plus":updated.edition==="ce"?"CE":"Unknown"}:site));setSelected(current=>current?.id===updated.id?{...current,name:updated.name,location:updated.location,edition:updated.edition==="plus"?"Plus":updated.edition==="ce"?"CE":"Unknown"}:current);setDialog("none");notify("Site profile updated.","success");}catch(error){setSiteActionError(error instanceof Error?error.message:"Unable to update the site profile.");}finally{setSiteActionBusy(false);}}
@@ -193,7 +190,6 @@ export default function App(){
  async function signOut(){await fetch("/api/v1/auth/logout",{method:"POST",credentials:"same-origin"});setAuthUser("");setAuthMode("login");setDialog("none");}
  if(authMode==="checking")return <AuthScreen mode="loading" onAuthenticated={()=>{}}/>;
  if(authMode!=="ready")return <AuthScreen mode={authMode} onAuthenticated={username=>{setAuthUser(username);setAuthMode("ready");}}/>;
- const pageTitle=titles[page]??"Hub Overview";
  const isOverview=page==="overview";
  // Mobile bottom navigation targets are explicit so a label change cannot silently
  // point a tab at the wrong page. In the Hub context the fifth tab opens System
@@ -217,7 +213,7 @@ export default function App(){
     <div className="topbar-actions"><span className="connection-chip"><i/>Hub operational</span><button className="icon-button" title="Refresh preview" aria-label="Refresh preview" onClick={refresh}><Icon name="refresh"/></button><button className="primary-button add-site-top" onClick={openAddSite}><Icon name="plus" size={16}/> Add Site</button><button className="avatar" onClick={()=>setDialog("profile")}>{authUser.slice(0,2).toUpperCase()}</button><button className="top-chevron" onClick={()=>setDialog("profile")}><span>⌄</span></button></div>
    </header>
    <div className="page-content">
-    {isOverview&&!selected?<HubOverview sites={localSites} onOpen={openSite} onViewAll={()=>go("sites")} onConnectivity={()=>go("connectivity")} refreshCount={refreshCount}/>:selected&&page==="overview"?<SiteOverview device={selected} onNavigate={go}/>:page==="sites"?<SitesPage sites={filteredSites} query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} onOpen={openSite} onAdd={openAddSite}/>:page==="connectivity"?<Connectivity sites={localSites} onOpen={openSite} onRefresh={()=>void refresh()}/>:page==="alerts"?<Alerts onNavigate={go}/>:page==="users"?<UserManagement currentUsername={authUser}/>:page==="audit"?<AuditLog/>:page==="hub-settings"?<HubSettingsPage/>:page==="app-settings"?<SettingsPage title={pageTitle} toggles={toggleStates} setToggles={setToggleStates}/>:page==="system-recovery"?<SystemRecoveryPage role={authRole}/>:page==="monitoring"?<Monitoring/>:page==="compatibility"?<Compatibility device={selected}/>:page==="site-settings"?<SiteSettings device={selected} toggles={toggleStates} setToggles={setToggleStates} onEdit={()=>selected&&void openEditSite(selected)} onArchive={()=>selected&&openArchiveSite(selected)} onToggleEnabled={()=>selected&&void setSiteEnabled(selected)} onSecurity={()=>selected&&openConnectionSecurity(selected)}/>:<DataPage page={page} query={query} setQuery={setQuery} onAdd={()=>notify("This is a frontend-only preview. No firewall configuration was changed.")} />}
+    {isOverview&&!selected?<HubOverview sites={localSites} onOpen={openSite} onViewAll={()=>go("sites")} onConnectivity={()=>go("connectivity")} refreshCount={refreshCount}/>:selected&&page==="overview"?<SiteOverview device={selected} onNavigate={go}/>:page==="sites"?<SitesPage sites={filteredSites} query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} onOpen={openSite} onAdd={openAddSite}/>:page==="connectivity"?<Connectivity sites={localSites} onOpen={openSite} onRefresh={()=>void refresh()}/>:page==="alerts"?<Alerts onNavigate={go}/>:page==="users"?<UserManagement currentUsername={authUser}/>:page==="audit"?<AuditLog/>:page==="hub-settings"?<HubSettingsPage/>:page==="system-recovery"?<SystemRecoveryPage role={authRole}/>:page==="monitoring"?<Monitoring/>:page==="compatibility"?<Compatibility device={selected}/>:page==="site-settings"?<SiteSettings device={selected} onEdit={()=>selected&&void openEditSite(selected)} onArchive={()=>selected&&openArchiveSite(selected)} onToggleEnabled={()=>selected&&void setSiteEnabled(selected)} onSecurity={()=>selected&&openConnectionSecurity(selected)}/>:<DataPage page={page} query={query} setQuery={setQuery} onAdd={()=>notify("This is a frontend-only preview. No firewall configuration was changed.")} />}
    </div>
    <footer className="app-footer">pfSense Hub Manager</footer>
   </main>
@@ -474,36 +470,7 @@ function Alerts({onNavigate}:{onNavigate:(p:Page)=>void}){
   {pendingBulkAction&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!bulkBusy)setPendingBulkAction(null);}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="bulk-alert-title"><span className="eyebrow">ALERT MANAGEMENT</span><h2 id="bulk-alert-title">Confirm bulk {pendingBulkAction}?</h2><p>This will {pendingBulkAction} {pendingBulkAction==="acknowledge"?selectedActive.length:selectedPending.length} selected alert(s). Each alert will be updated separately and recorded in the audit log.</p><div className="modal-actions"><button type="button" className="secondary-button" disabled={bulkBusy} onClick={()=>setPendingBulkAction(null)}>Cancel</button><button type="button" className="primary-button" disabled={bulkBusy} onClick={()=>void confirmBulkAction()}>{bulkBusy?"Applying…":pendingBulkAction==="acknowledge"?"Acknowledge alerts":"Resolve alerts"}</button></div></section></div>}
  </>;
 }
-function SettingsPage({title,toggles,setToggles}:{title:string;toggles:Record<string,boolean>;setToggles:Dispatch<SetStateAction<Record<string,boolean>>>}){
- const preferences=[
-  {name:"Automatic polling",description:"Refresh site status on a schedule"},
-  {name:"Email notifications",description:"Send notifications for important events"},
-  {name:"Require confirmation",description:"Ask before consequential actions"}
- ];
- return <>
-  <div className="page-heading app-settings-heading"><div><h1>{title}</h1><p>Application preferences and operational defaults</p></div></div>
-  <div className="settings-grid app-settings-grid">
-   <Panel title="General" className="app-settings-card">
-    <div className="settings-row app-setting-row">
-     <div><strong>Application name</strong><span>pfSense Hub Manager</span></div>
-     <button type="button" className="secondary-button" onClick={()=>alert("Application name editing is not available yet.")}>Edit</button>
-    </div>
-    <div className="settings-row app-setting-row">
-     <div><strong>Display timezone</strong><span>Browser local timezone</span></div>
-     <button type="button" className="secondary-button" onClick={()=>alert("Timezone selection is not available yet.")}>Change</button>
-    </div>
-   </Panel>
-   <Panel title="Preferences" className="app-settings-card">
-    {preferences.map(({name,description})=><div className="settings-row app-setting-row" key={name}>
-     <div><strong>{name}</strong><span>{description}</span></div>
-     <button type="button" role="switch" aria-label={name} aria-checked={Boolean(toggles[name])} className={"switch "+(toggles[name]?"on":"")} onClick={()=>setToggles(current=>({...current,[name]:!current[name]}))}><i/></button>
-    </div>)}
-   </Panel>
-  </div>
-  <p className="app-settings-note">These controls are visual previews. Changes are not saved or enforced yet.</p>
- </>;
-}
-function SiteSettings({device,toggles,setToggles,onEdit,onArchive,onToggleEnabled,onSecurity}:{device:Device|null;toggles:Record<string,boolean>;setToggles:React.Dispatch<React.SetStateAction<Record<string,boolean>>>;onEdit:()=>void;onArchive:()=>void;onToggleEnabled:()=>void;onSecurity:()=>void}){return <><div className="page-heading"><div><h1>Site Settings</h1><p>Connection profile and local site preferences</p></div></div><Panel title="Device profile"><dl className="detail-list"><div><dt>Site name</dt><dd>{device?.name}</dd></div><div><dt>Edition</dt><dd>pfSense {device?.edition}</dd></div><div><dt>Connection address</dt><dd>{device?.address}</dd></div><div><dt>Connection state</dt><dd>{device?.state}</dd></div><div><dt>Manager polling</dt><dd>{device?.enabled===false?"Disabled":"Enabled"}</dd></div></dl><div className="modal-actions"><button className="secondary-button" onClick={onEdit} disabled={!device||device.isDemo}>Edit profile</button><button className="secondary-button" onClick={onToggleEnabled} disabled={!device||device.isDemo}>{device?.enabled===false?"Enable site":"Disable site"}</button><button className="secondary-button" onClick={onSecurity} disabled={!device||device.isDemo}>Credentials & TLS</button><button className="secondary-button danger-button" onClick={onArchive} disabled={!device||device.isDemo}>Archive site</button></div></Panel><SettingsPage title="Site preferences" toggles={toggles} setToggles={setToggles}/></>}
+function SiteSettings({device,onEdit,onArchive,onToggleEnabled,onSecurity}:{device:Device|null;onEdit:()=>void;onArchive:()=>void;onToggleEnabled:()=>void;onSecurity:()=>void}){return <><div className="page-heading"><div><h1>Site Settings</h1><p>Connection profile and local site preferences</p></div></div><Panel title="Device profile"><dl className="detail-list"><div><dt>Site name</dt><dd>{device?.name}</dd></div><div><dt>Edition</dt><dd>pfSense {device?.edition}</dd></div><div><dt>Connection address</dt><dd>{device?.address}</dd></div><div><dt>Connection state</dt><dd>{device?.state}</dd></div><div><dt>Manager polling</dt><dd>{device?.enabled===false?"Disabled":"Enabled"}</dd></div></dl><div className="modal-actions"><button className="secondary-button" onClick={onEdit} disabled={!device||device.isDemo}>Edit profile</button><button className="secondary-button" onClick={onToggleEnabled} disabled={!device||device.isDemo}>{device?.enabled===false?"Enable site":"Disable site"}</button><button className="secondary-button" onClick={onSecurity} disabled={!device||device.isDemo}>Credentials & TLS</button><button className="secondary-button danger-button" onClick={onArchive} disabled={!device||device.isDemo}>Archive site</button></div></Panel></>}
 function Monitoring(){return <><div className="page-heading"><div><h1>Monitoring</h1><p>Performance trends and system health</p></div><button className="secondary-button" onClick={()=>alert("Time range selector preview")}>Last 24 hours⌄</button></div><div className="metric-grid"><Metric icon="cpu" label="CPU average" value="18%" detail="Illustrative value" tone="blue"/><Metric icon="database" label="Memory used" value="42%" detail="Illustrative value" tone="green"/><Metric icon="harddrive" label="Disk used" value="28%" detail="Illustrative value" tone="purple"/><Metric icon="clock" label="Uptime" value="12d 6h" detail="Illustrative value" tone="green"/></div><Panel title="Resource utilization"><div className="chart-placeholder"><div><span>CPU</span><svg viewBox="0 0 600 130" preserveAspectRatio="none"><polyline points="0,100 40,92 80,98 120,70 160,76 200,65 240,80 280,48 320,55 360,43 400,60 440,38 480,42 520,22 560,30 600,12"/></svg></div><div><span>Memory</span><svg viewBox="0 0 600 130" preserveAspectRatio="none"><polyline points="0,72 40,68 80,72 120,60 160,66 200,52 240,58 280,48 320,53 360,42 400,48 440,36 480,40 520,32 560,38 600,28"/></svg></div></div></Panel><p className="preview-footnote">Trend lines are visual placeholders, not collected metrics.</p></>}
 function Compatibility({device}:{device:Device|null}){return <><div className="page-heading"><div><h1>Compatibility</h1><p>Firewall release, API package and capability support</p></div></div><Panel title="Device compatibility"><dl className="detail-list"><div><dt>Device</dt><dd>{device?.name??"Selected site"}</dd></div><div><dt>pfSense edition</dt><dd>{device?.edition??"Plus"}</dd></div><div><dt>Installed release</dt><dd>Not verified in preview</dd></div><div><dt>REST API package</dt><dd>Not verified in preview</dd></div><div><dt>Architecture</dt><dd>Pending live discovery</dd></div></dl></Panel><Panel title="Capability status"><div className="capability-list">{["System status","Gateway status","Interface status","Service status","pfSense version","ARP summary","Firewall states summary","State table size"].map(x=><div key={x}><span>{x}</span><Status state="warning" label="Integration pending"/></div>)}</div></Panel></>}
 function DataPage({page,query,setQuery,onAdd}:{page:Page;query:string;setQuery:(s:string)=>void;onAdd:()=>void}){

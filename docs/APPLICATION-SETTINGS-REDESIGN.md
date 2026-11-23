@@ -1,11 +1,13 @@
 # Application Settings page redesign
 
-**Status:** Frontend placeholder implemented on main; functional workflows and browser visual acceptance remain pending. The page's necessity and exact functional scope are **under review** — see [Necessity and scope evaluation, November 23, 2026](#necessity-and-scope-evaluation-november-23-2026). No settings persistence or enforcement may be implemented until that question is decided.  
-**Reference:** Application Settings mockup supplied during the November 22, 2026 design review. The mockup remains the visual authority for this page while it exists.
+**Status:** **Retired November 23, 2026** by [DEC-041](DECISIONS.md#dec-041-retire-the-hub-wide-application-settings-page). The page no longer exists in the product: its Administration navigation entry, its `/settings/application` route, the placeholder card component, and the page-specific styles have been removed. This document is retained as the design, implementation, and evaluation record. Do not re-implement from it.  
+**Reference:** Application Settings mockup supplied during the November 22, 2026 design review. It is retained as design history and is no longer a binding visual specification, because the screen it pictures has been retired.
 
-## Objective
+**Current state:** `/settings/application` redirects to `/settings/hub` with a history replacement, so an old bookmark opens Hub Settings instead of falling through to the Hub overview. No settings value is persisted or enforced, and no API route, database table, scheduler, or notification provider was added by this work.
 
-Redesign **Administration → Application Settings** to match the supplied mockup. This is a Hub-wide settings page, not a per-firewall Site Settings page and not a host or Docker administration console.
+## Objective (historical)
+
+Redesign **Administration → Application Settings** to match the supplied mockup. This is a Hub-wide settings page, not a per-firewall Site Settings page and not a host or Docker administration console. This objective was withdrawn by DEC-041.
 
 The immediate deliverable is the page structure, visual hierarchy, labels, descriptions, and responsive behavior. The controls may remain preview-only until their backend contracts and enforcement are implemented in a later phase.
 
@@ -50,7 +52,9 @@ Keep the labels and descriptions as written above. The switches are part of the 
 - Do not create new API routes, database migrations, background jobs, email integrations, or security enforcement as part of the visual redesign.
 - Preserve the existing application navigation and shared design components.
 
-## Immediate frontend redesign acceptance criteria
+## Immediate frontend redesign acceptance criteria (historical)
+
+These criteria describe the now-retired page. The single unchecked item is obsolete: there is no page left to accept visually, and the retirement itself is verified by typecheck, production build, and built-bundle inspection (see [Outcome](#outcome-november-23-2026)).
 
 - [x] The Application Settings page implements the approved title, subtitle, two-card composition, row order, labels, descriptions, and actions.
 - [x] Desktop uses a two-column card layout; tablet/mobile layouts stack through responsive CSS.
@@ -60,13 +64,15 @@ Keep the labels and descriptions as written above. The switches are part of the 
 - [x] The page remains distinct from Site Settings and Hub Settings.
 - [ ] Complete browser visual and interaction acceptance at desktop, tablet, and mobile widths, including a narrow-width overflow check.
 
-## Frontend implementation status
+## Frontend implementation status (historical)
 
-The approved two-card frontend placeholder is present on main. It provides the General and Preferences cards, responsive layout, local-only preference switches, and placeholder Edit/Change actions. This completes the frontend placeholder milestone, not the settings feature as a whole. No setting is persisted or enforced by the backend.
+The two-card placeholder existed on main until November 23, 2026. DEC-041 then removed the page, its component, and its styles; no setting was ever persisted or enforced, and the remaining workflow list was never implemented for this page.
 
 The remaining work is to implement the individual workflows and their contracts: application name editing, timezone selection and behavior, polling policy and scheduler, notification configuration and delivery, confirmation policy enforcement, authorization, persistence, audit behavior, and automated tests. These remain separate roadmap items. Browser visual acceptance is also still pending.
 
-## Future functional work, not part of the redesign
+## Future functional work, not part of the redesign (not planned for this page)
+
+The items below were the hypothetical requirements for a functional version of the retired page. They are not a backlog for it: DEC-041 assigns each capability elsewhere or leaves it unimplemented. They are kept only so the analysis is not lost.
 
 ### General settings
 - Define and persist the Hub application display name.
@@ -98,7 +104,7 @@ The remaining work is to implement the individual workflows and their contracts:
 
 ## Necessity and scope evaluation, November 23, 2026
 
-**Status:** Open question. This section records what the documentation supports. It does not decide the page's fate and it made no code change.
+**Status:** Resolved by [DEC-041](DECISIONS.md#dec-041-retire-the-hub-wide-application-settings-page) — **Option C, retire the page.** The evaluation below is preserved as the record of why. See [Outcome](#outcome-november-23-2026) for what was removed.
 
 ### What the documentation currently assigns to this page
 
@@ -152,11 +158,40 @@ Two of the three switches also create a capability-implying risk: an enabled **A
 
 Take **Option B** if the page must stay for visual completeness, and **Option C** if the smallest honest application surface is the priority. Do not treat Option A as a resting state, and do not implement Option B's workflows before the decision is recorded; if Option A is chosen deliberately, the page must keep its preview labeling.
 
+**Chosen: Option C**, recorded as DEC-041 on November 23, 2026. The page was retired rather than reduced, because the two rows that could be enforced without a new subsystem were a branding constant and a timezone selector that no requirement asks for.
+
 Independent of the choice:
 
 - Do not add System Information, Maintenance, Backup & Restore, scheduler controls, or host/Docker controls to this page. Host operations belong to System Monitoring & Recovery.
 - Do not present any switch as an operational default. A stored value must change real behavior, or the control must not be interactive.
 - Any persisted setting needs server-side validation, a per-role authorization rule, safe defaults, an audit event where the value affects operations, and tests for reload persistence, concurrent updates, and denied access.
+
+### Outcome, November 23, 2026
+
+**Chosen option:** C, retire the page ([DEC-041](DECISIONS.md#dec-041-retire-the-hub-wide-application-settings-page)).
+
+**Removed from the frontend:**
+
+- the **Application Settings** Administration navigation entry and the `app-settings` page identifier in `apps/web/src/App.tsx`;
+- the `page === "app-settings"` render branch and the `pageTitle` value that fed only that branch;
+- the `/settings/application` entry in the Hub route map, replaced by a redirect to `/settings/hub` with a history replacement, so a saved bookmark resolves to a real page instead of falling through to the Hub overview;
+- the shared placeholder card component: the `General` and `Preferences` cards, both placeholder actions, the three local-only switches, and the component-scoped toggle state;
+- the same block where it had been reused inside Site Settings under a *Site preferences* heading. That copy presented Hub-wide values — application name, display timezone, and a global confirmation switch — on a per-site page, which no requirement approved. The page-specific styles were removed from `apps/web/src/style.css`.
+
+**Retained:** the Device profile panel in Site Settings with its edit, enable/disable, credentials/TLS, and archive actions; Hub Settings; User Management; Audit Logs; and System Monitoring & Recovery. The `.switch` rules stay because User Management uses them for account status. The generic `.settings-grid` and `.settings-row` helper rules are now unused; they are safe to delete in a later stylesheet cleanup that can also review the grouped auth-form selectors they appear in, and they change no behavior while they remain.
+
+**Not added:** no API route, database migration, settings table, scheduler, notification provider, role rule, or audit event. Nothing is persisted and no capability is implied by the remaining interface.
+
+**Where the former rows live now:**
+
+| Former row | Current owner |
+|---|---|
+| Application name, Display timezone | Not implemented. If a requirement ever needs them, they belong to the Hub configuration surface under FR-13 and need their own approved contract (DEC-041). |
+| Automatic polling | Managed-site lifecycle (DEC-031) and the Connectivity view; Hub-wide scheduling remains unimplemented |
+| Email notifications | Deferred release requirement, explicitly not implemented |
+| Require confirmation | Enforced per action by FR-9, DEC-031 (typed archive phrase), and DEC-039 (typed stack Stop phrase) — not a switchable preference |
+
+**Verification:** `npm run typecheck` exit 0 and `npm run build --workspace @pfsense-hub/web` exit 0, producing `index-CNcMdfiw.js` and `index-JAy8gOY-.css`. The built bundle contains no `Application Settings`, `Automatic polling`, `app-settings`, or `app-setting-row` string, and does contain the `/settings/application` to `/settings/hub` redirect. Details and remaining gaps are in [Verification and documentation closeout](VERIFICATION-AND-CLOSEOUT.md) section 14.
 
 ## Related documentation
 

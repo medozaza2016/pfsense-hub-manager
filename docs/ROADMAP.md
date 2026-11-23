@@ -2,7 +2,7 @@
 
 **Last reconciled:** November 23, 2026  
 **Active branch:** `main`  
-**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. System Monitoring & Recovery is implemented, live-verified, and locked (DEC-039, DEC-040). The Application Settings page remains an approved visual placeholder whose functional scope is under review. Deferred verification items are listed in the relevant sections below.
+**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. System Monitoring & Recovery is implemented, live-verified, and locked (DEC-039, DEC-040). The Application Settings page was retired on November 23, 2026 (DEC-041). Deferred verification items are listed in the relevant sections below.
 
 This roadmap is the current planning source. For exact command output, test counts, skipped tests, clean-install evidence, and known verification gaps, see [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 
@@ -39,7 +39,7 @@ This roadmap is the current planning source. For exact command output, test coun
 - [x] Linux Host Agent supports assigned-interface validation, fixed web-only Compose operations, HTTPS verification, rollback, and the fixed private Tailscale Serve route.
 - [x] Hub Settings displays deployment state/history, last verified origin, and phase-specific save-button progress.
 - [x] Clean Debian 13 installation completed; all three containers healthy and the API-to-agent handshake verified.
-- [x] Application Settings frontend placeholder delivered with the approved General and Preferences cards (DEC-035). Functional workflows remain deferred; the page's necessity and exact functional scope are under review in [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md#necessity-and-scope-evaluation-november-23-2026).
+- [x] Application Settings frontend placeholder delivered with the General and Preferences cards (DEC-035), then retired on November 23, 2026 (DEC-041). No settings workflow was implemented; see [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md#outcome-november-23-2026).
 - [x] System Monitoring & Recovery delivered end to end: Host Agent monitoring and allowlisted operations, API routes, audit trail, live-wired page, and the Hub mobile **System monitoring** tab (DEC-039, DEC-040). Scope locked in [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md) section 10.
 - [x] Tailscale MagicDNS endpoint successfully applied and browser-verified at configuration revision 2 / applied revision 2.
 
@@ -133,25 +133,24 @@ python3 -m unittest discover -s host-agent -p 'test_*.py' -v
 - Do not run development seed commands against production data.
 - Preserve the approved application design and current architecture. Any new firewall write capability requires a separate decision and security/recovery design before implementation.
 
-## Application Settings redesign, November 22, 2026
+## Application Settings page retired, November 23, 2026
 
-**Design specification:** [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md)
+**Decision:** [DEC-041](DECISIONS.md#dec-041-retire-the-hub-wide-application-settings-page). **Design record:** [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md).
 
-The approved page scope follows the supplied mockup: one **General** card and one **Preferences** card. The immediate work is the visual redesign and responsive layout. Do not expand this page with System Information, Maintenance, Backup & Restore, or host/Docker administration as part of this increment.
+The Hub-wide Application Settings page is withdrawn. It had no PRD requirement, and each approved row duplicated a capability owned by Hub Settings, the managed-site lifecycle, User Management/Audit Logs, or System Monitoring & Recovery, or described a capability the project explicitly defers.
 
-- [x] Document the approved two-card layout, exact labels/descriptions, scope boundaries, and acceptance criteria.
-- [x] Implement the Application Settings frontend placeholder with the approved two-card layout, responsive stacking, General actions, and Preferences switches.
-- [x] Keep controls clearly preview-only. Local switch state is not persisted or enforced, and the General actions explicitly report that editing/selection is not available yet.
-- [ ] Complete browser visual acceptance across desktop, tablet, and mobile viewports.
-- [ ] Future phase: implement the Application name edit workflow, including validation, authorization, persistence, and audit behavior.
-- [ ] Future phase: implement the Display timezone selection workflow and define timezone behavior for UI timestamps and scheduled jobs.
-- [ ] Future phase: define and persist the Hub application name and timezone behavior.
-- [ ] Future phase: design and implement the Hub-wide polling policy, scheduler, interval, concurrency, retries, and relationship to per-site polling enablement.
-- [ ] Future phase: design and implement email notification events, recipients, provider configuration, secret handling, retries, and delivery history.
-- [ ] Future phase: define consequential actions and enforce confirmation policy at the backend/API boundary.
-- [ ] Future phase: define settings authorization, persistence, validation, audit requirements, and automated tests.
+- [x] Document the two-card layout, exact labels, and acceptance criteria (historical record retained).
+- [x] Implement the frontend placeholder and later retire it (DEC-035, then DEC-041).
+- [x] Remove the Administration navigation entry, the `app-settings` page identifier, the route-map entry, the placeholder card component, and its local toggle state from `apps/web/src/App.tsx`.
+- [x] Remove the page-specific `.app-settings-*` and `.app-setting-row` rules from `apps/web/src/style.css`.
+- [x] Remove the same placeholder block from Site Settings, where it presented Hub-wide values as site preferences.
+- [x] Redirect `/settings/application` to `/settings/hub` with a history replacement.
+- [x] Verify with `npm run typecheck`, `npm run build --workspace @pfsense-hub/web`, and built-bundle inspection.
+- [ ] Browser spot check after the web image is rebuilt that no Administration entry or preference switch remains (hard refresh required).
 
-**Implementation boundary:** This documentation/design milestone does not add API routes, database migrations, scheduler jobs, email delivery, or backend security enforcement. Functional wiring is explicitly deferred to the future items above.
+**Not carried forward:** application name and display timezone are unimplemented; if a requirement ever needs them they belong to the Hub configuration surface under FR-13. Per-site polling stays with the managed-site lifecycle (DEC-031), notification delivery remains a deferred release requirement, and confirmation stays an enforced per-action policy (FR-9, DEC-031, DEC-039).
+
+**Boundary:** no API route, database migration, scheduler job, notification provider, authorization rule, or audit event was added, and no setting is persisted or enforced.
 
 
 ## System Monitoring & Recovery, delivered November 22, 2026 and locked November 23, 2026
@@ -164,7 +163,7 @@ The Administration page is routed at `/settings/system-recovery` and appears as 
 
 Delivered and verified UI sections:
 
-- [x] Dedicated Administration navigation item and route, separate from Application Settings and site-level Monitoring.
+- [x] Dedicated Administration navigation item and route, separate from Hub Settings and site-level Monitoring.
 - [x] Host resources: CPU, memory, disk, and host uptime cards fed by `GET /api/v1/system/status`; unreadable metrics render as unknown rather than as a fabricated value.
 - [x] Docker Compose service health for Web, API, and PostgreSQL from the same status response, including absent, unhealthy, and unknown containers.
 - [x] Start, Stop, and Restart controls per service, disabled for non-admins and while an operation is active, backed by `POST /api/v1/system/operations`.

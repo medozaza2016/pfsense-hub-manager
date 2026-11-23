@@ -223,7 +223,7 @@ The previous ad-hoc workarounds were removed: `apps/web/Dockerfile` no longer ru
 
 **Environment:** Ubuntu Docker host, local `.env` with `HUB_HOST_MONITORING_ENABLED=true`, `HUB_HOST_OPERATIONS_ENABLED=true`, and `HUB_HOST_OPERATION_TIMEOUT_MS=180000`, unprivileged development Host Agent (`scripts/dev-host-agent.sh`).
 
-**Change:** the Hub-context mobile bottom bar previously carried a fifth tab labelled *Settings* whose label matched no page, so tapping it only moved the highlight. It is replaced by a **System monitoring** tab targeting `/settings/system-recovery`. Tab targets are now declared per tab in an explicit typed list in `apps/web/src/App.tsx` instead of being resolved from a label prefix, and the selected tab is derived from the current page with `aria-current="page"`. `apps/web/src/style.css` wraps two-word labels inside the 62 px bar. See DEC-040. Hub Settings, User Management, Audit Logs, and Application Settings remain in the slide-in navigation menu.
+**Change:** the Hub-context mobile bottom bar previously carried a fifth tab labelled *Settings* whose label matched no page, so tapping it only moved the highlight. It is replaced by a **System monitoring** tab targeting `/settings/system-recovery`. Tab targets are now declared per tab in an explicit typed list in `apps/web/src/App.tsx` instead of being resolved from a label prefix, and the selected tab is derived from the current page with `aria-current="page"`. `apps/web/src/style.css` wraps two-word labels inside the 62 px bar. See DEC-040. Hub Settings, User Management, Audit Logs, and Application Settings remain in the slide-in navigation menu. *(Superseded on the Application Settings point by section 14: that page was retired by DEC-041.)*
 
 **Verification:**
 
@@ -243,3 +243,30 @@ The previous ad-hoc workarounds were removed: `apps/web/Dockerfile` no longer ru
 **Open record-keeping item:** confirm that the stack restart recorded in section 12 (request id `req-f`, actor `ahmed`) was operator-initiated during that verification. If it was not, it must be investigated as an unauthorized host operation rather than closed as a test artifact.
 
 **Operator note:** the browser must be hard-refreshed (Ctrl/Cmd+Shift+R) to load the new bundle hash. A cached bundle will still show the old *Settings* tab.
+
+## 14. Application Settings retirement, November 23, 2026
+
+**Decision:** [DEC-041](DECISIONS.md#dec-041-retire-the-hub-wide-application-settings-page). **Design record:** [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md#outcome-november-23-2026).
+
+**Environment:** Ubuntu Docker host, Compose project `pfsense-hub` (`db`, `api`, `web`), web published on `127.0.0.1:8080`.
+
+**Change:** the Hub-wide Application Settings page was removed from the frontend. `apps/web/src/App.tsx` lost the Administration navigation entry, the `app-settings` `Page` member, the render branch, the `pageTitle` constant, the `/settings/application` route-map entry, the placeholder `General`/`Preferences` card component, its `toggleStates` state, and the `Dispatch`/`SetStateAction` type imports that only that component used. `apps/web/src/style.css` lost the `.app-settings-*` and `.app-setting-row` rule block. `/settings/application` now redirects to `/settings/hub` with a history replacement, so a stale bookmark opens Hub Settings rather than falling through to the Hub overview. The same placeholder block was also removed from Site Settings, where it had presented Hub-wide values (application name, display timezone, a global confirmation switch) under a *Site preferences* heading. No API route, migration, authorization rule, scheduler, notification provider, or audit event was added.
+
+**Verification:**
+
+| Check | Command or method | Result |
+|---|---|---|
+| Source typecheck | `npm run typecheck` | Exit 0 for API and web |
+| API test suite | `npm test` | Exit 0; 22 files, 275 tests passed |
+| Web production build | `npm run build --workspace @pfsense-hub/web` | Exit 0; `index-CNcMdfiw.js`, `index-JAy8gOY-.css` |
+| Web container rebuild | `docker compose up -d --build web` | Recreated; `web` healthy, `api` and `db` healthy |
+| Served entry document | `curl http://127.0.0.1:8080/` | References `index-CNcMdfiw.js` and `index-JAy8gOY-.css`, matching the local build |
+| Served bundle labels | `curl` of the served JS, searched for `Application Settings`, `Automatic polling`, `Email notifications`, `app-settings`, `app-setting-row` | 0 occurrences of each |
+| Legacy route guard | `curl` of the served JS, searched for `settings/application` | 1 occurrence, the redirect guard |
+| Legacy path response | `curl -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/settings/application` | 200 from the SPA fallback; the client-side redirect resolves it to `/settings/hub` |
+| Served stylesheet | `curl` of the served CSS, searched for `app-settings` and `app-setting-row` | 0 occurrences; `.switch`, `.settings-grid`, and `.settings-row` rules remain |
+
+**Not verified by this change:** no browser interaction pass was performed, so the redirect and the absence of the Administration entry were confirmed from the served bundle and HTTP responses rather than by clicking through the interface. The browser must be hard-refreshed (Ctrl/Cmd+Shift+R) to load the new bundle hash. The items left open in sections 12 and 13 still stand: an observed single-service `start`/`stop`/`restart` in the browser, the stack-stop recovery rehearsal from a host shell, narrow-viewport visual acceptance, and any run against a systemd-managed production agent.
+
+**Commit:** this change is recorded in repository history as the Application Settings retirement commit. Its hash is not written into this section, because editing this file afterwards would change that hash.
+
