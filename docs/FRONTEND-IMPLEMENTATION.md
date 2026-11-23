@@ -1,6 +1,6 @@
 # Frontend implementation and coverage
 
-**Last reconciled:** November 22, 2026  
+**Last reconciled:** November 23, 2026  
 **Active branch:** `main`
 
 ## Visual authority
@@ -24,7 +24,7 @@ The frontend is a React/TypeScript/Vite application. It uses the existing backen
 - **Audit Logs:** API-backed audit events with sanitized metadata.
 - **Hub Settings:** Local, Tailscale, and Custom access method tabs, deployment state, revision tracking, last-verified recovery address, and recent deployment history.
 - **Application Settings:** approved two-card General and Preferences frontend placeholder (DEC-035); values and switches are not persisted or enforced.
-- **System Monitoring & Recovery:** frontend-only Administration preview merged in PR #10; see [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md).
+- **System Monitoring & Recovery:** live Administration page at `/settings/system-recovery`, wired through the API to the restricted Host Agent (DEC-039). Also the Hub mobile **System monitoring** tab (DEC-040). See [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md).
 
 ### Site workspace and data boundary
 
@@ -87,6 +87,8 @@ The Application Settings frontend placeholder is implemented on main in apps/web
 
 **Frontend milestone:** Implemented. **Functional workflows:** Pending. No Application Settings value is currently persisted to PostgreSQL or enforced by an API, scheduler, notification service, or protected-action backend policy. Do not describe these controls as operational. The remaining workflow scope and acceptance boundary are tracked in Application Settings page redesign and Roadmap.
 
+**Scope under review:** the product requirement for this page is not settled. The PRD defines no Application Settings requirement; Hub access configuration belongs to Hub Settings (PRD FR-13, DEC-025, DEC-033); per-site polling belongs to the site; and notification delivery, background scheduling, and confirmation enforcement are separately deferred capabilities. DEC-035 approves the page's visual structure only. Whether the page stays, is reduced, or is retired is an open decision recorded in [DECISIONS](DECISIONS.md) and evaluated in [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md#necessity-and-scope-evaluation-november-23-2026). Do not implement settings persistence or enforcement until that question is answered.
+
 Browser visual and interaction acceptance across desktop, tablet, and mobile remains pending. The implementation status above is based on source inspection, not a claim that a new browser test pass was performed in this documentation update.
 
 ## Platform boundary
@@ -112,28 +114,33 @@ At desktop widths the cards sit side by side; at tablet and mobile widths they s
 
 **Scope:** Do not add System Information, Maintenance, Backup & Restore, or host/Docker controls to this page as part of this design increment. Do not create API routes, migrations, background jobs, notification providers, or backend enforcement in the visual redesign. Track that work in the future functional items in [Roadmap](ROADMAP.md).
 
-**Acceptance:** Match the supplied mockup's page title/subtitle, two-card structure, labels, descriptions, actions, alignment, and responsive behavior. Verify keyboard operation, visible focus, accessible switch labels, and no horizontal overflow at narrow widths. Browser visual acceptance remains pending until the redesigned page is implemented and tested.
+**Acceptance:** The page matches the supplied mockup's title/subtitle, two-card structure, labels, descriptions, actions, alignment, and responsive behavior. Keyboard operation, visible focus, accessible switch labels, and narrow-width overflow still require a recorded browser pass. The functional scope is additionally blocked on the open necessity decision described above.
 
 
-## System Monitoring & Recovery frontend preview
+## System Monitoring & Recovery
 
-**Status:** Frontend placeholder merged to `main` through [PR #10](https://github.com/medozaza2016/pfsense-hub-manager/pull/10). Functional host integration is not implemented.
+**Status:** Implemented and live-verified (DEC-039); the implemented scope is locked in [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md) section 10.
 
-The page is a separate Administration destination at `/settings/system-recovery`. It must not be folded into Application Settings or confused with per-firewall/site Monitoring.
+The page is a separate Administration destination at `/settings/system-recovery`. It must not be folded into Application Settings or confused with per-firewall/site Monitoring. It is also the target of the fifth Hub mobile bottom-bar tab, **System monitoring** (DEC-040).
 
-The current UI includes:
+The page renders live host data obtained through the API from the restricted Unix-socket Host Agent:
 
-- Host resource cards for CPU utilization, memory utilization, disk utilization, and host uptime. All values are intentionally unavailable until a trusted host-agent data path exists.
-- A Docker Compose service list limited to Web, API, and PostgreSQL. Each service shows an unknown/not-connected state and disabled Start, Stop, and Restart controls.
-- A service-log panel with a disabled service selector/refresh action and an unavailable state.
-- A Compose configuration validation panel with a disabled action and no implied successful validation.
-- Whole-stack Start, Stop, and Restart controls, all disabled.
-- Host-side recovery guidance and a warning that stopping the stack makes the GUI unavailable.
-- A notice that code-server is excluded from the monitoring and operations allowlist.
-- A note that admin and user roles may view status, while operational actions are administrator-only and must be enforced by the API/host boundary.
+- Host resource cards for CPU utilization, memory utilization, disk utilization, and host uptime, from `GET /api/v1/system/status`. A metric the agent cannot read renders as unknown rather than as an invented value.
+- Docker Compose service state and health for Web, API, and PostgreSQL only. Absent, unhealthy, and unknown containers are reported as such.
+- Per-service Start, Stop, and Restart, and whole-stack Start, Stop, and Restart, submitted through `POST /api/v1/system/operations` with a fixed action/target pair. Controls are disabled for non-admins and while any operation is active.
+- A bounded, redacted service log panel from `GET /api/v1/system/services/:service/logs?lines=`.
+- Compose configuration validation for the fixed project file via `POST /api/v1/system/compose/validate`.
+- Operation history from `GET /api/v1/system/operations[/:id]`, polled while an operation is in flight.
+- Host-side recovery guidance, the stack-stop outage warning, the code-server exclusion note, and the role model note.
 
-The preview deliberately uses placeholders instead of invented metrics or service states. It does not execute shell commands, invoke Docker, query the Host Agent, retrieve logs, or validate Compose. The page's disabled controls are not security enforcement; backend authorization and a narrowly scoped host-side management boundary are mandatory before enabling any action.
+Stack Stop requires a typed confirmation phrase. Status polls on a 10 s interval. The page never fabricates resource values, service health, logs, validation results, or operation outcomes, and it cannot execute a shell or reach Docker directly; disabled or hidden controls are presentation only, and the API and agent re-check role, flag state, and the operation allowlist on every request.
 
-**Observed verification boundary:** Source inspection confirms the route, navigation item, page renderer, and disabled preview controls exist on `main`. The user's screenshot of Application Settings did not display the System Monitoring & Recovery navigation item, so the running browser build has not yet been confirmed to contain the merged commit. Browser testing and responsive visual acceptance remain pending. No build or test run is claimed for this documentation update.
+**Verification boundary:** a desktop browser session against the running agent is confirmed for status polling, Compose validation, and one whole-stack restart that returned all containers to healthy, whose attribution is still to be confirmed. Tablet and narrow-width visual acceptance, a per-service operation observed in the browser, and the stack-stop recovery rehearsal remain outstanding and are tracked in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md) section 13.
 
-See [System Monitoring & Recovery requirements and implementation plan](SYSTEM-MONITORING-RECOVERY.md) and DEC-026/DEC-027 for the complete approved scope and security boundaries.
+See [System Monitoring & Recovery requirements and implementation plan](SYSTEM-MONITORING-RECOVERY.md) and DEC-026/DEC-027/DEC-039 for the complete approved scope and security boundaries.
+
+## Hub mobile navigation
+
+At widths up to 760 px the Hub context shows a five-tab bottom bar: **Overview**, **Sites**, **Connectivity**, **Alerts**, and **System monitoring**. Each tab declares its target page explicitly instead of being matched to a label, so renaming a page label cannot silently misroute a tab. The selected tab is derived from the current page and carries `aria-current="page"`; two-word labels wrap inside the 62 px bar.
+
+The previous fifth tab was labelled *Settings* and matched no page, so tapping it moved the highlight without navigating. Hub Settings, User Management, Audit Logs, and Application Settings remain reachable from the slide-in navigation menu instead. Site-context tabs are unchanged: Overview, Monitoring, Interfaces, Rules, and More. See DEC-040.

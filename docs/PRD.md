@@ -197,7 +197,7 @@ The approved frontend direction uses a light content workspace with a dark navy 
 
 ## 18. Hub access configuration requirements
 
-### FR-12: GUI-managed Hub access settings
+### FR-13: GUI-managed Hub access settings
 The administrator shall manage Hub access configuration from the existing **Administration → Hub Settings** page. A fresh installation shall use `127.0.0.1` as its safe default and shall remain usable locally without Tailscale, a reverse proxy, or a custom domain. The page shall allow the administrator to save an optional Tailscale IPv4 address and shall be extensible to hostname and reverse-proxy metadata. Configuration shall be persisted in PostgreSQL and validated server-side.
 
 The UI and API shall distinguish at least: configured desired address, pending application, applied deployment binding, and verified reachability. Saving an address must not be presented as proof that the host is reachable. A real probe from an appropriate client/network vantage point is required to mark reachability verified.

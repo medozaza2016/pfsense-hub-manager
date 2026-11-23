@@ -1,8 +1,8 @@
 # Roadmap
 
-**Last reconciled:** November 22, 2026  
+**Last reconciled:** November 23, 2026  
 **Active branch:** `main`  
-**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. The Application Settings visual placeholder and System Monitoring & Recovery frontend preview are also merged. Their future functional workflows and browser acceptance remain tracked below.
+**Delivery status:** Core multi-site onboarding, unified Linux installation, and Linux Tailscale Hub access deployment are merged into `main`. System Monitoring & Recovery is implemented, live-verified, and locked (DEC-039, DEC-040). The Application Settings page remains an approved visual placeholder whose functional scope is under review. Deferred verification items are listed in the relevant sections below.
 
 This roadmap is the current planning source. For exact command output, test counts, skipped tests, clean-install evidence, and known verification gaps, see [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
 
@@ -39,8 +39,8 @@ This roadmap is the current planning source. For exact command output, test coun
 - [x] Linux Host Agent supports assigned-interface validation, fixed web-only Compose operations, HTTPS verification, rollback, and the fixed private Tailscale Serve route.
 - [x] Hub Settings displays deployment state/history, last verified origin, and phase-specific save-button progress.
 - [x] Clean Debian 13 installation completed; all three containers healthy and the API-to-agent handshake verified.
-- [x] Application Settings frontend placeholder delivered with the approved General and Preferences cards (DEC-035). Functional workflows remain deferred.
-- [x] System Monitoring & Recovery frontend preview merged in PR #10. The page is separate from Application Settings and is explicitly not connected to live host data or operational controls.
+- [x] Application Settings frontend placeholder delivered with the approved General and Preferences cards (DEC-035). Functional workflows remain deferred; the page's necessity and exact functional scope are under review in [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md#necessity-and-scope-evaluation-november-23-2026).
+- [x] System Monitoring & Recovery delivered end to end: Host Agent monitoring and allowlisted operations, API routes, audit trail, live-wired page, and the Hub mobile **System monitoring** tab (DEC-039, DEC-040). Scope locked in [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md) section 10.
 - [x] Tailscale MagicDNS endpoint successfully applied and browser-verified at configuration revision 2 / applied revision 2.
 
 ## 2. Verification completed
@@ -154,40 +154,43 @@ The approved page scope follows the supplied mockup: one **General** card and on
 **Implementation boundary:** This documentation/design milestone does not add API routes, database migrations, scheduler jobs, email delivery, or backend security enforcement. Functional wiring is explicitly deferred to the future items above.
 
 
-## System Monitoring & Recovery frontend preview, November 22, 2026
+## System Monitoring & Recovery, delivered November 22, 2026 and locked November 23, 2026
 
-**Delivery:** Merged into `main` through [PR #10](https://github.com/medozaza2016/pfsense-hub-manager/pull/10), squash merge commit `9a55bfc4c7e5e165b16881f752232168558fcae6`.
+**Design and requirements:** [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md), DEC-026, DEC-027, and DEC-039.
 
-The new Administration page is routed at `/settings/system-recovery` and appears as **System Monitoring & Recovery** in the Administration navigation. It is a frontend-only placeholder implementing the visible structure approved by DEC-026 and DEC-027. It does not call a host agent, read live metrics, retrieve logs, validate Compose, or execute Docker operations.
+**Delivery:** Frontend structure merged through [PR #10](https://github.com/medozaza2016/pfsense-hub-manager/pull/10) (squash commit `9a55bfc4c7e5e165b16881f752232168558fcae6`). The live backend, Host Agent protocol v2 surface, API routes, audit trail, and wired page were implemented and committed as `eb008f5`, verified live as recorded in `eb4f5aa`, and the mobile navigation entry was changed in `20cc109`.
 
-Delivered UI sections:
+The Administration page is routed at `/settings/system-recovery` and appears as **System Monitoring & Recovery** in the Administration navigation and as **System monitoring** in the Hub mobile bottom bar (DEC-040). It is no longer a placeholder: host metrics, service health, bounded logs, Compose validation, operation history, and allowlisted service/stack operations are served by `apps/api` through the restricted Unix-socket Host Agent. Both feature flags default to `false`, so an installation that does not enable them is unchanged.
+
+Delivered and verified UI sections:
 
 - [x] Dedicated Administration navigation item and route, separate from Application Settings and site-level Monitoring.
-- [x] Host resources: CPU, memory, disk, and host uptime cards. Values display an em dash and **No live data**; host agent connection is pending.
-- [x] Docker Compose service health for Web, API, and PostgreSQL, with unknown/not-connected status and disabled Start, Stop, and Restart controls.
-- [x] Service logs panel with a service selector and disabled refresh action, plus an explicit unavailable state.
-- [x] Compose configuration validation panel with a disabled validation action and no fabricated result.
-- [x] Whole-stack Start, Stop, and Restart controls shown disabled.
+- [x] Host resources: CPU, memory, disk, and host uptime cards fed by `GET /api/v1/system/status`; unreadable metrics render as unknown rather than as a fabricated value.
+- [x] Docker Compose service health for Web, API, and PostgreSQL from the same status response, including absent, unhealthy, and unknown containers.
+- [x] Start, Stop, and Restart controls per service, disabled for non-admins and while an operation is active, backed by `POST /api/v1/system/operations`.
+- [x] Service logs panel with a fixed service selector, line-count selector, and refresh, backed by the bounded and redacted logs route.
+- [x] Compose configuration validation panel backed by `POST /api/v1/system/compose/validate` for the fixed project file only.
+- [x] Whole-stack Start, Stop, and Restart with the same controls; Stop requires a typed confirmation phrase.
+- [x] Operation history journal with polling while an operation is active.
 - [x] Recovery guidance describing host access, project inspection, stack restoration, and post-recovery verification.
-- [x] Visible warning that stopping the stack makes the GUI unavailable and recovery must be performed from the host using Docker Desktop or Docker CLI.
+- [x] Visible warning that stopping the stack makes the GUI unavailable and recovery must be performed from the host.
 - [x] Explicit exclusion of browser-based code-server from the service allowlist.
-- [x] Visible access-model note: authenticated admin and user accounts may view status; operational controls are admin-only and require server-side authorization.
-- [x] Responsive presentation styles added for narrower screens.
+- [x] Visible access-model note: authenticated admin and user accounts may view status; operational controls are admin-only and enforced server-side.
+- [x] Responsive presentation styles for narrower screens.
 
-**Validation status:** Source inspection confirms the route, navigation item, page renderer, placeholder states, and disabled controls are present on `main`. The user's November 22 screenshot showed the Application Settings page, but did not show the new System Monitoring & Recovery navigation item. The runtime/build shown in that screenshot has not been confirmed to include the merged `main` commit. Browser verification of the new page and desktop/tablet/mobile visual acceptance remain pending. No new typecheck, test, or production build was run as part of this documentation update.
+**Verification status:** API typecheck and build, 275 API tests, 64 Host Agent tests, and the web production build pass for `eb008f5`. Live on the Ubuntu Docker host: `system.status`, `system.logs`, `compose.validate`, unknown-operation and unsupported-action rejection, migration 015, unauthenticated `401` responses, a browser session polling the live agent, and one whole-stack restart that returned all containers to healthy (its attribution is still to be confirmed; see closeout section 13). Exact figures are in [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md) sections 12 and 13.
 
-### Future implementation work
+**Locked scope:** see [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md) section 10. Code-server, volume deletion, image update or rebuild, command-prompt execution, and arbitrary host administration remain outside the locked scope.
 
-- [ ] Build the narrow Linux Host Agent interface for resource metrics, fixed service health, bounded log retrieval, Compose validation, and allowlisted service/stack operations.
-- [ ] Define the exact resource metric sources, units, sampling interval, refresh behavior, unavailable/error states, and retention (if any).
-- [ ] Define bounded log limits, redaction of secrets, output truncation, and permitted service identifiers.
-- [ ] Enforce the fixed project and service allowlists in the host-side boundary. Never mount the Docker socket into web/API containers or expose arbitrary shell/Compose execution.
-- [ ] Implement server-side authentication and role enforcement: authenticated admin/user may view status; only admin may invoke operational actions. Unauthenticated requests must be denied.
-- [ ] Implement and audit individual service start/stop/restart, whole-stack start/stop/restart, and Compose validation. Do not implement volume deletion.
-- [ ] Define operation lifecycle states, timeouts, concurrency/serialization, error reporting, and recovery behavior.
-- [ ] Document and test host-side recovery when the whole stack is stopped and the GUI is unavailable.
-- [ ] Add API/Host Agent unit and integration tests, including unauthorized role attempts, unknown service/project rejection, command allowlist enforcement, log redaction, and failure/timeout behavior.
-- [ ] Perform browser visual and interaction acceptance at desktop, tablet, and mobile widths after the runtime is rebuilt from the merged `main` branch.
-- [ ] Review rebuild/recreate, image updates, destructive database maintenance, and broader host management separately before considering them. They are not part of the approved initial scope.
+### Deferred verification, not passed
 
-**Operational boundary:** The current merge is UI only. It does not add backend routes, database migrations, Host Agent commands, Docker socket access, or enabled operational actions. DEC-026 and DEC-027 remain the binding requirements for the future implementation.
+The implemented scope is locked. The following checks are tracked and not passed; record a result before describing any of them as verified.
+
+- [ ] Observe a single-service `start`, `stop`, or `restart` from the browser. Only a whole-stack `restart` has been exercised live.
+- [ ] Perform the stack-stop recovery rehearsal: stop the stack, recover it from a host shell without the GUI, and record the commands and outcome.
+- [ ] Complete visual acceptance of the page against the approved mockup at desktop, tablet, and narrow widths. Desktop use of the live page is confirmed; a viewport-by-viewport comparison is not.
+- [ ] Run the flow on a production host with the systemd-managed agent (`/etc/pfsense-hub/deployment-agent.json`) rather than the unprivileged development harness.
+- [ ] Review any expansion beyond the locked scope separately. Rebuild/recreate, image updates, volume deletion, destructive database maintenance, and broader host management are not part of it.
+
+**Operational boundary:** Enabling either host flag requires recreating the `api` container. Disabling a flag never rolls back an operation that already ran, so the page's host-side recovery guidance remains authoritative.
+

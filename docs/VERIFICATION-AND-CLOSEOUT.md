@@ -168,31 +168,6 @@ The page is a frontend-only milestone. Host metrics, service status, bounded log
 
 **Superseded by section 12**, which records the implemented backend, agent, and browser verification. Section 10 remains the historical record of the PR #10 merge.
 
-## 12. System Monitoring & Recovery live verification, November 23, 2026
-
-**Environment:** Ubuntu Docker host, commit `eb008f5`, unprivileged development Host Agent (`scripts/dev-host-agent.sh`), local `.env` with `HUB_HOST_MONITORING_ENABLED=true`, `HUB_HOST_OPERATIONS_ENABLED=true`, and `HUB_HOST_OPERATION_TIMEOUT_MS=180000`. The API container was recreated and its environment verified.
-
-**Results:**
-
-| Check | Result |
-|---|---|
-| `docker compose up -d --build api web` | Rebuilt and restarted; `api`, `db`, and `web` all healthy, bound to `127.0.0.1:3001` and `127.0.0.1:8080` |
-| Served web bundle | Contains the implemented System Monitoring & Recovery page (`index-B58j0DIx.js`) |
-| Agent protocol v2 `system.status` | `state: "ok"` with live host metrics and `web`/`api`/`db` container state and health |
-| Agent protocol v2 `system.logs` | `state: "ok"`, 5 lines, `truncated: false` |
-| Agent protocol v2 `compose.validate` | `state: "valid"` |
-| `system.operationResult` with unknown id | `OPERATION_NOT_FOUND` |
-| `system.operation` with `action: "delete"` | `OPERATION_ACTION_UNSUPPORTED` |
-| Migration 015 | `host_operations` applied with `host_operations_single_active` partial unique index and action/target/state constraints |
-| Unauthenticated `GET /api/v1/system/status`, `GET /api/v1/system/operations` | `401` for both |
-| Browser session | `/api/v1/system/status` polled every 10 s returning `200`; `POST /api/v1/system/compose/validate` returned `200` |
-| Live stack operation from the browser | `restart` on target `stack`, request id `req-f`, actor `ahmed`, `requested` `2026-11-23T05:06:48Z` → `verified_at` `05:06:49Z` → `succeeded` `05:06:50Z`; agent journal matched with `verified: true`; all containers returned to healthy |
-
-**Note on ordering:** the operator-initiated stack restart overlapped the image rebuild for this verification. Both completed successfully; the stack came back healthy with the new API environment.
-
-**Still outstanding:** the stack-stop recovery rehearsal (stop the stack and recover it from a host shell without the GUI), an observed single-service `start`/`stop`/`restart` in the browser, visual acceptance against the approved mockup for this page, and any deployment to a production host or systemd-managed agent. No firewall configuration was changed and no pfSense endpoint was contacted.
-
-
 ## 11. Linux source validation and dependency lockfile fix, November 22, 2026
 
 **Environment:** Ubuntu Docker host, Node.js 22.23.3, npm 10.9.9, Docker 29.10.0. This is the first recorded Linux source validation run; the Windows figures in sections 2 and 8 remain the historical record of that separate run and were not re-measured.
@@ -219,3 +194,52 @@ npm install --package-lock-only --os=linux --os=win32 --cpu=x64 --libc=glibc --l
 
 The previous ad-hoc workarounds were removed: `apps/web/Dockerfile` no longer runs `npm pack` to fetch `@rollup/rollup-linux-x64-musl`, and the unreferenced `scripts/repair-rollup-linux.mjs` helper was deleted. See DEC-037.
 
+## 12. System Monitoring & Recovery live verification, November 23, 2026
+
+**Environment:** Ubuntu Docker host, commit `eb008f5`, unprivileged development Host Agent (`scripts/dev-host-agent.sh`), local `.env` with `HUB_HOST_MONITORING_ENABLED=true`, `HUB_HOST_OPERATIONS_ENABLED=true`, and `HUB_HOST_OPERATION_TIMEOUT_MS=180000`. The API container was recreated and its environment verified.
+
+**Results:**
+
+| Check | Result |
+|---|---|
+| `docker compose up -d --build api web` | Rebuilt and restarted; `api`, `db`, and `web` all healthy, bound to `127.0.0.1:3001` and `127.0.0.1:8080` |
+| Served web bundle | Contains the implemented System Monitoring & Recovery page (`index-B58j0DIx.js`) |
+| Agent protocol v2 `system.status` | `state: "ok"` with live host metrics and `web`/`api`/`db` container state and health |
+| Agent protocol v2 `system.logs` | `state: "ok"`, 5 lines, `truncated: false` |
+| Agent protocol v2 `compose.validate` | `state: "valid"` |
+| `system.operationResult` with unknown id | `OPERATION_NOT_FOUND` |
+| `system.operation` with `action: "delete"` | `OPERATION_ACTION_UNSUPPORTED` |
+| Migration 015 | `host_operations` applied with `host_operations_single_active` partial unique index and action/target/state constraints |
+| Unauthenticated `GET /api/v1/system/status`, `GET /api/v1/system/operations` | `401` for both |
+| Browser session | `/api/v1/system/status` polled every 10 s returning `200`; `POST /api/v1/system/compose/validate` returned `200` |
+| Live stack operation from the browser | `restart` on target `stack`, request id `req-f`, actor `ahmed`, `requested` `2026-11-23T05:06:48Z` → `verified_at` `05:06:49Z` → `succeeded` `05:06:50Z`; agent journal matched with `verified: true`; all containers returned to healthy |
+
+**Note on ordering:** the operator-initiated stack restart overlapped the image rebuild for this verification. Both completed successfully; the stack came back healthy with the new API environment.
+
+**Still outstanding:** the stack-stop recovery rehearsal (stop the stack and recover it from a host shell without the GUI), an observed single-service `start`/`stop`/`restart` in the browser, visual acceptance against the approved mockup for this page, and any deployment to a production host or systemd-managed agent. No firewall configuration was changed and no pfSense endpoint was contacted.
+
+
+## 13. Mobile navigation change and monitoring/recovery feature lock, November 23, 2026
+
+**Environment:** Ubuntu Docker host, local `.env` with `HUB_HOST_MONITORING_ENABLED=true`, `HUB_HOST_OPERATIONS_ENABLED=true`, and `HUB_HOST_OPERATION_TIMEOUT_MS=180000`, unprivileged development Host Agent (`scripts/dev-host-agent.sh`).
+
+**Change:** the Hub-context mobile bottom bar previously carried a fifth tab labelled *Settings* whose label matched no page, so tapping it only moved the highlight. It is replaced by a **System monitoring** tab targeting `/settings/system-recovery`. Tab targets are now declared per tab in an explicit typed list in `apps/web/src/App.tsx` instead of being resolved from a label prefix, and the selected tab is derived from the current page with `aria-current="page"`. `apps/web/src/style.css` wraps two-word labels inside the 62 px bar. See DEC-040. Hub Settings, User Management, Audit Logs, and Application Settings remain in the slide-in navigation menu.
+
+**Verification:**
+
+| Check | Command or method | Result |
+|---|---|---|
+| Web production build | `npm run build --workspace @pfsense-hub/web` | Exit 0; `index-D6OhSOSM.js`, `index-TPCP_qPg.css` |
+| Source typecheck | `npm run typecheck` | Exit 0 for API and web |
+| Container rebuild | `docker compose up -d --build web` | Rebuilt; `api`, `db`, and `web` healthy |
+| Served entry document | `curl` of `index.html` from the running web container | References the new bundle and stylesheet hashes |
+| Served bundle contents | search of the built bundle | Contains the tab tuple `["System monitoring","monitor","system-recovery"]`, confirming the tab is wired to the route rather than to a label prefix |
+| Served stylesheet | search of the built CSS | Contains the `.mobile-bottom-nav button span` wrapping rule inside the 760 px media block |
+
+**Commit:** `20cc109`, "Replace the mobile Settings tab with System monitoring".
+
+**Feature lock:** the implemented System Monitoring & Recovery scope is closed as recorded in [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md) section 10. Still open and explicitly not passed: an observed single-service operation from the browser, the stack-stop recovery rehearsal from a host shell, visual acceptance of the page against the approved mockup, and any run against a systemd-managed production agent.
+
+**Open record-keeping item:** confirm that the stack restart recorded in section 12 (request id `req-f`, actor `ahmed`) was operator-initiated during that verification. If it was not, it must be investigated as an unauthorized host operation rather than closed as a test artifact.
+
+**Operator note:** the browser must be hard-refreshed (Ctrl/Cmd+Shift+R) to load the new bundle hash. A cached bundle will still show the old *Settings* tab.

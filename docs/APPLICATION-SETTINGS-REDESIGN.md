@@ -1,7 +1,7 @@
 # Application Settings page redesign
 
-**Status:** Frontend placeholder implemented on main; functional settings workflows and browser visual acceptance remain pending.  
-**Reference:** Application Settings mockup supplied during the November 22, 2026 design review.
+**Status:** Frontend placeholder implemented on main; functional workflows and browser visual acceptance remain pending. The page's necessity and exact functional scope are **under review** — see [Necessity and scope evaluation, November 23, 2026](#necessity-and-scope-evaluation-november-23-2026). No settings persistence or enforcement may be implemented until that question is decided.  
+**Reference:** Application Settings mockup supplied during the November 22, 2026 design review. The mockup remains the visual authority for this page while it exists.
 
 ## Objective
 
@@ -95,6 +95,68 @@ The remaining work is to implement the individual workflows and their contracts:
 - Persist settings server-side with validation, audit events where appropriate, and safe defaults.
 - Add API and database contracts only after the behavior and security requirements are approved.
 - Test reload persistence, concurrent updates, authorization, failure handling, and restart behavior.
+
+## Necessity and scope evaluation, November 23, 2026
+
+**Status:** Open question. This section records what the documentation supports. It does not decide the page's fate and it made no code change.
+
+### What the documentation currently assigns to this page
+
+DEC-035 and the section above define exactly five rows across two cards. Nothing else is approved for this page.
+
+| Row | Approved presentation | What a functional version would require | Exists today? |
+|---|---|---|---|
+| Application name | `pfSense Hub Manager`, **Edit** | A validated, authorized, persisted value plus an audit event; every header, title, and export that renders the name would need to read it | No |
+| Display timezone | `Browser local timezone`, **Change** | A defined Hub timezone, a rule for which timestamps use it versus UTC versus the viewer's browser zone, persistence, authorization, tests | No |
+| Automatic polling | Switch, "Refresh site status on a schedule" | A real Hub-wide polling scheduler: interval, bounded concurrency, retry/backoff, restart behavior, and a decided relationship to per-site polling enablement | No |
+| Email notifications | Switch, "Send notifications for important events" | Event catalogue, recipient management, provider configuration, secret handling, test delivery, retries, delivery history | No |
+| Require confirmation | Switch, "Ask before consequential actions" | A defined list of consequential actions plus enforcement at the API/service boundary, auditable and not bypassable by calling the API directly | Partially: confirmation is already enforced per action |
+
+### What the rest of the documentation says
+
+- **No PRD requirement exists for this page.** The PRD contains no functional requirement for Hub-wide application preferences, an editable application name, or a display timezone. Its settings-related requirement points elsewhere: FR-13 (GUI-managed Hub access settings) targets **Hub Settings**, and PRD section 18 requires that configuration to be persisted in PostgreSQL and validated server-side.
+- **Each preference overlaps a capability owned by another page or a deferred release.** Per-site polling enablement is part of the managed-site lifecycle (DEC-031) and the Connectivity/Site views. Notification delivery is explicitly a separate release requirement that "must not be represented as implemented" (PRD, manager administration section). Consequential-action confirmation is already required by FR-9 and enforced per action: a typed test phrase for site archival (DEC-031) and for stack Stop (DEC-039).
+- **The prerequisites the documentation lists are all still open.** Background polling scheduling, bounded concurrency, and retry/backoff are recorded as not implemented, with polling partly request-triggered. There is no notification provider, no email secret handling, and no settings table, route, or authorization contract.
+- **DEC-035 approves visual structure only.** It states that functional behavior "is deferred to the roadmap and must be implemented through approved API, persistence, authorization, scheduler, notification, and enforcement contracts."
+- **The approved mockup is binding while the page exists.** The frontend rules require the pictured screens to be reproduced, so removing or reshaping the page is a product/design decision for the user, not an implementation detail.
+
+
+
+### Assessment
+
+Against the product documentation, the page as currently composed is **not necessary**. It carries no behavior that another approved surface does not already own, and every functional row depends on a capability the documentation still defers.
+
+| Capability a user might expect here | Where the documentation puts it |
+|---|---|
+| Hub access method, endpoint, TLS, deployment state | Hub Settings (FR-13, DEC-025, DEC-033) |
+| Enable or disable polling for a site | Managed-site lifecycle (DEC-031), Connectivity view |
+| Users, roles, sessions | User Management (DEC-028) |
+| Audit history | Audit Logs (DEC-028) |
+| Alerts and their lifecycle | Alerts (DEC-028) |
+| Host metrics, service control, recovery | System Monitoring & Recovery (DEC-026, DEC-027, DEC-039) |
+| Background polling schedule, email delivery | Not implemented; deferred release requirements |
+
+Two of the three switches also create a capability-implying risk: an enabled **Automatic polling** or **Email notifications** switch asserts behavior the documentation says does not exist, which this page's own rules forbid. **Require confirmation** is the inverse risk: a global off-switch would let an administrator weaken a safety control that FR-9 and DEC-031/DEC-039 currently enforce unconditionally.
+
+### Options
+
+**Option A, keep the page as an indefinite placeholder.** No work now. It stays a visible but non-functional Administration page, every future review repeats the "not operational" caveat, and its only unique content remains a branding constant and a timezone selector.
+
+**Option B, reduce the page to settings that can be enforced with no new subsystem (recommended if the page is kept).** Keep the General card only: Application name and Display timezone, persisted server-side, admin-only, validated, audited, with safe defaults. Remove the three Preferences switches from this page: per-site polling stays per-site, notification delivery stays a deferred release, and confirmation remains an enforced per-action policy rather than a preference. This preserves the approved visual language, needs one small settings contract, and cannot imply a capability that does not exist. It still requires the decision, then API, persistence, authorization, audit, and tests before any control becomes interactive.
+
+**Option C, retire the page.** Move the two genuinely enforceable values into the existing Hub Settings General area, or drop them; remove the Application Settings route and navigation entry; let each capability live on the page that owns it. This matches the principle that no Administration page exists without functional scope and leaves the smallest surface to secure and document. It contradicts the approved mockup's pictured screen, so it needs an explicit design decision.
+
+**Option D, repurpose it as a settings index.** A page that only links to Hub Settings, User Management, System Monitoring & Recovery, and Audit Logs. No requirement defines it, it duplicates the navigation menu, and it adds a surface with no behavior of its own. Not recommended.
+
+### Recommendation
+
+Take **Option B** if the page must stay for visual completeness, and **Option C** if the smallest honest application surface is the priority. Do not treat Option A as a resting state, and do not implement Option B's workflows before the decision is recorded; if Option A is chosen deliberately, the page must keep its preview labeling.
+
+Independent of the choice:
+
+- Do not add System Information, Maintenance, Backup & Restore, scheduler controls, or host/Docker controls to this page. Host operations belong to System Monitoring & Recovery.
+- Do not present any switch as an operational default. A stored value must change real behavior, or the control must not be interactive.
+- Any persisted setting needs server-side validation, a per-role authorization rule, safe defaults, an audit event where the value affects operations, and tests for reload persistence, concurrent updates, and denied access.
 
 ## Related documentation
 

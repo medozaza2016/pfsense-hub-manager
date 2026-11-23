@@ -1,6 +1,6 @@
 # System Monitoring & Recovery
 
-**Status:** Implemented and committed on `main` as [`eb008f5`](https://github.com/medozaza2016/pfsense-hub-manager/commit/eb008f5): Host Agent read-only monitoring, bounded logs, fixed-project Compose validation, and allowlisted start/stop/restart; API routes, authorization, audit trail, and the live-wired `/settings/system-recovery` page. Both host feature flags remain `false` by default, so an existing installation behaves exactly as before until an administrator enables them. Live browser acceptance, including an operator-initiated stack restart, is recorded in section 9; single-service operations and the stack-stop recovery rehearsal are still outstanding.
+**Status:** Implemented and committed on `main` as [`eb008f5`](https://github.com/medozaza2016/pfsense-hub-manager/commit/eb008f5): Host Agent read-only monitoring, bounded logs, fixed-project Compose validation, and allowlisted start/stop/restart; API routes, authorization, audit trail, and the live-wired `/settings/system-recovery` page. Both host feature flags remain `false` by default, so an installation behaves exactly as before until an administrator enables them. Live browser acceptance, including an operator-initiated stack restart, is recorded in section 9; the implemented scope is locked in section 10, with the deferred verification items listed there.
 
 **Decision authority:** [DEC-026, Hub-only Docker Compose operations and monitoring](DECISIONS.md), [DEC-027, Monitoring visibility and administrator-only operations](DECISIONS.md), and [DEC-039, Host Agent monitoring and recovery operation surface](DECISIONS.md).
 
@@ -170,9 +170,9 @@ Disabling the flags leaves the routes returning 503 `HOST_MONITORING_DISABLED` o
 - [x] Enforce admin/user visibility and server-side authorization on every API operation.
 - [x] Add tests for authorization, allowlist enforcement, arbitrary-target rejection, log redaction/truncation, timeouts, and recovery after failures.
 - [x] Document host-side recovery procedures for when the stack is stopped and the GUI is unavailable.
-- [ ] Verify desktop, tablet, and mobile browser presentation against the running build.
-- [ ] Re-run the checks on the deployment host with both flags enabled and record the result in the verification closeout.
-- [ ] Review any expansion beyond the initial scope through a separate decision.
+- [x] Re-run the checks on the deployment host with both flags enabled and record the result in the verification closeout. Recorded in section 9 and in [Verification and documentation closeout](VERIFICATION-AND-CLOSEOUT.md) section 12.
+- [ ] Verify tablet and narrow-width browser presentation against the running build. Desktop use of the live page against the running agent is confirmed; a viewport-by-viewport visual comparison against the approved mockup is not.
+- [x] Review any expansion beyond the initial scope through a separate decision. No expansion is approved: code-server, volume deletion, image update or rebuild, command-prompt execution, and arbitrary host administration remain outside DEC-039.
 
 ## 8. Acceptance criteria
 
@@ -218,3 +218,38 @@ Run on the Ubuntu Docker host against commit `eb008f5`, using the unprivileged d
 The operator-initiated stack restart coincided with the image rebuild for this verification; both completed, and the stack came back healthy with the new API configuration.
 
 Still outstanding: the stack-stop recovery rehearsal (stopping the stack and recovering it from a host shell without the GUI), and an observed single-service `start`/`stop`/`restart` in the browser. Running `vitest run` without the `src` filter also picks up stale compiled tests in `apps/api/dist/`, which fail for reasons unrelated to source; use the package script. See [VERIFICATION-AND-CLOSEOUT.md](VERIFICATION-AND-CLOSEOUT.md).
+
+## 10. Feature closeout and lock
+
+**Locked:** November 23, 2026, covering `eb008f5` (backend, Host Agent, API, page), `eb4f5aa` (live verification record), and `20cc109` (mobile navigation tab).
+
+The implemented and verified scope is closed. Do not re-open the design questions below without a new decision:
+
+- The data path is fixed: `/settings/system-recovery` → `apps/api` → Unix-socket Host Agent → fixed Docker Compose project. No Docker socket is mounted into `web` or `api`, and no shell, Compose argument, project path, or container name is caller-supplied.
+- The service allowlist is `web`, `api`, and `db`. Code-server and every other host container stay excluded, as does volume deletion, image update or rebuild, and command-prompt execution.
+- Actions are `start`, `stop`, and `restart` only, per service or `stack`, exactly-once by manager-assigned UUID, journaled before dispatch and after execution.
+- Visibility is authenticated admin and user; operational actions are administrator-only and enforced server-side, not by hidden buttons.
+- Both flags (`HUB_HOST_MONITORING_ENABLED`, `HUB_HOST_OPERATIONS_ENABLED`) default to `false`. An installation that does not enable them returns `503` on these routes and behaves exactly as before.
+
+Acceptance criteria status at lock time:
+
+| Criterion (section 8) | Status | Evidence |
+|---|---|---|
+| 1. Values come from the trusted host source | Met | Live `system.status` with real CPU, memory, disk, uptime and container state (section 9) |
+| 2. Only Web, API, PostgreSQL | Met | Agent allowlist and arbitrary-target rejection tests (64 agent tests); DEC-039 |
+| 3. Logs bounded and sanitized | Met | Live `system.logs` (`truncated: false`), redaction/truncation tests |
+| 4. Server-side auth, unauthenticated denial | Met | Unauthenticated `GET /api/v1/system/status` and `/operations` both `401` |
+| 5. Allowlisted actions with audit events | Met for the whole-stack path | `system.operation.request` audit event plus journal for stack `restart`; per-service actions share this code path but were not exercised live |
+| 6. Stack-stop recovery documented and tested without the GUI | Documented, not yet rehearsed | Procedure in section 5 and the page's recovery panel; no host-shell rehearsal recorded |
+| 7. Failure, timeout, restart and unavailable states | Met by automated tests | API and agent suites; not all states observed live |
+| 8. Tests and browser acceptance recorded | Tests yes, browser acceptance partial | Section 9 plus [Verification and documentation closeout](VERIFICATION-AND-CLOSEOUT.md) sections 12 and 13 |
+
+**Deferred items.** These are tracked, not passed. They do not block treating version 1 as delivered, and each must be recorded with a result before it is described as verified:
+
+1. An observed single-service `start`, `stop`, or `restart` from the browser.
+2. The stack-stop recovery rehearsal: stop the stack, recover it from a host shell without the GUI, and record the commands and outcome.
+3. Visual acceptance of the page against the approved mockup at desktop, tablet, and narrow widths.
+4. Deployment to a production host with the systemd-managed agent (`/etc/pfsense-hub/deployment-agent.json`), rather than the unprivileged development harness.
+
+**Operator note:** enabling or disabling either flag requires recreating the `api` container so the new environment is read. Disabling never rolls back an operation that already ran, which is why the recovery guidance on the page assumes the stack may already be stopped.
+
