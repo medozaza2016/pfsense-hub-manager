@@ -1,6 +1,6 @@
 # System Monitoring & Recovery
 
-**Status:** Implemented and committed on `main` as [`eb008f5`](https://github.com/medozaza2016/pfsense-hub-manager/commit/eb008f5): Host Agent read-only monitoring, bounded logs, fixed-project Compose validation, and allowlisted start/stop/restart; API routes, authorization, audit trail, and the live-wired `/settings/system-recovery` page. Both host feature flags remain `false` by default, so an existing installation behaves exactly as before until an administrator enables them. Browser acceptance and a live operation on the deployment host are not yet recorded.
+**Status:** Implemented and committed on `main` as [`eb008f5`](https://github.com/medozaza2016/pfsense-hub-manager/commit/eb008f5): Host Agent read-only monitoring, bounded logs, fixed-project Compose validation, and allowlisted start/stop/restart; API routes, authorization, audit trail, and the live-wired `/settings/system-recovery` page. Both host feature flags remain `false` by default, so an existing installation behaves exactly as before until an administrator enables them. Live browser acceptance, including an operator-initiated stack restart, is recorded in section 9; single-service operations and the stack-stop recovery rehearsal are still outstanding.
 
 **Decision authority:** [DEC-026, Hub-only Docker Compose operations and monitoring](DECISIONS.md), [DEC-027, Monitoring visibility and administrator-only operations](DECISIONS.md), and [DEC-039, Host Agent monitoring and recovery operation surface](DECISIONS.md).
 
@@ -32,6 +32,12 @@ The page at `/settings/system-recovery` contains the following sections:
 | Safety notes | Stack-stop outage warning, code-server exclusion, role model | Informational only |
 
 The page never fabricates resource values, service health, logs, validation results, or operation outcomes. It reaches Docker only through the API and the Host Agent. Disabled controls and hidden buttons are presentation only; the API and the agent re-check role, flag state, device identity, and the operation allowlist on every request.
+
+### 2.1 Mobile navigation
+
+The mobile bottom bar in the Hub context shows **Overview**, **Sites**, **Connectivity**, **Alerts**, and **System monitoring**. The former fifth tab, labelled *Settings*, is replaced because it matched no page and did nothing when tapped. The **System monitoring** tab opens `/settings/system-recovery` and is shown as selected whenever that page is active.
+
+Hub Settings, User Management, Audit Logs, and Application Settings remain reachable from the navigation menu, which the top-bar menu button opens. Site-level tabs are unchanged: Overview, Monitoring, Interfaces, Rules, and More.
 
 ## 3. Approved initial functional scope
 
