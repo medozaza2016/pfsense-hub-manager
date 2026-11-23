@@ -1,8 +1,8 @@
 # Hub Installation and First-Run Bootstrap
 
 **Status:** Linux first-install and Tailscale access path verified on November 22, 2026; broader production acceptance remains in progress. Windows has a documented Docker Desktop development setup, not a full PowerShell installer.
-**Decision:** DEC-031 and DEC-032
-**Implementation status:** The active feature branch supports a single-entry Linux installation on a clean Debian 13/systemd host. The main installer provisions the Hub and standard Host Agent, verifies their connection, and enables GUI-managed access deployment after health checks. A clean install completed successfully, and Hub Settings reported the Tailscale endpoint verified with desired and applied revision 2. Windows/Linux install-script parity is not claimed: Windows Docker Desktop is the local development platform and does not run the Linux systemd Host Agent. Reboot/restore, backup recovery, and migration acceptance remain outstanding.
+**Decision:** DEC-031, DEC-032, and DEC-036
+**Implementation status:** The active feature branch supports a single-entry Linux installation on a clean Debian 13/systemd host. The main installer provisions the Hub and standard Host Agent, verifies their connection, and enables GUI-managed access deployment after health checks. A clean install completed successfully, and Hub Settings reported the Tailscale endpoint verified with desired and applied revision 2. The same script also provides an unprivileged `--local` development mode that starts the Hub from any checkout path without the Host Agent. Windows/Linux install-script parity is not claimed: Windows Docker Desktop is the local development platform and does not run the Linux systemd Host Agent. Reboot/restore, backup recovery, and migration acceptance remain outstanding.
 
 **Operator procedure:** Use the [Prepared Proxmox LXC quick start](DEPLOYMENT.md#prepared-proxmox-lxc-quick-start) for the standard two-command path. Use [Fresh Linux Host Setup](DEPLOYMENT.md#fresh-linux-host-setup) only for a plain Linux machine that still needs host prerequisites or Docker. This document records lifecycle requirements and acceptance criteria.
 
@@ -101,6 +101,19 @@ Production deployment targets Linux, initially Debian 13 on a Proxmox LXC or ano
 
 The Linux Bash workflow is implemented and verified on the prepared Debian 13 Proxmox LXC. A matching automated Windows PowerShell Hub installer is not implemented; Windows remains a Docker Desktop development workflow. Do not imply Windows/Linux installer parity.
 
+### 5.1 Linux local development mode
+
+`scripts/install-linux.sh --local` (alias `--dev`) runs the same installer without privileges from any checkout path. It is a development convenience, not a production installation path, and it does not change the production procedure.
+
+- Requires Docker Engine, Docker Compose v2, OpenSSL, and standard coreutils. systemd, Python, iproute2, and group management utilities are not required.
+- Refuses to run as root, except through `sudo` with resolvable `SUDO_USER`, `SUDO_UID`, and `SUDO_GID`; created files are then returned to that account. A checkout owned by another account is rejected.
+- Installs no Host Agent, no systemd service, and no agent configuration, and creates no root-owned project files.
+- Writes `.env` with empty `HUB_DEPLOYMENT_AGENT_TOKEN` and `HUB_DEPLOYMENT_AGENT_SOCKET`, `HUB_ACCESS_DEPLOYMENT_ENABLED=false`, and the loopback bind, so Hub access deployment stays disabled and requests return `503 HUB_ACCESS_DEPLOYMENT_DISABLED`.
+- Applies the same non-destructive guards: an existing `.env`, key files, the `pfsense-hub_postgres_data` volume, or Compose project containers stop the installer instead of being overwritten.
+- Builds and starts web, API, and PostgreSQL, waits for all three to become healthy, and prints `http://127.0.0.1:8080`.
+
+Without a privileged agent, Linux local mode cannot verify or apply Tailscale or Custom Hub access settings. Use the production procedure for that capability, and stop the local stack with `docker compose down` rather than `docker compose down -v`.
+
 ## 6. First login and site registration
 
 After a successful Hub-only installation:
@@ -135,7 +148,7 @@ Do not rotate the application encryption key as part of this migration unless a 
 
 A fresh Hub can start without a registered firewall. The Compose file retains blank legacy single-firewall bootstrap fields and an empty API-key compatibility placeholder, but the installer does not require a real firewall identity, API URL, API key, or CA certificate. The manager supports GUI-based site registration with encrypted per-device credentials and TLS trust.
 
-The Linux Bash installer is the single first-install entry point. It refuses to overwrite existing `.env`/secrets, Host Agent configuration/service, Compose project containers, or the named PostgreSQL volume. It never deletes volumes. The Host Agent installer remains a separate script internally for maintenance, but normal Linux onboarding invokes it automatically.
+The Linux Bash installer is the single first-install entry point. It refuses to overwrite existing `.env`/secrets, Host Agent configuration/service, Compose project containers, or the named PostgreSQL volume. It never deletes volumes. When it detects existing state it changes nothing and prints the resume procedure and the destructive replacement procedure, so an operator is never left without a next step. The Host Agent installer remains a separate script internally for maintenance, but normal Linux onboarding invokes it automatically.
 
 The standard prepared Proxmox LXC quick start assumes Debian 13, an administrator account, Docker Engine/Compose, Git, and base utilities are already present. It does not reinstall Tailscale or reset the existing CT identity. The full plain-Debian prerequisite procedure remains available for other hosts.
 
@@ -152,6 +165,7 @@ The installation and onboarding milestone has separate platform and product acce
 - [x] The installer provisions and enables the Host Agent, verifies the Unix socket, API supplementary group, and bearer-authenticated request, then enables GUI-managed access deployment.
 - [x] The installer generates a protected application encryption key and requires confirmation that its one-time recovery copy was saved.
 - [x] The installer refuses to overwrite existing secrets, agent configuration/service, containers, or PostgreSQL volume.
+- [x] The unprivileged `--local` mode installs and starts the Hub from an arbitrary checkout path with no Host Agent, and keeps `HUB_ACCESS_DEPLOYMENT_ENABLED=false`.
 - [x] Hub Settings can apply and verify the Tailscale MagicDNS HTTPS endpoint on the tested prepared Debian 13 CT.
 - [ ] Reboot and snapshot-restore recovery drill.
 - [ ] Database and encryption-key backup/restore drill.

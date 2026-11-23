@@ -19,7 +19,7 @@ The first Netgate 2100 running pfSense Plus was historically tested for eight re
 - **Credential protection:** Per-device API credentials and custom TLS trust are encrypted at rest using AES-256-GCM and a separately provisioned application encryption key.
 - **Manager administration:** Database-backed login and sessions, `admin` and `user` roles, user management, audit records, and operational alerts.
 - **Hub access:** Administration → Hub Settings supports Local, Tailscale MagicDNS, and Custom endpoint configuration. On Linux, a restricted systemd Host Agent applies and verifies supported host changes. It does not expose the Docker socket to the application containers.
-- **Linux installation:** One entry point, `scripts/install-linux.sh`, provisions both the Hub and its standard Host Agent. It enables GUI-managed access deployment only after service health and the API-to-agent authentication handshake succeed.
+- **Linux installation:** One entry point, `scripts/install-linux.sh`, has two explicit modes. The default production mode provisions both the Hub and its standard Host Agent from a root-owned `/opt/pfsense-hub` checkout and enables GUI-managed access deployment only after service health and the API-to-agent authentication handshake succeed. The unprivileged `--local` mode builds and starts the Hub with Docker Compose from any checkout path without the Host Agent and keeps the deployment gate false.
 
 The following are still incomplete: a second live firewall/CE validation, continuous background polling and retry scheduling, full live data for all preview pages, database backup/restore drills and retention policy, application key rotation, a Windows host deployment agent, and any firewall configuration write workflow.
 
@@ -44,6 +44,20 @@ For a repeat of the current feature-branch acceptance test before merge, use `--
 The installer generates protected secrets, displays a one-time application encryption recovery key, installs and enables the Host Agent, builds the web/API images, starts PostgreSQL, waits for all services to become healthy, verifies the API-to-agent socket and bearer-authenticated handshake, and enables GUI-managed access deployment. Save the recovery key in a password manager. Never paste it into chat, source control, or logs.
 
 The Linux production host does not need Node.js or npm. The application builds inside Docker.
+
+This privileged procedure is intentionally pinned to `/opt/pfsense-hub`. The Host Agent runs as root and executes `docker compose` against this checkout's `compose.yaml` and `.env`, so a user-writable project directory would let an unprivileged account influence root-owned host configuration. Do not work around the path requirement by loosening ownership or permissions.
+
+### Linux local development (any checkout path)
+
+For development on a Linux workstation with Docker Engine and Docker Compose v2, from any checkout path, run without `sudo`:
+
+```bash
+bash scripts/install-linux.sh --local
+```
+
+`--dev` is accepted as an alias. Local mode installs no systemd Host Agent, needs no root access, creates no root-owned files, and leaves `HUB_ACCESS_DEPLOYMENT_ENABLED=false`, so Hub access deployment requests keep returning `503 HUB_ACCESS_DEPLOYMENT_DISABLED`. It generates the PostgreSQL password and application encryption key, writes `.env` with an empty agent token and socket, validates the Compose configuration, builds and starts the stack, waits for PostgreSQL, API, and web health, and prints the local UI address.
+
+The installer refuses to overwrite an existing `.env`, key files, the `pfsense-hub_postgres_data` volume, or running containers for this Compose project, and it refuses a checkout owned by another account. Stop the stack with `docker compose down`, never `docker compose down -v`. Linux local mode cannot exercise Tailscale or Custom Hub access auto-deployment; use the production procedure to test those. See the [Deployment guide](docs/DEPLOYMENT.md#linux-local-development-install-non-root-any-checkout-path).
 
 ### Plain Debian host
 
@@ -78,11 +92,11 @@ docker compose ps
 
 Open `http://127.0.0.1:8080`. Docker Compose builds and runs the web, API, and PostgreSQL containers. Windows Docker Desktop does not run the production Linux systemd Host Agent, so automatic host access deployment remains disabled. Do not set the feature gate to true on Windows.
 
-### Windows local code validation
+### Local code validation (Windows or Linux)
 
 Node.js 22 and npm are needed for local source checks, not for the Linux production host. From the repository root:
 
-```powershell
+```
 npm ci
 npm test
 npm run typecheck
@@ -90,6 +104,8 @@ npm run build
 ```
 
 These commands validate API/web source tests, TypeScript, and production builds. They are separate from the Docker Compose start commands above. The Linux Host Agent Python tests require a Linux environment for the Unix-socket integration cases; Windows skips the platform-specific Unix-socket tests.
+
+The same commands work from any Linux checkout path. The committed lockfile records the native Rollup and esbuild binaries for Windows x64 and Linux x64 (glibc and musl), so `npm ci` resolves the matching platform binary on either host. If `npm test` reports `Cannot find module @rollup/rollup-linux-x64-gnu`, the lockfile has been regenerated on a single platform; regenerate it with the platform overrides recorded in DEC-037 instead of patching `node_modules`.
 
 ## Verification and current limits
 

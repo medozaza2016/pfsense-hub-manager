@@ -100,6 +100,10 @@ The four skipped tests are the Unix-domain-socket client tests, explicitly skipp
 
 The Linux Host Agent suite was run on Linux and reported **23 tests passed**. The installer scripts passed Bash syntax checks, Docker Compose validation passed, and the existing LXC's API, web, and PostgreSQL containers reported healthy.
 
+## Linux source validation and dependency lockfile fix, November 22, 2026
+
+A Linux checkout of the current branch failed `npm test` with `Cannot find module @rollup/rollup-linux-x64-gnu`, because the committed `package-lock.json` had been generated on Windows and recorded only Windows optional binaries. The lockfile was regenerated with npm 11 platform overrides (`--os=linux --os=win32 --cpu=x64 --libc=glibc --libc=musl`), adding 76 platform-specific entries and changing four packages at patch level: `rollup` and `@rollup/rollup-win32-x64-msvc` to 4.68.8, `fast-json-stringify` to 7.3.10, and `caniuse-lite` to 1.0.30001827. On Linux, `npm ci` then installed 196 packages with 0 vulnerabilities, `npm test` passed 17 test files and 217 tests with none skipped, `npm run typecheck` and `npm run build` passed, and a `--no-cache` web image build succeeded without the previous manual Rollup binary workaround. The `npm pack` step in `apps/web/Dockerfile` and the unreferenced `scripts/repair-rollup-linux.mjs` helper were removed. See DEC-037 and [Verification and Documentation Closeout](VERIFICATION-AND-CLOSEOUT.md).
+
 ## Clean Linux installation and Hub access verification, November 22, 2026
 
 A clean Debian 13 prepared Proxmox LXC installation completed using the unified Linux installer. The installer automatically installed/enabled the Host Agent, built the stack, waited for database/API/web health, verified the API supplementary group and Unix socket, and completed the bearer-authenticated API-to-agent request. It then enabled `HUB_ACCESS_DEPLOYMENT_ENABLED=true` and recreated the API container successfully.

@@ -10,6 +10,7 @@ Docker Compose runs the React/Vite web application served by Nginx, the Fastify 
 - A secure location outside the server for the application encryption recovery key.
 - A pfSense API key is needed only when you register a firewall through Administration → Add Site.
 - Node.js and npm are **not** required on the Linux production host. The application runs inside Docker containers.
+- For Linux local development only, `scripts/install-linux.sh --local` needs Docker Engine, Docker Compose v2, OpenSSL, and coreutils; systemd, Python, and iproute2 are not required.
 
 ## Fresh Linux host setup
 
@@ -84,7 +85,7 @@ Use Docker's [official Debian installation guide](https://docs.docker.com/engine
 
 ### 3. Clone the project into the required protected location
 
-The production installer and systemd Host Agent are pinned to `/opt/pfsense-hub`. Clone the repository as root so the project directory and trusted Host Agent files are root-owned:
+The production installer and systemd Host Agent are pinned to `/opt/pfsense-hub`. Clone the repository as root so the project directory and trusted Host Agent files are root-owned. If you only need a development stack from a personal checkout, skip this production path and use [Linux local development install](#linux-local-development-install-non-root-any-checkout-path) instead of moving or re-owning the checkout:
 
 ```bash
 sudo install -d -o root -g root -m 0755 /opt
@@ -121,7 +122,7 @@ This is the single supported Linux installation entry point. It generates the Po
 
 The installer does not install or authenticate Tailscale, enable tailnet HTTPS, configure ACLs, or create a Funnel. Tailscale remains optional. When installed later, the Host Agent discovers the Tailscale CLI from its service PATH. To use Tailscale, connect the host to the tailnet and enable HTTPS certificates in the tailnet administration console, then select the MagicDNS hostname in Administration → Hub Settings.
 
-The installer prints the one-time application encryption recovery key before creating installation files and requires confirmation that it was saved. Store it in a password manager. Do not paste it into chat, source control, or .env. The runtime key is stored at secrets/runtime/app_encryption_key. The installer refuses to overwrite an existing .env, runtime key, API-key placeholder, Host Agent configuration/service, Compose project containers, or the named PostgreSQL volume pfsense-hub_postgres_data. It never deletes volumes. If existing state is detected, stop and inspect or restore that installation instead of removing files to force a fresh install.
+The installer prints the one-time application encryption recovery key before creating installation files and requires confirmation that it was saved. Store it in a password manager. Do not paste it into chat, source control, or .env. The runtime key is stored at secrets/runtime/app_encryption_key. The installer refuses to overwrite an existing .env, runtime key, API-key placeholder, Host Agent configuration/service, Compose project containers, or the named PostgreSQL volume pfsense-hub_postgres_data. It never deletes volumes. If existing state is detected, the installer stops, changes nothing, and prints two procedures: resume the existing installation (`docker compose up -d`, then `docker compose ps` until db, api, and web report healthy) or, only if all existing Hub data may be destroyed, replace it (`docker compose down -v`, remove `.env`, `secrets/`, `certs/`, and `run/`, and for a production host also disable and remove the Host Agent service and configuration before rerunning the installer). Prefer inspecting or restoring the existing installation over removing files to force a fresh install.
 
 ### Verify the first installation
 
@@ -224,9 +225,31 @@ Check the agent with `sudo systemctl status pfsense-hub-deployment-agent --no-pa
 
 ### Local development and production boundary
 
-Windows 11 / Docker Desktop development does not run this Linux systemd Host Agent. Leave HUB_DEPLOYMENT_AGENT_TOKEN and HUB_DEPLOYMENT_AGENT_SOCKET empty and keep HUB_ACCESS_DEPLOYMENT_ENABLED=false in local development. Automatic host deployment is a Linux production capability; Windows local development continues to exercise the frontend and API without applying host settings. Ordinary local development and the existing loopback web endpoint remain available.
+Windows 11 / Docker Desktop development and Linux `--local` development do not run this Linux systemd Host Agent. Leave HUB_DEPLOYMENT_AGENT_TOKEN and HUB_DEPLOYMENT_AGENT_SOCKET empty and keep HUB_ACCESS_DEPLOYMENT_ENABLED=false in local development. Automatic host deployment is a Linux production capability; local development continues to exercise the frontend and API without applying host settings, and Hub access deployment requests return `503 HUB_ACCESS_DEPLOYMENT_DISABLED`. Ordinary local development and the existing loopback web endpoint remain available.
 
 LAN and Custom require an already configured TLS termination layer. Hub Manager does not provision certificates, DNS, or reverse proxies. For Tailscale, the host agent can configure the single fixed Serve route after the administrator selects Tailscale in Hub Settings. Tailnet HTTPS must be enabled in the Tailscale administration console first.
+
+## Linux local development install (non-root, any checkout path)
+
+The production procedure above is deliberately pinned to `/opt/pfsense-hub` because the privileged Host Agent executes `docker compose` against that checkout as root. Do not relocate or re-own a personal checkout to satisfy the production path. For Linux development from any checkout path, run the same installer in local mode without `sudo`:
+
+```bash
+cd ~/GitHub/pfsense-hub-manager
+bash scripts/install-linux.sh --local
+```
+
+`--dev` is an accepted alias. `--help` prints usage, and an unknown argument fails with a usage error instead of being ignored. Local mode:
+
+- Requires Docker Engine, Docker Compose v2, OpenSSL, and standard coreutils only. systemd, Python, iproute2, and group management utilities are not required.
+- Refuses to run as root. Running it through `sudo` is allowed only when `SUDO_USER`, `SUDO_UID`, and `SUDO_GID` resolve, and created files are then returned to that account; a checkout owned by a different account is rejected.
+- Creates no Host Agent service, no systemd unit, and no root-owned files.
+- Writes `.env` with empty `HUB_DEPLOYMENT_AGENT_TOKEN` and `HUB_DEPLOYMENT_AGENT_SOCKET` and keeps `HUB_ACCESS_DEPLOYMENT_ENABLED=false`, so Hub access deployment requests return `503 HUB_ACCESS_DEPLOYMENT_DISABLED`.
+- Generates `POSTGRES_PASSWORD` and the application encryption key, displays the one-time recovery key, and requires confirmation before creating files.
+- Applies `0700` to `secrets/` and `secrets/runtime/`, `0400` to key files, and `0600` to `.env`.
+- Validates Compose, builds and starts web, API, and PostgreSQL, and waits for all three services to become healthy before printing `http://127.0.0.1:8080`.
+- Refuses an existing `.env` or key files, the `pfsense-hub_postgres_data` volume, or running containers for the `pfsense-hub` Compose project.
+
+Stop a local stack with `docker compose down`. Never use `docker compose down -v`; it deletes the generated database and the encryption state required to decrypt stored firewall credentials. Tailscale and Custom access auto-deployment require the production Host Agent and cannot be exercised in local mode. Local mode is not a production installation.
 
 ## Windows 11 local setup and development workflow
 
@@ -293,7 +316,7 @@ npm run typecheck
 npm run build
 ```
 
-These commands are distinct from Compose startup. Run them from the repository root after dependencies are installed. The Python Host Agent suite should be run on Linux for full socket-related coverage; four Unix-domain-socket tests are intentionally skipped when the test suite runs on Windows.
+These commands are distinct from Compose startup. Run them from the repository root after dependencies are installed. The Python Host Agent suite should be run on Linux for full socket-related coverage; four Unix-domain-socket tests are intentionally skipped when the test suite runs on Windows. The same commands validate a Linux checkout: the committed lockfile records the Rollup and esbuild native packages for Windows x64 and Linux x64 (glibc and musl), so `npm ci` resolves the matching binary on either host (DEC-037).
 
 ### 5. Rebuild when source and browser behavior differ
 

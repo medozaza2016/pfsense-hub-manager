@@ -165,3 +165,30 @@ The merged frontend adds the Administration navigation entry and `/settings/syst
 **Not verified by this merge:** No browser visual test, new typecheck, automated test run, production build, deployment, or live Host Agent operation was performed for PR #10 in the available evidence. The user's subsequent Application Settings screenshot showed the existing two-card page but did not show the System Monitoring & Recovery navigation item. Therefore, do not assume that the browser was running the merged web image. Confirm the local repository is updated to `main`, rebuild/recreate the web service, and inspect the new page before treating visual acceptance as complete.
 
 The page is a frontend-only milestone. Host metrics, service status, bounded logs, Compose validation, service/stack operations, role enforcement, audit events, and recovery tests remain future implementation work under DEC-026 and DEC-027. See [System Monitoring & Recovery requirements and implementation plan](SYSTEM-MONITORING-RECOVERY.md).
+
+## 11. Linux source validation and dependency lockfile fix, November 22, 2026
+
+**Environment:** Ubuntu Docker host, Node.js 22.23.3, npm 10.9.9, Docker 29.10.0. This is the first recorded Linux source validation run; the Windows figures in sections 2 and 8 remain the historical record of that separate run and were not re-measured.
+
+**Failure observed:** `npm ci` followed by `npm test` aborted before executing any test file with `Error: Cannot find module @rollup/rollup-linux-x64-gnu`. The committed `package-lock.json` contained no `@rollup/*` package entries and only `@esbuild/win32-x64`, because it had been generated on Windows and npm records optional binary dependencies for the resolving platform only (npm/cli#4828).
+
+**Fix:** the lockfile was regenerated in a scratch copy of the workspace manifests with explicit platform overrides and then adopted:
+
+```bash
+npm install --package-lock-only --os=linux --os=win32 --cpu=x64 --libc=glibc --libc=musl
+```
+
+`--os`, `--cpu`, and `--libc` are npm 11 options; the regeneration used npm 11 while the repository continues to be validated with the installed npm 10.9.9. It added 76 platform-specific entries (all Rollup and esbuild optional binaries, including `@rollup/rollup-linux-x64-gnu` and `@rollup/rollup-linux-x64-musl`) and removed none. Four packages changed at patch level within their existing ranges: `rollup` 4.68.7 → 4.68.8, `@rollup/rollup-win32-x64-msvc` 4.68.7 → 4.68.8, `fast-json-stringify` 7.3.7 → 7.3.10, and `caniuse-lite` 1.0.30001826 → 1.0.30001827. No runtime dependency was added or removed.
+
+**Results on Linux:**
+
+| Command | Result | Recorded detail |
+|---|---|---|
+| `npm ci` | Passed | 196 packages installed, 199 audited, 0 vulnerabilities; `@rollup/rollup-linux-x64-gnu` and `@esbuild/linux-x64` present in `node_modules` |
+| `npm test` | Passed | 17 test files, 217 tests passed, none skipped |
+| `npm run typecheck` | Passed | API and web TypeScript checks completed |
+| `npm run build` | Passed | API TypeScript build and web TypeScript/Vite production build completed |
+| `docker build --no-cache -f apps/web/Dockerfile .` | Passed | Alpine image built with `npm ci` alone; 41 modules transformed, no manual Rollup binary injection |
+
+The previous ad-hoc workarounds were removed: `apps/web/Dockerfile` no longer runs `npm pack` to fetch `@rollup/rollup-linux-x64-musl`, and the unreferenced `scripts/repair-rollup-linux.mjs` helper was deleted. See DEC-037.
+
