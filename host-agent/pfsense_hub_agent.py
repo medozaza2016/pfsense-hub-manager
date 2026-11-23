@@ -7,6 +7,14 @@ values from the API. It changes only HUB_BIND_ADDRESS in the fixed project .env
 and recreates only the fixed web service, or configures and verifies one fixed
 Tailscale MagicDNS Serve route. DNS, TLS termination, reverse proxies, and
 tailnet policy remain operator-managed. The agent never configures Funnel.
+
+Trust model: trust is derived from the agent's own identity, never from a mode
+flag or from the configuration file. The configuration file, the project
+directory, the Compose file, and the environment file must all be owned by the
+effective user and group running the agent. A root agent therefore still
+requires a root-owned checkout at the production project path, while an
+unprivileged agent requires an unprivileged-owned checkout. No configuration
+can make a privileged agent accept attacker-writable project files.
 """
 from __future__ import annotations
 
@@ -18,6 +26,7 @@ import socket
 import shutil
 import ssl
 import stat
+import sys
 import tempfile
 import time
 import subprocess
@@ -29,6 +38,9 @@ from pathlib import Path
 from typing import Any
 
 CONFIG_PATH = Path("/etc/pfsense-hub/deployment-agent.json")
+PRODUCTION_PROJECT_DIR = "/opt/pfsense-hub"
+DEFAULT_SOCKET_GID = 2000
+DEFAULT_LOCK_PATH = "/run/pfsense-hub/deployment.lock"
 MAX_LINE = 16 * 1024
 PROTOCOL_VERSION = 1
 SAFE_ERROR = re.compile(r"^[A-Z0-9_]{1,64}$")
@@ -40,15 +52,53 @@ class AgentError(Exception):
         super().__init__(self.code)
 
 
-def load_config() -> dict[str, Any]:
-    # Validate the configuration file itself before reading it. lstat rejects
-    # symlinks, and the root-only parent directory prevents unprivileged swaps.
+def validate_project_paths(raw: dict[str, Any]) -> None:
+    """Require project files that belong to the identity running this agent.
+
+    A root agent therefore still requires a root-owned production checkout, so a
+    configuration file can never point a privileged agent at a writable tree.
+    """
+    project_dir = raw["project_dir"]
+    if not isinstance(project_dir, str) or not os.path.isabs(project_dir):
+        raise AgentError("AGENT_PROJECT_PATH_INVALID")
+    if project_dir != os.path.realpath(project_dir):
+        raise AgentError("AGENT_PROJECT_PATH_INVALID")
+    if raw["compose_file"] != os.path.join(project_dir, "compose.yaml"):
+        raise AgentError("AGENT_PROJECT_PATH_INVALID")
+    if raw["env_file"] != os.path.join(project_dir, ".env"):
+        raise AgentError("AGENT_PROJECT_PATH_INVALID")
+    owner = os.geteuid()
+    group = os.getegid()
+    if owner == 0 and project_dir != PRODUCTION_PROJECT_DIR:
+        raise AgentError("AGENT_PROJECT_PATH_INVALID")
     try:
-        metadata = CONFIG_PATH.lstat()
-        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
-                or metadata.st_gid != 0 or metadata.st_mode & 0o077):
+        project_stat = Path(project_dir).lstat()
+        compose_stat = Path(raw["compose_file"]).lstat()
+        if (not stat.S_ISDIR(project_stat.st_mode) or project_stat.st_uid != owner
+                or project_stat.st_mode & 0o022
+                or not stat.S_ISREG(compose_stat.st_mode) or compose_stat.st_uid != owner
+                or compose_stat.st_gid != group or compose_stat.st_mode & 0o022):
+            raise AgentError("AGENT_PROJECT_PERMISSIONS_INVALID")
+    except AgentError:
+        raise
+    except Exception as exc:
+        raise AgentError("AGENT_PROJECT_UNAVAILABLE") from exc
+
+
+def load_config(path: Path | None = None) -> dict[str, Any]:
+    # Validate the configuration file itself before reading it. lstat rejects
+    # symlinks. The production path lives in a root-only directory; a development
+    # configuration lives in the invoking account's own config directory. In both
+    # cases the file must belong to the identity that runs the agent.
+    config_path = CONFIG_PATH if path is None else path
+    owner = os.geteuid()
+    group = os.getegid()
+    try:
+        metadata = config_path.lstat()
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != owner
+                or metadata.st_gid != group or metadata.st_mode & 0o077):
             raise AgentError("AGENT_CONFIGURATION_PERMISSIONS_INVALID")
-        raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
     except AgentError:
         raise
     except Exception as exc:
@@ -72,8 +122,7 @@ def load_config() -> dict[str, Any]:
         raise AgentError("AGENT_DOCKER_BINARY_INVALID")
     if not isinstance(raw["ip_binary"], str) or not os.path.isabs(raw["ip_binary"]):
         raise AgentError("AGENT_IP_BINARY_INVALID")
-    if raw["project_dir"] != "/opt/pfsense-hub" or raw["compose_file"] != "/opt/pfsense-hub/compose.yaml" or raw["env_file"] != "/opt/pfsense-hub/.env":
-        raise AgentError("AGENT_PROJECT_PATH_INVALID")
+    validate_project_paths(raw)
     for binary_key in ("docker_binary", "ip_binary", "tailscale_binary"):
         binary_path = raw[binary_key]
         if not binary_path:
@@ -86,21 +135,18 @@ def load_config() -> dict[str, Any]:
             raise
         except Exception as exc:
             raise AgentError("AGENT_BINARY_UNAVAILABLE") from exc
-    try:
-        project_stat = Path(raw["project_dir"]).lstat()
-        compose_stat = Path(raw["compose_file"]).lstat()
-        if (not stat.S_ISDIR(project_stat.st_mode) or project_stat.st_uid != 0
-                or project_stat.st_mode & 0o022
-                or not stat.S_ISREG(compose_stat.st_mode) or compose_stat.st_uid != 0
-                or compose_stat.st_gid != 0 or compose_stat.st_mode & 0o022):
-            raise AgentError("AGENT_PROJECT_PERMISSIONS_INVALID")
-    except AgentError:
-        raise
-    except Exception as exc:
-        raise AgentError("AGENT_PROJECT_UNAVAILABLE") from exc
     if raw["web_local_url"] != "http://127.0.0.1:8080":
         raise AgentError("AGENT_WEB_TARGET_INVALID")
-    return raw
+    socket_gid = raw.get("socket_gid", DEFAULT_SOCKET_GID)
+    if type(socket_gid) is not int or not 1 <= socket_gid <= 65535:
+        raise AgentError("AGENT_SOCKET_GROUP_INVALID")
+    lock_path = raw.get("lock_path", DEFAULT_LOCK_PATH)
+    if not isinstance(lock_path, str) or not os.path.isabs(lock_path):
+        raise AgentError("AGENT_LOCK_PATH_INVALID")
+    config = dict(raw)
+    config["socket_gid"] = socket_gid
+    config["lock_path"] = lock_path
+    return config
 
 
 def run_fixed(argv: list[str], timeout: int = 20) -> str:
@@ -119,7 +165,8 @@ def read_bind_address(config: dict[str, Any]) -> tuple[str, str]:
     path = Path(config["env_file"])
     try:
         metadata = path.lstat()
-        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_gid != 0 or metadata.st_mode & 0o022:
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid()
+                or metadata.st_gid != os.getegid() or metadata.st_mode & 0o077):
             raise AgentError("ENV_FILE_PERMISSIONS_INVALID")
         content = path.read_text(encoding="utf-8")
     except AgentError:
@@ -141,8 +188,8 @@ def write_bind_address(config: dict[str, Any], address: str) -> None:
     path = Path(config["env_file"])
     try:
         metadata = path.lstat()
-        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
-                or metadata.st_gid != 0 or metadata.st_mode & 0o077):
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid()
+                or metadata.st_gid != os.getegid() or metadata.st_mode & 0o077):
             raise AgentError("ENV_FILE_PERMISSIONS_INVALID")
         content = path.read_text(encoding="utf-8")
         mode = stat.S_IMODE(metadata.st_mode)
@@ -609,27 +656,49 @@ def handle_client(conn: socket.socket, config: dict[str, Any], lock_path: Path) 
         conn.close()
 
 
+def parse_config_path(argv: list[str]) -> Path:
+    if not argv:
+        return CONFIG_PATH
+    if len(argv) != 2 or argv[0] != "--config":
+        raise SystemExit("Usage: pfsense_hub_agent.py [--config /absolute/path/deployment-agent.json]")
+    path = Path(argv[1])
+    if not path.is_absolute():
+        raise SystemExit("The agent configuration path must be absolute.")
+    return path
+
+
+def require_socket_group(socket_gid: int) -> None:
+    # Granting a socket group access requires privilege unless that group already
+    # belongs to this account. Fail closed instead of silently widening access.
+    if os.geteuid() != 0 and socket_gid != os.getegid() and socket_gid not in os.getgroups():
+        raise SystemExit("AGENT_SOCKET_GROUP_REQUIRES_ROOT: the agent cannot grant its socket group access.")
+
+
 def main() -> None:
-    if os.geteuid() != 0:
-        raise SystemExit("The host deployment agent must run as root.")
-    config = load_config()
+    config = load_config(parse_config_path(sys.argv[1:]))
     socket_path = Path(config["socket_path"])
-    socket_path.parent.mkdir(parents=True, exist_ok=True)
+    socket_gid = config["socket_gid"]
+    require_socket_group(socket_gid)
+    socket_path.parent.mkdir(parents=True, exist_ok=True, mode=0o750)
     try:
         socket_path.unlink()
     except FileNotFoundError:
         pass
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
-    os.chown(socket_path, 0, 2000)
+    os.chown(socket_path, os.geteuid(), socket_gid)
     os.chmod(socket_path, 0o660)
     server.listen(8)
-    lock_path = Path("/run/pfsense-hub/deployment.lock")
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = Path(config["lock_path"])
+    lock_path.parent.mkdir(parents=True, exist_ok=True, mode=0o750)
     while True:
         conn, _ = server.accept()
         handle_client(conn, config, lock_path)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except AgentError as startup_failure:
+        # Report the safe error code without a traceback or configuration contents.
+        raise SystemExit(f"Host Agent failed to start: {startup_failure.code}")

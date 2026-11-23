@@ -3,21 +3,29 @@ set -Eeuo pipefail
 umask 077
 
 MODE="production"
+WITH_AGENT="false"
 TARGET_UID=""
 TARGET_GID=""
 
 usage() {
   cat <<'USAGE'
 Usage:
-  sudo bash scripts/install-linux.sh        Production install from a root-owned /opt/pfsense-hub checkout.
-  bash scripts/install-linux.sh --local     Unprivileged local development install from any checkout path.
-  bash scripts/install-linux.sh --help      Show this help.
+  sudo bash scripts/install-linux.sh                    Production install from a root-owned /opt/pfsense-hub checkout.
+  bash scripts/install-linux.sh --local                 Unprivileged local development install from any checkout path.
+  bash scripts/install-linux.sh --local --with-agent    Local development install plus the unprivileged development Host Agent.
+  bash scripts/install-linux.sh --help                  Show this help.
 
 Modes:
   production  Installs the Hub and the privileged Linux systemd Host Agent. Requires root, systemd,
               and a root-owned, non-group/world-writable checkout at /opt/pfsense-hub.
   local       Builds and starts the Hub with Docker Compose only. No Host Agent, no systemd changes,
               no root-owned files, and HUB_ACCESS_DEPLOYMENT_ENABLED stays false.
+
+Options:
+  --with-agent  Local mode only. Runs the restricted Host Agent as your own unprivileged account
+                against this checkout so GUI-managed Hub access can be exercised without root.
+                Uses ~/.config/pfsense-hub/deployment-agent.json and scripts/dev-host-agent.sh.
+                Never installs a systemd unit and never writes to /etc or /opt.
 USAGE
 }
 
@@ -29,6 +37,7 @@ fail() {
 for argument in "$@"; do
   case "$argument" in
     --local|--dev) MODE="local" ;;
+    --with-agent) WITH_AGENT="true" ;;
     -h|--help) usage; exit 0 ;;
     *)
       usage >&2
@@ -36,6 +45,10 @@ for argument in "$@"; do
       ;;
   esac
 done
+
+if [[ "$MODE" == "production" && "$WITH_AGENT" == "true" ]]; then
+  fail "--with-agent is only supported with --local. The production installer installs the privileged systemd Host Agent automatically."
+fi
 
 # Resolve the checkout from this script so any working directory works.
 SCRIPT_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd -P)"
@@ -172,6 +185,227 @@ existing_install_stop() {
   exit 1
 }
 
+wait_for_healthy() {
+  local service="$1"
+  local container_id=""
+  local state=""
+  for attempt in $(seq 1 60); do
+    container_id="$(docker compose ps -q "$service" 2>/dev/null || true)"
+    if [[ -n "$container_id" ]]; then
+      state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
+      if [[ "$state" == "healthy" ]]; then
+        echo "  $service: healthy"
+        return 0
+      fi
+      if [[ "$state" == "unhealthy" || "$state" == "exited" || "$state" == "dead" ]]; then
+        docker compose logs --tail=80 "$service" >&2 || true
+        return 1
+      fi
+    fi
+    sleep 2
+  done
+  docker compose logs --tail=80 "$service" >&2 || true
+  return 1
+}
+
+install_dev_agent() {
+  [[ "$MODE" == "local" ]] || fail "--with-agent is only supported together with --local."
+  [[ -f "$PROJECT_DIR/.env" && ! -L "$PROJECT_DIR/.env" ]] \
+    || fail "Create the local installation first: bash $SCRIPT_DIR/install-linux.sh --local"
+  [[ -n "$(docker compose ps -q api 2>/dev/null)" ]] \
+    || fail "Start the Hub first: docker compose up -d"
+
+  local env_owner env_mode
+  env_owner="$(stat -c '%u:%g' "$PROJECT_DIR/.env")"
+  env_mode="$(stat -c '%a' "$PROJECT_DIR/.env")"
+  [[ "$env_owner" == "$TARGET_UID:$TARGET_GID" ]] \
+    || fail ".env must be owned by $TARGET_UID:$TARGET_GID for the unprivileged development Host Agent."
+  if (( (8#$env_mode & 0077) != 0 )); then
+    fail ".env must not be accessible to group or other users (mode 0600)."
+  fi
+  local trusted_path trusted_mode
+  for trusted_path in "$PROJECT_DIR" "$PROJECT_DIR/compose.yaml"; do
+    [[ "$(stat -c '%u:%g' "$trusted_path")" == "$TARGET_UID:$TARGET_GID" ]] \
+      || fail "$trusted_path must be owned by $TARGET_UID:$TARGET_GID for the development Host Agent."
+    trusted_mode="$(stat -c '%a' "$trusted_path")"
+    if (( (8#$trusted_mode & 0022) != 0 )); then
+      fail "$trusted_path must not be group/world writable. Fix it with: chmod g-w,o-w \"$PROJECT_DIR\" \"$PROJECT_DIR/compose.yaml\""
+    fi
+  done
+
+  local target_home config_dir config_file tailscale_binary docker_binary ip_binary
+  target_home="$(getent passwd "$TARGET_UID" | cut -d: -f6)"
+  [[ -n "$target_home" && -d "$target_home" ]] || fail "Unable to resolve a home directory for UID $TARGET_UID."
+  config_dir="$target_home/.config/pfsense-hub"
+  config_file="$config_dir/deployment-agent.json"
+  [[ ! -L "$config_dir" && ! -L "$config_file" ]] || fail "$config_file must not be a symbolic link."
+  mkdir -p "$config_dir"
+  chmod 0700 "$config_dir"
+  if [[ "$EUID" -eq 0 ]]; then
+    chown "$TARGET_UID:$TARGET_GID" "$config_dir"
+  fi
+  tailscale_binary="$(command -v tailscale || true)"
+  docker_binary="$(command -v docker)"
+  ip_binary="$(command -v ip)"
+
+  echo "  Configuring the unprivileged development Host Agent for $(id -nu "$TARGET_UID")."
+  /usr/bin/python3 - "$PROJECT_DIR/.env" "$config_file" "$TARGET_UID" "$TARGET_GID" \
+    "$PROJECT_DIR" "$tailscale_binary" "$docker_binary" "$ip_binary" <<'PY'
+import json, os, re, secrets, stat, sys, tempfile
+
+env_path, config_path, uid, gid, project, tailscale_binary, docker_binary, ip_binary = sys.argv[1:]
+uid, gid = int(uid), int(gid)
+required = (
+    "HUB_DEPLOYMENT_AGENT_TOKEN",
+    "HUB_DEPLOYMENT_AGENT_SOCKET",
+    "HUB_AGENT_GID",
+    "HUB_ACCESS_DEPLOYMENT_ENABLED",
+)
+metadata = os.lstat(env_path)
+if not stat.S_ISREG(metadata.st_mode) or (metadata.st_uid, metadata.st_gid) != (uid, gid):
+    raise SystemExit(".env must be a regular file owned by the installing account.")
+if stat.S_IMODE(metadata.st_mode) & 0o077:
+    raise SystemExit(".env must not be accessible to group or other users.")
+lines = open(env_path, encoding="utf-8").read().splitlines()
+values = {}
+for line in lines:
+    if "=" not in line or line.lstrip().startswith("#"):
+        continue
+    key, value = line.split("=", 1)
+    values.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+missing = [key for key in required if key not in values]
+if missing:
+    raise SystemExit("Missing .env settings: " + ", ".join(missing))
+token = values["HUB_DEPLOYMENT_AGENT_TOKEN"]
+if not token:
+    token = secrets.token_urlsafe(32)
+if not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", token):
+    raise SystemExit("HUB_DEPLOYMENT_AGENT_TOKEN must be a 32 to 256 character URL-safe token.")
+port = values.get("HUB_AGENT_API_PORT", "3001")
+if not re.fullmatch(r"[0-9]{1,5}", port) or not 1 <= int(port) <= 65535:
+    raise SystemExit("HUB_AGENT_API_PORT must be a valid TCP port.")
+updates = {
+    "HUB_DEPLOYMENT_AGENT_TOKEN": token,
+    "HUB_DEPLOYMENT_AGENT_SOCKET": "/run/pfsense-hub/agent.sock",
+    "HUB_AGENT_GID": str(gid),
+    "HUB_ACCESS_DEPLOYMENT_ENABLED": "true",
+}
+updated = []
+for line in lines:
+    key = line.split("=", 1)[0].strip() if "=" in line and not line.lstrip().startswith("#") else ""
+    updated.append(f"{key}={updates[key]}" if key in updates else line)
+fd, temporary = tempfile.mkstemp(prefix=".env-agent-", dir=os.path.dirname(env_path))
+try:
+    os.fchmod(fd, 0o600)
+    if os.geteuid() == 0:
+        os.fchown(fd, uid, gid)
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        stream.write("\n".join(updated) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, env_path)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
+config = {
+    "api_base_url": f"http://127.0.0.1:{port}",
+    "api_token": token,
+    "socket_path": os.path.join(project, "run/host-agent/agent.sock"),
+    "tailscale_binary": tailscale_binary,
+    "docker_binary": docker_binary,
+    "ip_binary": ip_binary,
+    "project_dir": project,
+    "compose_file": os.path.join(project, "compose.yaml"),
+    "env_file": os.path.join(project, ".env"),
+    "web_local_url": "http://127.0.0.1:8080",
+    "socket_gid": gid,
+    "lock_path": os.path.join(project, "run/host-agent/deployment.lock"),
+}
+fd, temporary = tempfile.mkstemp(prefix=".deployment-agent-", dir=os.path.dirname(config_path))
+try:
+    os.fchmod(fd, 0o600)
+    if os.geteuid() == 0:
+        os.fchown(fd, uid, gid)
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        json.dump(config, stream)
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, config_path)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
+PY
+
+  bash "$SCRIPT_DIR/dev-host-agent.sh" start
+  echo "  Recreating only the API container so it reads the new token and socket mount..."
+  docker compose up -d --no-deps api
+  wait_for_healthy api || fail "The API did not become healthy with the development Host Agent configured."
+  docker compose exec -T api node <<'NODE'
+const fs = require("node:fs");
+const net = require("node:net");
+const path = "/run/pfsense-hub/agent.sock";
+const metadata = fs.statSync(path);
+if (!metadata.isSocket()) {
+  throw new Error("Host Agent socket is missing or is not a Unix socket.");
+}
+if (metadata.uid !== process.getuid() && !process.getgroups().includes(metadata.gid)) {
+  throw new Error("The API process cannot access the Host Agent socket.");
+}
+const socket = net.createConnection({ path });
+let buffer = "";
+let finished = false;
+const timeout = setTimeout(() => fail("Host Agent socket request timed out."), 12000);
+function fail(message) {
+  if (finished) return;
+  finished = true;
+  clearTimeout(timeout);
+  console.error(message);
+  socket.destroy();
+  process.exitCode = 1;
+}
+socket.once("connect", () => {
+  socket.write(JSON.stringify({
+    protocolVersion: 1,
+    deploymentId: "00000000-0000-4000-8000-000000000000",
+    desiredRevision: 1
+  }) + "\n");
+});
+socket.on("data", chunk => {
+  buffer += chunk.toString("utf8");
+  const newline = buffer.indexOf("\n");
+  if (newline < 0 || finished) return;
+  try {
+    const response = JSON.parse(buffer.slice(0, newline));
+    if (response.state !== "failed" || response.errorCode !== "STALE_DEPLOYMENT") {
+      fail("Host Agent replied, but bearer-authenticated API retrieval was not verified: " + JSON.stringify(response));
+      return;
+    }
+    finished = true;
+    clearTimeout(timeout);
+    console.log("Host Agent socket, socket ownership, and API bearer authentication verified.");
+    socket.end();
+  } catch {
+    fail("Host Agent returned an invalid response.");
+  }
+});
+socket.once("error", error => fail("Unable to connect to Host Agent socket: " + error.message));
+NODE
+  echo "  Development Host Agent verified. Stop it with: bash $SCRIPT_DIR/dev-host-agent.sh stop"
+}
+
+if [[ "$MODE" == "local" && "$WITH_AGENT" == "true" && -f "$PROJECT_DIR/.env" ]]; then
+  echo
+  echo "DEVELOPMENT HOST AGENT (EXISTING LOCAL INSTALLATION)"
+  echo "Checkout: $PROJECT_DIR"
+  install_dev_agent
+  echo
+  echo "Development Host Agent installation completed."
+  echo "Hub UI: http://127.0.0.1:8080"
+  echo "Mode: local development with an unprivileged Host Agent. No systemd unit and no root-owned files were created."
+  exit 0
+fi
+
 for existing_path in "${existing_state_paths[@]}"; do
   [[ ! -e "$existing_path" && ! -L "$existing_path" ]] || existing_install_stop "$existing_path"
 done
@@ -195,8 +429,13 @@ if [[ "$MODE" == "local" ]]; then
   echo
   echo "LOCAL DEVELOPMENT INSTALL"
   echo "Checkout: $PROJECT_DIR"
-  echo "Only Docker Compose is configured. The privileged Linux Host Agent is not installed, and"
-  echo "HUB_ACCESS_DEPLOYMENT_ENABLED remains false. This is not a production installation."
+  if [[ "$WITH_AGENT" == "true" ]]; then
+    echo "Docker Compose and the unprivileged development Host Agent are configured for this checkout."
+    echo "No systemd unit, no /etc or /opt writes, and no root-owned files are created."
+  else
+    echo "Only Docker Compose is configured. The Host Agent is not installed, and"
+    echo "HUB_ACCESS_DEPLOYMENT_ENABLED remains false. This is not a production installation."
+  fi
 fi
 
 echo
@@ -281,29 +520,6 @@ if [[ "$MODE" == "production" ]]; then
   unset AGENT_TOKEN
 fi
 unset DB_PASSWORD APP_KEY recovery_confirm
-
-wait_for_healthy() {
-  local service="$1"
-  local container_id=""
-  local state=""
-  for attempt in $(seq 1 60); do
-    container_id="$(docker compose ps -q "$service" 2>/dev/null || true)"
-    if [[ -n "$container_id" ]]; then
-      state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
-      if [[ "$state" == "healthy" ]]; then
-        echo "  $service: healthy"
-        return 0
-      fi
-      if [[ "$state" == "unhealthy" || "$state" == "exited" || "$state" == "dead" ]]; then
-        docker compose logs --tail=80 "$service" >&2 || true
-        return 1
-      fi
-    fi
-    sleep 2
-  done
-  docker compose logs --tail=80 "$service" >&2 || true
-  return 1
-}
 
 if [[ "$MODE" == "production" ]]; then
   echo
@@ -463,15 +679,29 @@ else
   wait_for_healthy api || fail "The API did not become healthy."
   wait_for_healthy web || fail "The web service did not become healthy."
 
-  echo
-  echo "[4/4] Local development installation completed."
+  if [[ "$WITH_AGENT" == "true" ]]; then
+    echo
+    echo "[4/5] Installing the unprivileged development Host Agent..."
+    install_dev_agent
+    echo
+    echo "[5/5] Local development installation completed."
+  else
+    echo
+    echo "[4/4] Local development installation completed."
+  fi
   echo "Git commit: $git_commit"
   echo "Services:"
   docker compose ps
   echo
   echo "Hub UI: http://127.0.0.1:8080"
   echo "Mode: local development (Docker Compose only, no root-owned services)."
-  echo "Host Agent: not installed. GUI-managed Hub access deployment remains disabled (HUB_ACCESS_DEPLOYMENT_ENABLED=false)."
+  if [[ "$WITH_AGENT" == "true" ]]; then
+    echo "Host Agent: running as $(id -nu "$TARGET_UID") from $PROJECT_DIR (development mode, not systemd)."
+    echo "GUI-managed Hub access: enabled (HUB_ACCESS_DEPLOYMENT_ENABLED=true)."
+    echo "Control the agent with: bash $SCRIPT_DIR/dev-host-agent.sh start|stop|status|logs"
+  else
+    echo "Host Agent: not installed. GUI-managed Hub access deployment remains disabled (HUB_ACCESS_DEPLOYMENT_ENABLED=false)."
+  fi
   echo "This is not a production installation. The supported production procedure is documented in docs/DEPLOYMENT.md."
   echo "Follow logs with: docker compose logs -f"
   echo "Stop with: docker compose down (never 'docker compose down -v'; it removes the generated database and encryption state)."

@@ -12,4 +12,5 @@ workspace/*
 .DS_Store
 certs/pfsense-ca.pem
 *.tsbuildinfo
+__pycache__/
 run/host-agent/

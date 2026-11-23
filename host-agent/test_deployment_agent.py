@@ -1,4 +1,6 @@
 import importlib.util
+import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -350,15 +352,15 @@ class DeploymentAgentTests(unittest.TestCase):
             env_path.write_text("POSTGRES_PASSWORD=keep-this\nHUB_BIND_ADDRESS=127.0.0.1\nWEB_PORT=8080\n", encoding="utf-8")
             env_path.chmod(0o600)
             config = {**self.config, "env_file": str(env_path)}
-            # Windows cannot represent the root:root ownership required by the
-            # production Linux agent. Mock only the lstat metadata so this test
-            # exercises the atomic content update without weakening that guard.
+            # Windows cannot represent the owning account's metadata required by
+            # the agent. Mock only the lstat metadata so this test exercises the
+            # atomic content update without weakening that guard.
             with patch.object(
                 Path,
                 "lstat",
-                return_value=type("TrustedRootFile", (), {
-                    "st_uid": 0,
-                    "st_gid": 0,
+                return_value=type("TrustedOwnerFile", (), {
+                    "st_uid": agent.os.geteuid(),
+                    "st_gid": agent.os.getegid(),
                     "st_mode": agent.stat.S_IFREG | 0o600,
                 })(),
             ):
@@ -378,6 +380,180 @@ class DeploymentAgentTests(unittest.TestCase):
             ["up", "-d", "--no-deps", "--no-build", "web"]
         )
         self.assertEqual(run_fixed.call_args_list[1].kwargs, {"timeout": 45})
+
+
+class ProjectTrustPolicyTests(unittest.TestCase):
+    def make_checkout(self, directory: Path) -> Path:
+        checkout = directory / "checkout"
+        checkout.mkdir()
+        os.chmod(checkout, 0o755)
+        compose = checkout / "compose.yaml"
+        compose.write_text("services: {}\n", encoding="utf-8")
+        os.chmod(compose, 0o644)
+        env_file = checkout / ".env"
+        env_file.write_text("HUB_BIND_ADDRESS=127.0.0.1\n", encoding="utf-8")
+        os.chmod(env_file, 0o600)
+        return checkout
+
+    def project(self, checkout: Path, **overrides) -> dict:
+        value = {
+            "project_dir": str(checkout),
+            "compose_file": str(checkout / "compose.yaml"),
+            "env_file": str(checkout / ".env"),
+        }
+        value.update(overrides)
+        return value
+
+    def test_accepts_a_checkout_owned_by_the_agent_account(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self.make_checkout(Path(directory))
+            agent.validate_project_paths(self.project(checkout))
+
+    def test_rejects_project_paths_that_escape_the_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self.make_checkout(Path(directory))
+            for override in (
+                {"compose_file": str(Path(directory) / "compose.yaml")},
+                {"env_file": str(Path(directory) / ".env")},
+                {"project_dir": "relative/pfsense-hub"},
+            ):
+                with self.assertRaises(agent.AgentError) as caught:
+                    agent.validate_project_paths(self.project(checkout, **override))
+                self.assertEqual(caught.exception.code, "AGENT_PROJECT_PATH_INVALID")
+
+    def test_rejects_a_symlinked_project_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self.make_checkout(Path(directory))
+            link = Path(directory) / "linked"
+            link.symlink_to(checkout)
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.validate_project_paths(self.project(link))
+            self.assertEqual(caught.exception.code, "AGENT_PROJECT_PATH_INVALID")
+
+    def test_rejects_a_group_writable_compose_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self.make_checkout(Path(directory))
+            os.chmod(checkout / "compose.yaml", 0o664)
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.validate_project_paths(self.project(checkout))
+            self.assertEqual(caught.exception.code, "AGENT_PROJECT_PERMISSIONS_INVALID")
+
+    def test_root_agent_still_requires_the_production_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self.make_checkout(Path(directory))
+            with patch.object(agent.os, "geteuid", return_value=0):
+                with self.assertRaises(agent.AgentError) as caught:
+                    agent.validate_project_paths(self.project(checkout))
+            self.assertEqual(caught.exception.code, "AGENT_PROJECT_PATH_INVALID")
+
+    def test_root_agent_refuses_a_checkout_owned_by_another_account(self):
+        production = agent.PRODUCTION_PROJECT_DIR
+        with self.assertRaises(agent.AgentError) as caught:
+            agent.validate_project_paths({
+                "project_dir": production,
+                "compose_file": production + "/compose.yaml",
+                "env_file": production + "/.env",
+            })
+        self.assertIn(caught.exception.code, {
+            "AGENT_PROJECT_PERMISSIONS_INVALID", "AGENT_PROJECT_UNAVAILABLE"
+        })
+
+    def test_accepts_only_its_own_environment_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self.make_checkout(Path(directory))
+            content, address = agent.read_bind_address({"env_file": str(checkout / ".env")})
+            self.assertEqual(address, "127.0.0.1")
+            self.assertIn("HUB_BIND_ADDRESS=127.0.0.1", content)
+
+    def test_rejects_a_socket_group_the_account_cannot_grant(self):
+        with (
+            patch.object(agent.os, "geteuid", return_value=1000),
+            patch.object(agent.os, "getegid", return_value=1000),
+            patch.object(agent.os, "getgroups", return_value=[1000]),
+        ):
+            agent.require_socket_group(1000)
+            with self.assertRaises(SystemExit):
+                agent.require_socket_group(2000)
+
+
+class AgentConfigurationTests(unittest.TestCase):
+    def write_config(self, path: Path, **overrides) -> dict:
+        project = path.parent / "checkout"
+        project.mkdir(exist_ok=True)
+        os.chmod(project, 0o755)
+        compose = project / "compose.yaml"
+        compose.write_text("services: {}\n", encoding="utf-8")
+        os.chmod(compose, 0o644)
+        (project / ".env").write_text("HUB_BIND_ADDRESS=127.0.0.1\n", encoding="utf-8")
+        os.chmod(project / ".env", 0o600)
+        shell = agent.shutil.which("sh") or "/bin/sh"
+        config = {
+            "api_base_url": "http://127.0.0.1:3001",
+            "api_token": "x" * 40,
+            "socket_path": str(project / "run/host-agent/agent.sock"),
+            "tailscale_binary": "",
+            "docker_binary": shell,
+            "ip_binary": shell,
+            "project_dir": str(project),
+            "compose_file": str(compose),
+            "env_file": str(project / ".env"),
+            "web_local_url": "http://127.0.0.1:8080",
+        }
+        config.update(overrides)
+        path.write_text(json.dumps(config), encoding="utf-8")
+        os.chmod(path, 0o600)
+        return config
+
+    def test_applies_production_socket_and_lock_defaults(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "deployment-agent.json"
+            self.write_config(path)
+            loaded = agent.load_config(path)
+            self.assertEqual(loaded["socket_gid"], 2000)
+            self.assertEqual(loaded["lock_path"], "/run/pfsense-hub/deployment.lock")
+
+    def test_accepts_an_unprivileged_development_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "deployment-agent.json"
+            lock_path = str(Path(directory) / "checkout/run/host-agent/deployment.lock")
+            self.write_config(path, socket_gid=agent.os.getegid(), lock_path=lock_path)
+            loaded = agent.load_config(path)
+            self.assertEqual(loaded["socket_gid"], agent.os.getegid())
+            self.assertEqual(loaded["lock_path"], lock_path)
+
+    def test_rejects_an_insecure_configuration_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "deployment-agent.json"
+            self.write_config(path)
+            os.chmod(path, 0o644)
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.load_config(path)
+            self.assertEqual(caught.exception.code, "AGENT_CONFIGURATION_PERMISSIONS_INVALID")
+
+    def test_rejects_invalid_socket_group_and_lock_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "deployment-agent.json"
+            for override, code in (
+                ({"socket_gid": 0}, "AGENT_SOCKET_GROUP_INVALID"),
+                ({"socket_gid": 70000}, "AGENT_SOCKET_GROUP_INVALID"),
+                ({"socket_gid": "2000"}, "AGENT_SOCKET_GROUP_INVALID"),
+                ({"lock_path": "deployment.lock"}, "AGENT_LOCK_PATH_INVALID"),
+            ):
+                self.write_config(path, **override)
+                with self.assertRaises(agent.AgentError) as caught:
+                    agent.load_config(path)
+                self.assertEqual(caught.exception.code, code)
+
+    def test_resolves_the_configuration_path_from_the_command_line(self):
+        self.assertEqual(agent.parse_config_path([]), agent.CONFIG_PATH)
+        self.assertEqual(
+            agent.parse_config_path(["--config", "/home/dev/.config/pfsense-hub/deployment-agent.json"]),
+            Path("/home/dev/.config/pfsense-hub/deployment-agent.json")
+        )
+        with self.assertRaises(SystemExit):
+            agent.parse_config_path(["--config", "relative/deployment-agent.json"])
+        with self.assertRaises(SystemExit):
+            agent.parse_config_path(["--socket", "/tmp/agent.sock"])
 
 
 if __name__ == "__main__":

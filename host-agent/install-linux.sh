@@ -136,7 +136,9 @@ config = {
     "project_dir": project,
     "compose_file": os.path.join(project, "compose.yaml"),
     "env_file": os.path.join(project, ".env"),
-    "web_local_url": "http://127.0.0.1:8080"
+    "web_local_url": "http://127.0.0.1:8080",
+    "socket_gid": 2000,
+    "lock_path": "/run/pfsense-hub/deployment.lock"
 }
 fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
 with os.fdopen(fd, "w", encoding="utf-8") as stream:
