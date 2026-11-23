@@ -1,6 +1,6 @@
 # Application Settings page redesign
 
-**Status:** Approved design scope for the frontend redesign; functional settings integration is deferred to later roadmap work.  
+**Status:** Frontend placeholder implemented on main; functional settings workflows and browser visual acceptance remain pending.  
 **Reference:** Application Settings mockup supplied during the November 22, 2026 design review.
 
 ## Objective
@@ -52,12 +52,19 @@ Keep the labels and descriptions as written above. The switches are part of the 
 
 ## Immediate frontend redesign acceptance criteria
 
-- [ ] The Application Settings page matches the supplied mockup's title, subtitle, two-card composition, row order, labels, descriptions, and actions.
-- [ ] Desktop uses a two-column card layout; tablet/mobile layouts stack cleanly without clipping or horizontal overflow.
-- [ ] General and Preferences cards use consistent spacing, alignment, borders, and typography from the existing design system.
-- [ ] Switches and action controls have accessible names, visible focus states, and appropriate keyboard interaction.
-- [ ] Preview-only behavior is communicated honestly. No success toast or saved-state claim is shown for local-only changes.
-- [ ] The page remains distinct from Site Settings and Hub Settings.
+- [x] The Application Settings page implements the approved title, subtitle, two-card composition, row order, labels, descriptions, and actions.
+- [x] Desktop uses a two-column card layout; tablet/mobile layouts stack through responsive CSS.
+- [x] General and Preferences cards use the existing design system's spacing, alignment, borders, and typography.
+- [x] Switches expose accessible names and state, use native keyboard-operable buttons, and have visible focus styling. General actions are native buttons.
+- [x] Preview-only behavior is communicated. Switches update local React state only; General actions report that the workflows are not available. No save-success claim is shown.
+- [x] The page remains distinct from Site Settings and Hub Settings.
+- [ ] Complete browser visual and interaction acceptance at desktop, tablet, and mobile widths, including a narrow-width overflow check.
+
+## Frontend implementation status
+
+The approved two-card frontend placeholder is present on main. It provides the General and Preferences cards, responsive layout, local-only preference switches, and placeholder Edit/Change actions. This completes the frontend placeholder milestone, not the settings feature as a whole. No setting is persisted or enforced by the backend.
+
+The remaining work is to implement the individual workflows and their contracts: application name editing, timezone selection and behavior, polling policy and scheduler, notification configuration and delivery, confirmation policy enforcement, authorization, persistence, audit behavior, and automated tests. These remain separate roadmap items. Browser visual acceptance is also still pending.
 
 ## Future functional work, not part of the redesign
 
