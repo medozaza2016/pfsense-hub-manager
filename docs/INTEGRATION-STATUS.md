@@ -3,7 +3,7 @@
 **Firewall integration last verified:** 2026-11-19 (America/New_York; command output timestamps were 2026-11-20 UTC)  
 **Application/install verification:** November 22, 2026  
 **Status:** First pfSense Plus REST API connection historically verified; current manager supports per-device profiles and GUI onboarding, but wider device compatibility remains unverified.  
-**Active implementation branch:** `feature/multi-site-onboarding`  
+**Active implementation branch:** `main` (the `feature/multi-site-onboarding` work is merged)  
 **Environment:** Prepared Debian 13 Proxmox LXC, plus Windows 11 local development
 
 ## Verified firewall

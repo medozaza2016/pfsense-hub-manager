@@ -14,13 +14,13 @@ Docker Compose runs the React/Vite web application served by Nginx, the Fastify 
 
 ## Fresh Linux host setup
 
-Use this procedure on a **new, empty Linux machine**. Debian 13 is the clean-install baseline. After this feature is merged, the standard release command uses `main`; before merge, the installer is available only on `feature/multi-site-onboarding` for acceptance testing. Do not use this procedure to overwrite an existing Hub installation. The installer deliberately refuses to replace existing secrets, agent configuration, containers, or the PostgreSQL volume.
+Use this procedure on a **new, empty Linux machine**. Debian 13 is the clean-install baseline. The standard release command clones `main`, which now contains the tested installer. Do not use this procedure to overwrite an existing Hub installation. The installer deliberately refuses to replace existing secrets, agent configuration, containers, or the PostgreSQL volume.
 
 ### Prepared Proxmox LXC quick start (recommended)
 
 The standard Proxmox template is already prepared with Debian 13, an administrator account, Docker Engine, Docker Compose, Git, OpenSSL, Python, iproute2, systemd, and Tailscale. This is the operator's normal prepared starting point. When the same CT is restored from its own clean snapshot, retain its existing Tailscale identity and configuration. The Hub installer does not reinstall or reset Tailscale, and it does not require a second Tailscale enrollment. Do not run two concurrently active copies with the same Tailscale state.
 
-**Release branch:** After `feature/multi-site-onboarding` is merged, new installations must clone `main`. The tested installer is currently on the feature branch and is not yet present on `main`; the command below using `main` becomes executable only after that merge. To repeat the current acceptance test before merge, use `--branch feature/multi-site-onboarding` instead.
+**Release branch:** New installations clone `main`, which contains the tested installer. The merged `feature/multi-site-onboarding` branch is retained only as the historical acceptance record.
 
 From SSH, run only these two commands:
 
@@ -93,7 +93,7 @@ sudo git clone --branch main --single-branch https://github.com/medozaza2016/pfs
 sudo git -c safe.directory=/opt/pfsense-hub -C /opt/pfsense-hub status --short --branch
 ```
 
-Confirm that the reported branch is `main` after the installer has been merged. During the current pre-merge acceptance test, confirm `feature/multi-site-onboarding` instead. Do not clone into a home directory and do not change the project ownership to the SSH user. If `/opt/pfsense-hub` already exists, stop and inspect it instead of deleting it to force the clone.
+Confirm that the reported branch is `main`. Do not clone into a home directory and do not change the project ownership to the SSH user. If `/opt/pfsense-hub` already exists, stop and inspect it instead of deleting it to force the clone.
 
 ### 4. Run the single Hub installer
 

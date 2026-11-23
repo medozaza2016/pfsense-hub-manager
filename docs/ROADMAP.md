@@ -87,7 +87,7 @@ These are real gaps; do not describe them as completed.
 
 ### Product experience and data coverage
 
-- [ ] Replace preview fixtures only where a supported, verified read-only API data contract exists.
+- [x] Replace preview fixtures only where a supported, verified read-only API data contract exists. Overview, Monitoring, Interfaces, Gateways, Services, and Compatibility now use the eight-endpoint snapshot (DEC-042); Rules, Aliases, NAT, Routing, DHCP, DNS, Certificates, and VPN remain labeled preview fixtures because no approved endpoint supplies them.
 - [ ] Add server-side pagination/filtering if required by real inventory size.
 - [ ] Complete full desktop/mobile comparison against the approved visual reference for all screens.
 - [ ] Test the complete role matrix and last-active-admin restrictions manually in the browser.
@@ -193,3 +193,19 @@ The implemented scope is locked. The following checks are tracked and not passed
 
 **Operational boundary:** Enabling either host flag requires recreating the `api` container. Disabling a flag never rolls back an operation that already ran, so the page's host-side recovery guidance remains authoritative.
 
+
+## Site telemetry increment, November 23, 2026
+
+**Decision:** [DEC-042](DECISIONS.md#dec-042-site-telemetry-from-the-eight-approved-read-only-endpoints). **Design and field mapping:** [API specification](API-SPECIFICATION.md#manager-site-snapshot-contract-november-23-2026).
+
+- [x] One sanitized `GET /api/v1/devices/:deviceId/snapshot` contract for Overview, Monitoring, Interfaces, Gateways, Services, and Compatibility; `/overview` retained as an alias.
+- [x] Explicit allowlist parsing so serial numbers, Netgate IDs, MAC addresses, hardware interface names, monitor/source addresses, and counters never enter manager responses.
+- [x] Migration `016_device_compatibility.sql` and inventory `release`/`platform`/`compatibility` evidence instead of `release: null`.
+- [x] Capability state derived from this device's own `poll_runs`; refusal classes reported as unsupported, transport/schema failures as unknown, no history as unverified.
+- [x] In-process snapshot cache (10 s success / 2 s failure, single-flight, 64-device bound) invalidated by profile, credential, TLS trust, enablement, and archival changes.
+- [x] 314 API tests, both typechecks, and both builds pass; migration applied on the running development stack.
+- [x] Authenticated live snapshot against the registered firewall: all eight operations `success`, `release` `26.07.2-RELEASE`, `platform` `Netgate 2100`, `compatibility` `verified`.
+- [ ] A CE-device comparison against the second firewall location.
+- [ ] Page-by-page visual acceptance against the approved mockup (the image is absent from this checkout).
+
+**Boundary:** no new firewall permission, endpoint, HTTP method, write capability, command execution, or arbitrary upstream proxy. The eight-operation scope is unchanged.

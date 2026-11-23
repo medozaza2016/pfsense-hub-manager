@@ -196,7 +196,9 @@ Health endpoints must not disclose secrets, internal topology, or detailed depen
 |---|---|---|
 | GET | `/api/v1/devices` | List managed devices and safe summary fields |
 | GET | `/api/v1/devices/:deviceId` | Retrieve one device's safe details |
-| GET | `/api/v1/devices/:deviceId/capabilities` | Retrieve the device's verified capability profile |
+| GET | `/api/v1/devices/:deviceId/capabilities` | Retrieve the device's capability state derived from its own recorded poll outcomes |
+| GET | `/api/v1/devices/:deviceId/snapshot` | Retrieve one sanitized read-only telemetry snapshot for the site workspace |
+| GET | `/api/v1/devices/:deviceId/overview` | Alias of the snapshot handler, retained for the pre-existing path |
 
 Manager-owned site lifecycle routes are separate from pfSense configuration operations and require an authenticated administrator. They only change the Hub's local inventory and encrypted connection material.
 

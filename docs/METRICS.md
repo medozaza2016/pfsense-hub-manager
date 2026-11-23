@@ -33,3 +33,9 @@ Prometheus is optional for the first scaffold. Add it when historical time-serie
 
 ## Open parameters
 Polling interval, per-device concurrency, histogram buckets, retention, exact operation groups, and metrics access control remain to be decided.
+
+## Per-operation polling labels, November 23, 2026
+
+`pfsense_poll_*` labels use one `operation_group` value per approved operation: `system`, `gateways`, `interfaces`, `services`, `version`, `arpTable`, `firewallStates`, and `firewallStateSize`. Before DEC-042 the ARP operation shared the `diagnostics` label with no other operation, and the two firewall-state operations shared `firewallStates`, which made per-endpoint capability derivation ambiguous. Historical rows keep their old labels; capability derivation falls back to `diagnostics` and `firewallStates` when no per-operation row exists. Dashboards that grouped by the old labels must add the new ones; no metric name, type, or label key changed.
+
+Snapshot cache hits do not emit poll metrics, because no upstream operation ran. A cache hit is reported only in the response `meta.cacheHit` field.

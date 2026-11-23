@@ -108,3 +108,24 @@ Preserve the original JSON unchanged at `docs/reference/pfsense-openapi.json`. T
 The specification is an upstream contract reference, not proof that every operation exists on every pfSense Plus or CE release. Verify each supported operation against each firewall and its installed package version. The specification includes both read and write operations. The initial application release remains read-only, and no write operation is approved merely because it appears in the JSON.
 
 Use the specification to generate `docs/API-MATRIX.generated.md` with `node scripts/generate-api-matrix.mjs`. Keep device compatibility evidence in `docs/API-COMPATIBILITY.md`.
+
+## Manager site-snapshot contract, November 23, 2026
+
+The manager exposes one sanitized read-only view per device: `GET /api/v1/devices/:deviceId/snapshot`. It performs the eight verified GET operations and returns only allowlisted fields. `GET /api/v1/devices/:deviceId/overview` is an alias of the same handler.
+
+| Upstream endpoint | Manager fields retained | Deliberately excluded |
+|---|---|---|
+| `/api/v2/status/system` | `platform`, `uptime`, `cpu_count`, `cpu_usage`, `mem_usage`, `disk_usage`, `swap_usage`, `cpu_load_avg` | `serial`, `netgate_id`, BIOS metadata, temperature |
+| `/api/v2/status/gateways` | `name`, `delay`, `stddev`, `loss`, `status`, `substatus` | `srcip`, `monitorip` |
+| `/api/v2/status/interfaces` | `name`, `descr`, `enable`, `status`, `ipaddr`, `subnet`, `ipaddrv6`, `mtu`, `media` | `macaddr`, `hwif`, `linklocal`, `dhcplink`, `gateway`, all byte/packet counters |
+| `/api/v2/status/services` | `name`, `description`, `enabled`, `status` (boolean, exposed as `running`) | — |
+| `/api/v2/system/version` | `version`, `base`, `patch`, `buildtime` | — |
+| `/api/v2/diagnostics/arp_table` | entry count only | every ARP record |
+| `/api/v2/firewall/states` | entry count only | every state record |
+| `/api/v2/firewall/states/size` | `currentstates`, `maximumstates` | — |
+
+Field names are taken from the pinned OpenAPI schemas `SystemStatus`, `SystemVersion`, `RoutingGatewayStatus`, `InterfaceStats`, and `Service`. No captured live response is stored in this repository. A payload that does not match the expected top-level shape is rejected as `invalid_response` and recorded as a failed operation; it is never partially trusted.
+
+Honest absences: the installed REST API package version and CPU architecture are not exposed by any of the eight endpoints, so the manager reports them as unknown. `uptime` is converted to seconds only when it matches a complete duration; otherwise the sanitized text is shown with a null duration. Utilization values outside a sane range become null instead of being clamped.
+
+Compatibility verdicts: `verified` means a release was reported and nothing contradicts the declared edition; `mismatch` means the release/platform string names the other edition; `unknown` means there is not enough evidence. Capability state comes from `poll_runs`, not from this specification.

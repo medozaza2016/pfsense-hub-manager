@@ -30,7 +30,7 @@ The frontend is a React/TypeScript/Vite application. It uses the existing backen
 
 The Site workspace contains Overview, Monitoring, Interfaces, Firewall Rules, Aliases, NAT, Routing, Gateways, DHCP, DNS, Services, Certificates, VPN, Compatibility, and Site Settings.
 
-The Hub inventory and site registration/profile/connection lifecycle are API-backed. Several firewall-domain pages outside the currently implemented read-only overview still contain preview fixtures. Preview fixtures are not live firewall state and must remain visibly identified as preview data. No frontend action may imply a firewall configuration change.
+The Hub inventory and site registration/profile/connection lifecycle are API-backed. Overview, Monitoring, Interfaces, Gateways, Services, and Compatibility are API-backed read-only telemetry from the approved eight-endpoint snapshot (DEC-042). Firewall Rules, Aliases, NAT, Routing, DHCP, DNS, Certificates, and VPN still contain preview fixtures because no approved endpoint supplies their data. Preview fixtures are not live firewall state and remain visibly identified as preview data. No frontend action may imply a firewall configuration change.
 
 ### Site onboarding and lifecycle
 
@@ -135,3 +135,19 @@ See [System Monitoring & Recovery requirements and implementation plan](SYSTEM-M
 At widths up to 760 px the Hub context shows a five-tab bottom bar: **Overview**, **Sites**, **Connectivity**, **Alerts**, and **System monitoring**. Each tab declares its target page explicitly instead of being matched to a label, so renaming a page label cannot silently misroute a tab. The selected tab is derived from the current page and carries `aria-current="page"`; two-word labels wrap inside the 62 px bar.
 
 The previous fifth tab was labelled *Settings* and matched no page, so tapping it moved the highlight without navigating. Hub Settings, User Management, and Audit Logs remain reachable from the slide-in navigation menu instead; the former Application Settings entry was retired by DEC-041. Site-context tabs are unchanged: Overview, Monitoring, Interfaces, Rules, and More. See DEC-040.
+
+## Site telemetry pages, November 23, 2026
+
+Overview, Monitoring, Interfaces, Gateways, Services, and Compatibility share one client module, `apps/web/src/lib/site-snapshot.ts`. It keeps a 10-second module cache with single-flight requests and exposes `useSiteSnapshot(deviceId, enabled)` plus `formatPercent`, `formatNumber`, `formatDuration`, and `statusFromBooleans`. Navigating between those six pages inside the window performs one `GET /api/v1/devices/:deviceId/snapshot` request, which corresponds to one eight-operation firewall collection; the Refresh control invalidates the entry and forces a new collection.
+
+Presentation rules:
+
+- Values the firewall did not report render as `Unknown`/`Not reported`, never as `0`, `0%`, or a plausible-looking default.
+- Monitoring shows a point-in-time sample and states that no history is stored. The former placeholder trend chart and its illustrative 18%/42%/28%/12d values are removed rather than fed with fabricated data.
+- Interfaces, Gateways, and Services use the shared `DataTable` with search and mobile-card behavior. MAC addresses, hardware driver names, monitor/source IP addresses, and counters are not requested by the client and are not present in the payload.
+- Services is state-only: there is no start, stop, or restart control on the page.
+- Compatibility renders the declared and reported edition, release, platform, the explicit statement that the API package version and CPU architecture are not exposed, and a per-endpoint capability list derived from recorded poll outcomes.
+- A partial collection is shown as a warning listing the failed operations and their error classes; an unavailable collection is shown as an error. Successful operations still render alongside the warning.
+- Demo records and disabled sites never call the snapshot API. Disabled sites show an enablement prompt instead.
+
+The six pages use the existing `.metric-grid`, `.panel`, `.detail-list`, `.capability-list`, `.status-pill`, and `.preview-footnote` design language. The approved mockup image is not present in this checkout (`docs/mockups/` contains only `README.md`), so page-level comparison against the image is outstanding rather than passed.

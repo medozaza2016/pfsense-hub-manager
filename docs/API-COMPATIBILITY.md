@@ -45,3 +45,18 @@ These checks are intentionally minimal and do not claim a full upstream schema c
 6. Re-run after firewall or package upgrades.
 
 Never invoke write operations to discover whether they work. They require separate approval and the controls in `SECURITY.md`.
+
+## Capability evidence from manager polling, November 23, 2026
+
+`GET /api/v1/devices/:deviceId/capabilities` and the site snapshot report per-endpoint state derived from the device's own `poll_runs`, not from the OpenAPI inventory:
+
+| Recorded outcome | Reported capability |
+|---|---|
+| Latest operation succeeded | `supported: true`, `verification: verified` |
+| Failed with `unsupported`, `authorization`, or `authentication` | `supported: false`, `verification: failed` |
+| Failed with `timeout`, `tls`, `rate_limit`, `remote_server`, `invalid_response`, or `unknown` | `supported: null`, `verification: failed` |
+| No history | `supported: null`, `verification: unverified` |
+
+A transport or schema failure is never converted into "this firewall does not support the endpoint". Each operation now records its own `operation_group`; `arpTable` replaces the historical shared `diagnostics` label, and `firewallStateSize` falls back to the historical `firewallStates` rows when no per-operation row exists.
+
+Persisted device evidence (migration `016_device_compatibility.sql`) records `release`, `platform`, `compatibility` (`unknown`, `verified`, `mismatch`), and `compatibility_checked_at` after a collection that returned a release. `api_package_version` and CPU architecture remain unrecorded because the approved endpoints do not expose them; no value is inferred from the release string.

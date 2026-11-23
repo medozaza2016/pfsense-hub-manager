@@ -2,7 +2,7 @@
 
 A centralized Hub for registering and monitoring multiple pfSense firewalls across locations, with support intended for both pfSense Plus and pfSense CE.
 
-> **Project status, November 22, 2026:** The active implementation is on `feature/multi-site-onboarding`. This branch includes GUI-managed site registration and lifecycle, per-device encrypted API credentials and TLS trust, authenticated manager administration, audit logs and alerts, and Linux GUI-managed Hub access deployment through a restricted systemd Host Agent. The clean Debian 13 installation and Tailscale access path have been tested. This remains a development-stage product, not a production-ready firewall management release. The work has not been merged into `main`.
+> **Project status, November 23, 2026:** The active implementation is on `main` (`14e3c2f`). Multi-site onboarding, per-device encrypted API credentials and TLS trust, authenticated manager administration, audit logs and alerts, System Monitoring & Recovery, and Linux GUI-managed Hub access deployment through a restricted systemd Host Agent are merged here (DEC-029, DEC-039). The clean Debian 13 installation and Tailscale access path have been tested. This remains a development-stage product, not a production-ready firewall management release.
 
 ## Product direction
 
@@ -18,10 +18,11 @@ The first Netgate 2100 running pfSense Plus was historically tested for eight re
 - **Managed sites:** GUI registration, profile updates, enable/disable, connection testing, credential rotation, custom CA trust, and archival through administrator-only API routes.
 - **Credential protection:** Per-device API credentials and custom TLS trust are encrypted at rest using AES-256-GCM and a separately provisioned application encryption key.
 - **Manager administration:** Database-backed login and sessions, `admin` and `user` roles, user management, audit records, and operational alerts.
+- **Site telemetry:** Overview, Monitoring, Interfaces, Gateways, Services, and Compatibility read one sanitized snapshot collected from the eight approved read-only GET operations. Values the firewall does not report are shown as unknown; no CPU/memory history, REST API package version, or CPU architecture is invented (DEC-042).
 - **Hub access:** Administration → Hub Settings supports Local, Tailscale MagicDNS, and Custom endpoint configuration. On Linux, a restricted systemd Host Agent applies and verifies supported host changes. It does not expose the Docker socket to the application containers.
 - **Linux installation:** One entry point, `scripts/install-linux.sh`, has two explicit modes. The default production mode provisions both the Hub and its standard Host Agent from a root-owned `/opt/pfsense-hub` checkout and enables GUI-managed access deployment only after service health and the API-to-agent authentication handshake succeed. The unprivileged `--local` mode builds and starts the Hub with Docker Compose from any checkout path without the Host Agent and keeps the deployment gate false; adding `--with-agent` runs the same restricted agent unprivileged against that checkout for development.
 
-The following are still incomplete: a second live firewall/CE validation, continuous background polling and retry scheduling, full live data for all preview pages, database backup/restore drills and retention policy, application key rotation, a Windows host deployment agent, and any firewall configuration write workflow.
+The following are still incomplete: a second live firewall/CE validation, continuous background polling and retry scheduling, live data for the remaining preview pages (Rules, Aliases, NAT, Routing, DHCP, DNS, Certificates, and VPN have no approved endpoint), an authenticated end-to-end site snapshot against a real firewall after this change, database backup/restore drills and retention policy, application key rotation, a Windows host deployment agent, and any firewall configuration write workflow.
 
 ## Deployment
 
@@ -29,9 +30,9 @@ The following are still incomplete: a second live firewall/CE validation, contin
 
 The standard Linux target is a prepared Debian 13 Proxmox LXC template with an administrator account, systemd, Docker Engine, Docker Compose, Git, and the required base utilities already installed. Tailscale may already be present and connected. Hub Manager does not reinstall Docker, create another administrator, or reset/re-enroll the host's Tailscale identity.
 
-On a clean restore of that prepared template, the **release install command will use the repository's `main` branch after this feature is merged**. The installer is currently present on `feature/multi-site-onboarding` and has not yet been merged into `main`; the clean-install acceptance test was run from that feature branch. Do not expect the `main` command to work until the merge is complete.
+On a clean restore of that prepared template, install from the repository's `main` branch. The tested installer is present on `main`; the earlier feature-branch acceptance run is recorded in [Verification and Documentation Closeout](docs/VERIFICATION-AND-CLOSEOUT.md).
 
-After the merge, run:
+Run:
 
 ```bash
 sudo install -d -o root -g root -m 0755 /opt
@@ -39,7 +40,7 @@ sudo git clone --branch main --single-branch https://github.com/medozaza2016/pfs
 sudo bash /opt/pfsense-hub/scripts/install-linux.sh
 ```
 
-For a repeat of the current feature-branch acceptance test before merge, use `--branch feature/multi-site-onboarding` instead of `--branch main`.
+`feature/multi-site-onboarding` is merged and is retained only to reproduce the historical acceptance run; it is not an active development branch (DEC-029, DEC-034).
 
 The installer generates protected secrets, displays a one-time application encryption recovery key, installs and enables the Host Agent, builds the web/API images, starts PostgreSQL, waits for all services to become healthy, verifies the API-to-agent socket and bearer-authenticated handshake, and enables GUI-managed access deployment. Save the recovery key in a password manager. Never paste it into chat, source control, or logs.
 

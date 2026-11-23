@@ -420,3 +420,71 @@ describe("DeviceRepository legacy bootstrap", () => {
   });
 
 });
+
+describe("device compatibility evidence", () => {
+  it("maps persisted compatibility rows without inventing an API package version", async () => {
+    const query = vi.fn(async () => ({
+      rows: [{
+        device_id: "11111111-1111-4111-8111-111111111111",
+        release: "2.7.2-RELEASE",
+        platform: "pfSense CE",
+        api_package_version: null,
+        compatibility: "verified",
+        compatibility_checked_at: "2026-11-23T10:00:00.000Z"
+      }],
+      rowCount: 1
+    }));
+    const repository = new DeviceRepository({ query } as unknown as Pool, key);
+
+    await expect(repository.listCompatibility()).resolves.toEqual([{
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      release: "2.7.2-RELEASE",
+      platform: "pfSense CE",
+      apiPackageVersion: null,
+      compatibility: "verified",
+      compatibilityCheckedAt: "2026-11-23T10:00:00.000Z"
+    }]);
+    // `managed_devices` keys on `id`; only `poll_runs` and the credential tables
+    // use `device_id`. Selecting the wrong column broke the device inventory at
+    // runtime while every mocked test still passed, so pin the projection.
+    expect(query).toHaveBeenCalledWith(expect.stringMatching(/SELECT id AS device_id\b[\s\S]*FROM managed_devices/));
+  });
+
+  it("returns null when a device has no compatibility row", async () => {
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const repository = new DeviceRepository({ query } as unknown as Pool, key);
+
+    await expect(repository.getCompatibility("11111111-1111-4111-8111-111111111111")).resolves.toBeNull();
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("archived_at IS NULL"), ["11111111-1111-4111-8111-111111111111"]);
+    expect(query).toHaveBeenCalledWith(expect.stringMatching(/SELECT id AS device_id\b[\s\S]*FROM managed_devices/), ["11111111-1111-4111-8111-111111111111"]);
+  });
+
+  it("records observed compatibility only through parameterized values", async () => {
+    const query = vi.fn(async () => ({ rows: [], rowCount: 1 }));
+    const repository = new DeviceRepository({ query } as unknown as Pool, key);
+
+    await expect(repository.recordCompatibility("11111111-1111-4111-8111-111111111111", {
+      release: "26.07.2-RELEASE",
+      platform: "pfSense Plus",
+      apiPackageVersion: null,
+      compatibility: "verified"
+    })).resolves.toBe(true);
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("compatibility_checked_at=now()"),
+      ["11111111-1111-4111-8111-111111111111", "26.07.2-RELEASE", "pfSense Plus", null, "verified"]
+    );
+  });
+
+  it("rejects an unknown verdict instead of storing it", async () => {
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const repository = new DeviceRepository({ query } as unknown as Pool, key);
+
+    await expect(repository.recordCompatibility("11111111-1111-4111-8111-111111111111", {
+      release: null,
+      platform: null,
+      apiPackageVersion: null,
+      compatibility: "trusted" as never
+    })).rejects.toThrow();
+    expect(query).not.toHaveBeenCalled();
+  });
+});

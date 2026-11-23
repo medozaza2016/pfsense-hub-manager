@@ -271,3 +271,35 @@ The previous ad-hoc workarounds were removed: `apps/web/Dockerfile` no longer ru
 
 **Commit:** this change is recorded in repository history as the Application Settings retirement commit. Its hash is not written into this section, because editing this file afterwards would change that hash.
 
+
+## 15. Site telemetry increment, November 23, 2026
+
+**Scope:** Wire Overview, Monitoring, Interfaces, Gateways, Services, and Compatibility to the existing eight approved read-only endpoints; persist compatibility metadata; derive capability state from recorded polls; add no firewall permission, upstream route, or write capability (DEC-042).
+
+**Source checks (Linux, repository root):**
+
+| Check | Result |
+|---|---|
+| `npm test` | 25 files, **314 passed**, 0 failed (previous baseline: 275) |
+| `npm run typecheck` | API and web passed |
+| `npm run build` | API build and web production build passed (final web bundle `index-RBcacaty.js`, `index-DyUEt6w2.css`) |
+| `docker compose up -d --build api` | API image rebuilt and container healthy |
+| Migration `016_device_compatibility.sql` | Applied; `schema_migrations` reports `016_device_compatibility` and the five new `managed_devices` columns exist |
+| `GET /health/ready` | `200` |
+| Unauthenticated `GET /api/v1/devices/:id/snapshot` | `401 AUTHENTICATION_REQUIRED` |
+| Unauthenticated `GET /api/v1/devices/:id/capabilities` | `401 AUTHENTICATION_REQUIRED` |
+
+New automated coverage: `observations.test.ts` (16), `observation-cache.test.ts` (7), `observation-routes.test.ts` (7), plus extended `provider.test.ts` (12) and `device-repository.test.ts` (4 new cases). They assert that sensitive upstream fields never reach the snapshot, malformed payloads fail closed per operation, capability state distinguishes refusal from transport failure, capability is never claimed without history, disabled/demo/unknown devices are refused before any upstream call, and concurrent/cached reads collapse to one collection.
+
+**Not verified, not claimed:** a real CE-device comparison and page-by-page visual acceptance against the approved mockup, because the mockup image is not present in this checkout. `api_package_version` and CPU architecture remain unreported by design.
+
+### 15.1 Live acceptance and the defect it found
+
+After the API image was rebuilt, an authenticated session loaded the site list and the Overview page against the registered firewall. The live behavior:
+
+- `GET /api/v1/devices` initially returned `500` with `column "device_id" does not exist`. `listCompatibility()` and `getCompatibility()` projected `device_id` from `managed_devices`, but that table's key is `id`; only `poll_runs` and the credential tables use `device_id`. Mocked repository tests could not detect it because no test executed the SQL against a real schema.
+- Fix: both queries project `id AS device_id`. The statements were executed directly against the live database (`psql`) before rebuilding the image, together with the `poll_runs` capability query, the `poll_runs` insert shape, and the alert auto-resolve statement.
+- After the rebuild: `GET /api/v1/devices` → `200`; `GET /api/v1/devices/:id/snapshot` → `200` in ~5.5–8 s (sequential operations, cache hit afterwards); all eight `poll_runs` rows `success` for three consecutive collections; `alerts` empty; inventory reports `release` `26.07.2-RELEASE`, `platform` `Netgate 2100`, `apiPackageVersion` `null`, `compatibility` `verified`.
+- Regression guard: the repository tests now assert that the compatibility projection is `id AS device_id` from `managed_devices`.
+
+**Lesson recorded:** a mocked `Pool` proves mapping logic, not SQL validity. Any new statement against `managed_devices`, `poll_runs`, `device_credentials`, `device_tls_trust`, or `alerts` is now checked against the live schema before the image is rebuilt.

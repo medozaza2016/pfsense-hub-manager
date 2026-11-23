@@ -45,7 +45,7 @@ Prometheus is optional, not required in the initial Compose stack. If adopted, s
 8. Record the resolution without credentials or sensitive payloads.
 
 
-## Hub Docker Compose monitoring and recovery (approved scope, implementation pending)
+## Hub Docker Compose monitoring and recovery (approved scope)
 
 ### Access policy (DEC-027)
 - Application roles for this area are `admin` and `user`.
@@ -55,7 +55,7 @@ Prometheus is optional, not required in the initial Compose stack. If adopted, s
 - The API must deny unauthenticated requests with 401 and authenticated non-admin operation requests with 403. The UI is presentation only and is never an authorization boundary.
 - Role checks must use the role loaded from the server-side database-backed session, never a role supplied by the browser.
 
-## Hub Docker Compose monitoring and recovery (planned)
+## Hub Docker Compose monitoring and recovery (requirements detail)
 
 This section concerns the Hub's own three-service Compose project only: Web, API, and PostgreSQL. The dedicated host is not intended to be a general-purpose Docker host, and unrelated containers are out of scope.
 
@@ -80,4 +80,6 @@ Operations must preserve persistent data. Routine stop, restart, and start opera
 If the entire stack is stopped, the GUI cannot restart itself. The operator must use Docker Desktop or a host terminal to start the project again using the documented Compose deployment procedure. This recovery path must be documented and tested before exposing whole-stack stop in the GUI.
 
 ### Implementation status
-The broader monitoring/Compose-operations scope remains planned. A restricted Linux Host Agent does exist for the separate Hub access deployment workflow only; it does not expose general container control, arbitrary Compose actions, or the monitoring operations described in this document. No generic Docker management endpoint or live container monitoring control is claimed to exist.
+Implemented through the restricted Host Agent and live-verified on November 23, 2026 for the read paths, bounded logs, Compose validation, the unauthenticated-denial boundary, and allowlisted operations (DEC-039). The agent supports `system.status`, `system.logs`, `compose.validate`, `system.operation`, and `system.operationResult`, and accepts only fixed service targets (`web`, `api`, `db`) and `stack`. The API exposes these only when the corresponding fail-closed feature flags are enabled; operator journals are persisted in `host_operations`.
+
+It does not expose the Docker socket to application containers, arbitrary Compose actions, command-prompt/shell execution, volume deletion, image rebuild/update, or container creation outside the fixed project. Outstanding verification, not passed: a per-service `start`/`stop`/`restart` observed from the browser, the stack-stop recovery rehearsal from a host shell, and viewport-by-viewport visual acceptance. See `SYSTEM-MONITORING-RECOVERY.md` sections 9 and 10 and `ROADMAP.md`.

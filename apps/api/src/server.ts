@@ -6,11 +6,14 @@ import { createPool } from "./db/pool.js";
 import { migrate } from "./db/migrate.js";
 import { DevicePfSenseClientFactory } from "./pfsense/device-client-factory.js";
 import { PfSenseProvider } from "./pfsense/provider.js";
+import { ObservationCache } from "./pfsense/observation-cache.js";
+import { registerObservationRoutes } from "./pfsense/observation-routes.js";
+import type { SiteSnapshot } from "./pfsense/observations.js";
 import { DeviceRepository } from "./devices/device-repository.js";
 import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
-import { registry, requests, requestDuration, polls, pollErrors, pollDuration, deviceUp, lastSuccess } from "./metrics.js";
-import { appendAudit, upsertAlert } from "./audit.js";
+import { registry, requests, requestDuration } from "./metrics.js";
+import { appendAudit } from "./audit.js";
 import { hubAccessEndpointsSchema } from "./hub-settings.js";
 import { dispatchHubDeployment } from "./hub-deployment-service.js";
 import { createHostSystemService } from "./host-system/service.js";
@@ -27,6 +30,13 @@ await migrate(pool);
 const devices = new DeviceRepository(pool, encryptionKey);
 const clientFactory = new DevicePfSenseClientFactory(config, devices);
 const provider = new PfSenseProvider(clientFactory, devices, config, bootstrapApiKey, pool);
+// One short-lived cache per process: navigation across site pages must not
+// multiply upstream collections, and nothing here survives a restart.
+const observationCache = new ObservationCache<SiteSnapshot>({
+  successTtlMs: config.PFSENSE_OBSERVATION_CACHE_MS,
+  failureTtlMs: config.PFSENSE_OBSERVATION_ERROR_CACHE_MS,
+  maxEntries: 64
+});
 await provider.ensureDevice();
 const hostSystem = createHostSystemService(config);
 const app = Fastify({
@@ -515,47 +525,13 @@ app.get("/api/v1/devices/:deviceId", async (request, reply) => {
   if (!device) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
   return { data: device };
 });
-app.get("/api/v1/devices/:deviceId/capabilities", async (request, reply) => {
-  const { deviceId } = request.params as { deviceId: string };
-  const device = (await provider.listDevices()).find(item => item.id === deviceId);
-  if (!device || device.isDemo) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
-  return { data: await provider.capabilities() };
+await registerObservationRoutes(app, { provider, devices, pool, cache: observationCache });
+await registerDeviceAdminRoutes(app, {
+  devices,
+  clientFactory,
+  pool,
+  onDeviceChanged: deviceId => observationCache.invalidate(deviceId)
 });
-app.get("/api/v1/devices/:deviceId/overview", async (request, reply) => {
-  const { deviceId } = request.params as { deviceId: string };
-  const device = (await provider.listDevices()).find(item => item.id === deviceId);
-  if (!device || device.isDemo) return reply.code(404).send({ error: { code: "DEVICE_NOT_FOUND", message: "Managed device was not found." } });
-  if (!device.enabled) return reply.code(409).send({ error: { code: "DEVICE_DISABLED", message: "Enable this firewall before requesting live status." } });
-  const started = Date.now();
-  const result = await provider.collect(deviceId, (group, outcome, errorClass, durationMs) => {
-    polls.inc({ device_id: deviceId, operation_group: group, result: outcome });
-    pollDuration.observe({ device_id: deviceId, operation_group: group }, (durationMs ?? 0) / 1000);
-    if (outcome === "failure") pollErrors.inc({ device_id: deviceId, operation_group: group, error_class: errorClass ?? "unknown" });
-    else lastSuccess.set({ device_id: deviceId }, Date.now() / 1000);
-  });
-  if (!result) return reply.code(409).send({ error: { code: "DEVICE_UNAVAILABLE", message: "The firewall is no longer available for polling." } });
-  const failures = result.failedOperations;
-  if (failures > 0) {
-    await upsertAlert(pool, {
-      deduplicationKey: "device-poll:" + deviceId,
-      severity: failures === 8 ? "critical" : "warning",
-      title: failures === 8 ? "Firewall is unreachable" : "Firewall polling is degraded",
-      message: failures + " of 8 read-only status operations failed. Review the integration and network path.",
-      source: "pfSense integration",
-      resourceType: "device",
-      resourceId: deviceId
-    });
-  } else {
-    const resolved = await pool.query(
-      `UPDATE alerts SET status='resolved',resolved_at=now(),last_seen_at=now()
-        WHERE deduplication_key='device-poll:' || $1 AND status IN ('active','acknowledged') RETURNING id`, [deviceId]
-    );
-    if (resolved.rowCount) await appendAudit(pool, { actorType: "system", action: "alert.auto_resolve", outcome: "success", targetType: "device", targetId: deviceId, summary: "Automatically resolved recovered firewall polling alert", metadata: { resolvedCount: resolved.rowCount }, requestId: request.id });
-  }
-  deviceUp.set({ device_id: deviceId }, failures === 0 ? 1 : 0);
-  return reply.code(failures === 8 ? 502 : 200).send({ data: result?.results ?? {}, meta: { deviceId, outcome: failures === 0 ? "success" : "partial", failedOperations: failures, durationMs: Date.now() - started } });
-});
-await registerDeviceAdminRoutes(app, { devices, clientFactory, pool });
 await registerHostSystemRoutes(app, { service: hostSystem, pool });
 
 app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: { code: "NOT_FOUND", message: "Route not found." } }));

@@ -95,6 +95,39 @@ interface DeviceRow {
   updated_at: Date | string;
 }
 
+export type CompatibilityVerdict = "unknown" | "verified" | "mismatch";
+
+export interface DeviceCompatibility {
+  deviceId: string;
+  release: string | null;
+  platform: string | null;
+  apiPackageVersion: string | null;
+  compatibility: CompatibilityVerdict;
+  compatibilityCheckedAt: string | null;
+}
+
+interface CompatibilityRow {
+  device_id: string;
+  release: string | null;
+  platform: string | null;
+  api_package_version: string | null;
+  compatibility: CompatibilityVerdict;
+  compatibility_checked_at: Date | string | null;
+}
+
+function toCompatibility(row: CompatibilityRow): DeviceCompatibility {
+  return {
+    deviceId: row.device_id,
+    release: row.release,
+    platform: row.platform,
+    apiPackageVersion: row.api_package_version,
+    compatibility: row.compatibility,
+    compatibilityCheckedAt: row.compatibility_checked_at
+      ? new Date(row.compatibility_checked_at).toISOString()
+      : null
+  };
+}
+
 interface CredentialRow {
   format_version: number;
   key_version: number;
@@ -165,6 +198,59 @@ export class DeviceRepository {
     );
     const row = result.rows[0];
     return row ? toProfile(row) : null;
+  }
+
+  /**
+   * Compatibility evidence is stored separately from the connection profile so
+   * an unreachable or never-polled device reports nulls instead of defaults.
+   */
+  async listCompatibility(): Promise<DeviceCompatibility[]> {
+    const result = await this.pool.query<CompatibilityRow>(
+      `SELECT id AS device_id,release,platform,api_package_version,compatibility,compatibility_checked_at
+       FROM managed_devices WHERE archived_at IS NULL ORDER BY name,id`
+    );
+    return result.rows.map(toCompatibility);
+  }
+
+  async getCompatibility(deviceId: string): Promise<DeviceCompatibility | null> {
+    const id = deviceIdSchema.parse(deviceId);
+    const result = await this.pool.query<CompatibilityRow>(
+      `SELECT id AS device_id,release,platform,api_package_version,compatibility,compatibility_checked_at
+       FROM managed_devices WHERE id=$1 AND archived_at IS NULL`,
+      [id]
+    );
+    const row = result.rows[0];
+    return row ? toCompatibility(row) : null;
+  }
+
+  /**
+   * Records observed compatibility for a real, active device. Demo and archived
+   * rows are never updated: their evidence would not describe a real firewall.
+   */
+  async recordCompatibility(
+    deviceId: string,
+    input: {
+      release: string | null;
+      platform: string | null;
+      apiPackageVersion: string | null;
+      compatibility: CompatibilityVerdict;
+    }
+  ): Promise<boolean> {
+    const id = deviceIdSchema.parse(deviceId);
+    const parsed = z.object({
+      release: z.string().trim().max(120).nullable(),
+      platform: z.string().trim().max(120).nullable(),
+      apiPackageVersion: z.string().trim().max(120).nullable(),
+      compatibility: z.enum(["unknown", "verified", "mismatch"])
+    }).strict().parse(input);
+    const result = await this.pool.query(
+      `UPDATE managed_devices
+          SET release=$2,platform=$3,api_package_version=$4,compatibility=$5,
+              compatibility_checked_at=now()
+        WHERE id=$1 AND is_demo=false AND archived_at IS NULL`,
+      [id, parsed.release, parsed.platform, parsed.apiPackageVersion, parsed.compatibility]
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   /**

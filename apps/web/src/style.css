@@ -208,3 +208,11 @@
 .recovery-danger-button{padding:7px 10px;border:1px solid #e8c3c3;border-radius:7px;background:#fdf4f4;color:#a63c3c;font-size:10px;font-weight:700;cursor:pointer}.recovery-danger-button:hover:not(:disabled){background:#fbeaea}.recovery-danger-button:disabled{opacity:.55;cursor:not-allowed}
 .recovery-confirm-impact{margin:0 0 14px;font-size:11px;line-height:1.55;color:#5d6f87}.recovery-confirm-field{display:grid;gap:6px;margin:0 0 14px}.recovery-confirm-field span{font-size:10px;font-weight:700;color:#51637a}.recovery-confirm-field code{font-family:ui-monospace,monospace;color:#a63c3c}.recovery-confirm-field input{padding:9px 11px;border:1px solid #d5dfec;border-radius:8px;background:#f8fafc;color:#22354c;font-family:ui-monospace,monospace;font-size:11px}
 
+
+/* Read-only site telemetry (snapshot-backed pages) */
+.capability-list>div{gap:12px;align-items:flex-start}
+.capability-list>div>span{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere;font-weight:600;color:#11294a}
+.capability-list code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:9px;color:#63738d;font-weight:400}
+.capability-list .status-pill{flex:none}
+.site-detail-grid .panel .panel-heading{align-items:flex-start}
+@media(max-width:900px){.capability-list>div{flex-direction:column;gap:6px}}

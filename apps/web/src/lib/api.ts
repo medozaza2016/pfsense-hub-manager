@@ -26,9 +26,12 @@ export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T>
   if (!response.ok) {
     const message: string = body.error?.message ?? "The request could not be completed.";
     const diagnosticCode = body.error?.diagnosticCode;
+    // A masked server error still carries a request ID. Surfacing it lets an
+    // operator match the failure to the API log line without exposing internals.
+    const reference = typeof diagnosticCode === "string" ? diagnosticCode : typeof body.error?.requestId === "string" ? body.error.requestId : null;
     const code = typeof body.error?.code === "string" ? body.error.code : null;
     throw new ApiRequestError(
-      typeof diagnosticCode === "string" ? `${message} (${diagnosticCode})` : message,
+      reference ? `${message} (${reference})` : message,
       response.status,
       code
     );

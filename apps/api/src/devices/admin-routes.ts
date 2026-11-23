@@ -27,6 +27,12 @@ interface DeviceAdminRouteDependencies {
   devices: DeviceRepository;
   clientFactory: DevicePfSenseClientFactory;
   pool: Pool;
+  /**
+   * Notified after a change that makes a cached read-only observation stale
+   * (archive, disable, profile, credential, or TLS trust change). It receives
+   * only the manager device ID; no secret material is passed.
+   */
+  onDeviceChanged?: (deviceId: string) => void;
 }
 
 const deviceIdSchema = z.string().uuid();
@@ -153,7 +159,7 @@ export async function registerDeviceAdminRoutes(
   app: FastifyInstance,
   dependencies: DeviceAdminRouteDependencies
 ): Promise<void> {
-  const { devices, clientFactory, pool } = dependencies;
+  const { devices, clientFactory, pool, onDeviceChanged } = dependencies;
 
 
   app.post("/api/v1/devices/discover-certificate", { preHandler: requireAdministrator }, async (request, reply) => {
@@ -284,6 +290,7 @@ export async function registerDeviceAdminRoutes(
       metadata: { name: profile.name, edition: profile.edition },
       requestId: request.id
     });
+    onDeviceChanged?.(deviceId);
     return { data: profile };
   });
 
@@ -311,6 +318,7 @@ export async function registerDeviceAdminRoutes(
       metadata: { pollingHistoryRetained: true, alertsRetained: true, resolvedAlertCount: archived.resolvedAlertCount },
       requestId: request.id
     });
+    onDeviceChanged?.(deviceId);
     return { data: { deviceId, archived: true, pollingHistoryRetained: true, alertsRetained: true, resolvedAlertCount: archived.resolvedAlertCount } };
   });
 
@@ -336,6 +344,7 @@ export async function registerDeviceAdminRoutes(
       metadata: { enabled: profile.enabled },
       requestId: request.id
     });
+    onDeviceChanged?.(deviceId);
     return { data: profile };
   });
 
@@ -379,6 +388,7 @@ export async function registerDeviceAdminRoutes(
       summary: "Rotated managed firewall API credential",
       requestId: request.id
     });
+    onDeviceChanged?.(deviceId);
     return { data: { deviceId, credentialUpdated: true } };
   });
 
@@ -417,6 +427,7 @@ export async function registerDeviceAdminRoutes(
       metadata: { customTrustConfigured: normalizedCertificateAuthority !== null },
       requestId: request.id
     });
+    onDeviceChanged?.(deviceId);
     return { data: { deviceId, customTrustConfigured: normalizedCertificateAuthority !== null } };
   });
 

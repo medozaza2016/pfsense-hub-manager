@@ -61,7 +61,7 @@ The initial manager-user model for System Monitoring and Recovery has two roles:
 
 ### Manager role implementation status, November 22, 2026
 
-The current `feature/multi-site-onboarding` branch includes manager authentication, database-backed roles and sessions, user administration, audit logging, and administrator enforcement on site and Hub access mutation routes:
+The current `main` branch includes manager authentication, database-backed roles and sessions, user administration, audit logging, and administrator enforcement on site and Hub access mutation routes:
 
 - Migration `003_manager_roles_and_sessions.sql` creates the manager account/session tables when absent and adds a constrained `role` column. Existing rows receive the `admin` role by default; no account deletion or password reset is part of the migration.
 - Session lookup reads the role from PostgreSQL. Setup and login responses include the role from the database.

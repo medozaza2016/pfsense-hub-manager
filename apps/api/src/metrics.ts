@@ -10,3 +10,16 @@ export const deviceUp=new Gauge({name:"pfsense_device_up",help:"Most recent fire
 export const lastSuccess=new Gauge({name:"pfsense_last_successful_poll_timestamp_seconds",help:"Unix timestamp of last successful firewall operation.",labelNames:["device_id"],registers:[registry]});
 
 export const processUptime = new Gauge({name:"process_uptime_seconds",help:"Backend process uptime in seconds.",registers:[registry],collect(){this.set(process.uptime());}});
+
+/**
+ * Shared per-operation recorder. Kept in one place so the site overview and the
+ * site snapshot endpoints cannot drift in how they count a poll.
+ */
+export function pollObserver(deviceId:string){
+ return (operationGroup:string,result:"success"|"failure",errorClass?:string,durationMs?:number):void=>{
+  polls.inc({device_id:deviceId,operation_group:operationGroup,result});
+  pollDuration.observe({device_id:deviceId,operation_group:operationGroup},(durationMs??0)/1000);
+  if(result==="failure")pollErrors.inc({device_id:deviceId,operation_group:operationGroup,error_class:errorClass??"unknown"});
+  else lastSuccess.set({device_id:deviceId},Date.now()/1000);
+ };
+}

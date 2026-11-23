@@ -1,7 +1,7 @@
 # Multi-site Onboarding and Connection Management
 
-**Status:** Core implementation delivered; verification recorded; wider product acceptance remains open  
-**Implementation branch:** `feature/multi-site-onboarding`  
+**Status:** Core implementation delivered and merged to `main`; verification recorded; wider product acceptance remains open  
+**Implementation branch:** `main` (delivered on the merged `feature/multi-site-onboarding` branch)  
 **Last reconciled:** November 22, 2026  
 **Scope:** Read-only firewall connectivity and managed-device lifecycle
 
@@ -13,7 +13,7 @@ The implementation is deliberately limited to secure, read-only pfSense API acce
 
 ## 2. Current implementation state
 
-The following reflects the code on `feature/multi-site-onboarding`, not the earlier `main` baseline.
+The following reflects the code on `main`, which now contains the merged multi-site work rather than the earlier baseline.
 
 ### 2.1 Implemented
 
@@ -148,7 +148,7 @@ The core onboarding implementation is present on this branch. The remaining rele
 
 ## 7. Branch and delivery workflow
 
-Continue on `feature/multi-site-onboarding`. Do not switch to, commit to, or merge into `main` without explicit user approval. Keep changes incremental, inspect the current code before editing, run the relevant tests, and report exact verification results. A pull request or merge requires separate user approval.
+The work was delivered on `feature/multi-site-onboarding` and is now merged; continue on `main` per DEC-029 and DEC-030. Do not create, switch, or delete branches without explicit user authorization. Keep changes incremental, inspect the current code before editing, run the relevant tests, and report exact verification results. A pull request or merge requires separate user approval.
 
 
 ## 8. Hub access endpoint settings and deployment
