@@ -225,7 +225,7 @@ Check the agent with `sudo systemctl status pfsense-hub-deployment-agent --no-pa
 
 ### Local development and production boundary
 
-Windows 11 / Docker Desktop development and Linux `--local` development do not run this Linux systemd Host Agent. Leave HUB_DEPLOYMENT_AGENT_TOKEN and HUB_DEPLOYMENT_AGENT_SOCKET empty and keep HUB_ACCESS_DEPLOYMENT_ENABLED=false in local development. Automatic host deployment is a Linux production capability; local development continues to exercise the frontend and API without applying host settings, and Hub access deployment requests return `503 HUB_ACCESS_DEPLOYMENT_DISABLED`. Ordinary local development and the existing loopback web endpoint remain available.
+Windows 11 / Docker Desktop development and a Linux `--local` install without `--with-agent` do not run this Linux systemd Host Agent. Leave HUB_DEPLOYMENT_AGENT_TOKEN and HUB_DEPLOYMENT_AGENT_SOCKET empty and keep HUB_ACCESS_DEPLOYMENT_ENABLED=false in those setups. Automatic host deployment is a Linux production capability; local development continues to exercise the frontend and API without applying host settings, and Hub access deployment requests return `503 HUB_ACCESS_DEPLOYMENT_DISABLED`. Ordinary local development and the existing loopback web endpoint remain available. On Linux, `--local --with-agent` runs the same agent binary unprivileged against the developer's own checkout so host deployment can be exercised off-production; it never installs the systemd unit and never writes to `/etc` or `/opt`. See [Unprivileged development Host Agent](#unprivileged-development-host-agent).
 
 LAN and Custom require an already configured TLS termination layer. Hub Manager does not provision certificates, DNS, or reverse proxies. For Tailscale, the host agent can configure the single fixed Serve route after the administrator selects Tailscale in Hub Settings. Tailnet HTTPS must be enabled in the Tailscale administration console first.
 
@@ -248,8 +248,49 @@ bash scripts/install-linux.sh --local
 - Applies `0700` to `secrets/` and `secrets/runtime/`, `0400` to key files, and `0600` to `.env`.
 - Validates Compose, builds and starts web, API, and PostgreSQL, and waits for all three services to become healthy before printing `http://127.0.0.1:8080`.
 - Refuses an existing `.env` or key files, the `pfsense-hub_postgres_data` volume, or running containers for the `pfsense-hub` Compose project.
+- Runs no Host Agent unless `--with-agent` is also given; see [Unprivileged development Host Agent](#unprivileged-development-host-agent).
 
-Stop a local stack with `docker compose down`. Never use `docker compose down -v`; it deletes the generated database and the encryption state required to decrypt stored firewall credentials. Tailscale and Custom access auto-deployment require the production Host Agent and cannot be exercised in local mode. Local mode is not a production installation.
+Stop a local stack with `docker compose down`. Never use `docker compose down -v`; it deletes the generated database and the encryption state required to decrypt stored firewall credentials. Tailscale and Custom access auto-deployment require the Host Agent: in plain local mode they remain unavailable and requests return `503 HUB_ACCESS_DEPLOYMENT_DISABLED`. Local mode is not a production installation.
+
+## Unprivileged development Host Agent
+
+Production runs the agent as root through systemd against `/opt/pfsense-hub`. To exercise GUI-managed Hub access deployment from a personal checkout without `sudo`, run:
+
+```bash
+cd ~/GitHub/pfsense-hub-manager
+bash scripts/install-linux.sh --local --with-agent
+```
+
+`--with-agent` is local-mode only; the production installer already provisions the systemd agent, and combining it with the default mode fails with a usage error. On an existing local installation the installer skips secret generation and the existing-state guards, keeps the current `POSTGRES_PASSWORD`, encryption key, and database, and only configures and starts the agent.
+
+What it writes and verifies:
+
+- `~/.config/pfsense-hub/deployment-agent.json`, mode `0600`, owned by the installing account: fixed loopback API URL, the generated bearer token, the checkout's socket and lock paths, and `socket_gid` set to that account's GID.
+- Four lines in the existing local `.env`: `HUB_DEPLOYMENT_AGENT_TOKEN` (generated once and preserved on later runs), `HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock`, `HUB_AGENT_GID=<your GID>`, and `HUB_ACCESS_DEPLOYMENT_ENABLED=true`.
+- It starts the agent with `scripts/dev-host-agent.sh start`, recreates only the `api` container, and verifies socket ownership plus the bearer-authenticated API retrieval handshake before reporting success.
+
+The agent trusts its own identity, not a mode flag: the configuration file, project directory, Compose file, and `.env` must be owned by the account running the agent, none may be group/world writable, and a root agent still requires `/opt/pfsense-hub`. A root-owned checkout with an unprivileged agent, or the reverse, is rejected. If a `umask 002` session or a shared clone left the checkout group-writable, the installer stops before changing anything and prints the exact `chmod g-w,o-w` commands to run; running `scripts/dev-host-agent.sh start` reports the same `AGENT_PROJECT_PERMISSIONS_INVALID` reason.
+
+Control it with:
+
+```bash
+bash scripts/dev-host-agent.sh status
+bash scripts/dev-host-agent.sh logs
+bash scripts/dev-host-agent.sh restart
+bash scripts/dev-host-agent.sh stop
+```
+
+The socket is `run/host-agent/agent.sock` and the log is `run/host-agent/agent.log`, both inside the checkout; neither is committed.
+
+Tailscale Serve needs a one-time operator delegation, because `tailscale serve` refuses to run unprivileged otherwise:
+
+```bash
+sudo tailscale set --operator="$USER"
+```
+
+Without it the agent fails closed with `HOST_OPERATION_FAILED` and does not change any Serve route. Tailscale HTTPS must still be enabled for the tailnet, and LAN/Hostname deployment still needs operator-managed TLS termination in front of the Hub.
+
+To return to a plain local install, stop the agent with `scripts/dev-host-agent.sh stop`, set `HUB_ACCESS_DEPLOYMENT_ENABLED=false` in `.env`, and run `docker compose up -d --no-deps api`. Hub access deployment then returns `503 HUB_ACCESS_DEPLOYMENT_DISABLED` again.
 
 ## Windows 11 local setup and development workflow
 

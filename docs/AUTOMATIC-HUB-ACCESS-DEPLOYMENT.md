@@ -62,7 +62,7 @@ The agent uses a fixed Docker Compose project path and recreates only the web se
 
 ### Windows Docker Desktop development
 
-The production Linux agent does not run on Windows. Leave the agent token and socket empty for local development. The API reports `HOST_AGENT_NOT_CONFIGURED` if a deployment is requested without the Linux agent. The UI keeps all deployment saves disabled while HUB_ACCESS_DEPLOYMENT_ENABLED is false. Once explicitly enabled after Linux integration tests, LAN/Custom binding and Tailscale MagicDNS verification are supported only with the required operator-managed TLS prerequisites. Windows development continues to support the frontend and API without the production agent; it does not provide automatic host deployment.
+The production Linux agent does not run on Windows. Leave the agent token and socket empty for Windows local development. The API reports `HOST_AGENT_NOT_CONFIGURED` if a deployment is requested without a configured agent. The UI keeps all deployment saves disabled while HUB_ACCESS_DEPLOYMENT_ENABLED is false. Once explicitly enabled, LAN/Custom binding and Tailscale MagicDNS verification are supported only with the required operator-managed TLS prerequisites. On Linux, `scripts/install-linux.sh --local --with-agent` runs the same restricted agent as the developer's own account so this path can be exercised off-production; it is documented in DEPLOYMENT.md and adds no systemd unit, no `/etc` write, and no `/opt` write.
 
 ## Persistence and API contract
 

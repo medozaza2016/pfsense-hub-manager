@@ -19,7 +19,7 @@ The first Netgate 2100 running pfSense Plus was historically tested for eight re
 - **Credential protection:** Per-device API credentials and custom TLS trust are encrypted at rest using AES-256-GCM and a separately provisioned application encryption key.
 - **Manager administration:** Database-backed login and sessions, `admin` and `user` roles, user management, audit records, and operational alerts.
 - **Hub access:** Administration → Hub Settings supports Local, Tailscale MagicDNS, and Custom endpoint configuration. On Linux, a restricted systemd Host Agent applies and verifies supported host changes. It does not expose the Docker socket to the application containers.
-- **Linux installation:** One entry point, `scripts/install-linux.sh`, has two explicit modes. The default production mode provisions both the Hub and its standard Host Agent from a root-owned `/opt/pfsense-hub` checkout and enables GUI-managed access deployment only after service health and the API-to-agent authentication handshake succeed. The unprivileged `--local` mode builds and starts the Hub with Docker Compose from any checkout path without the Host Agent and keeps the deployment gate false.
+- **Linux installation:** One entry point, `scripts/install-linux.sh`, has two explicit modes. The default production mode provisions both the Hub and its standard Host Agent from a root-owned `/opt/pfsense-hub` checkout and enables GUI-managed access deployment only after service health and the API-to-agent authentication handshake succeed. The unprivileged `--local` mode builds and starts the Hub with Docker Compose from any checkout path without the Host Agent and keeps the deployment gate false; adding `--with-agent` runs the same restricted agent unprivileged against that checkout for development.
 
 The following are still incomplete: a second live firewall/CE validation, continuous background polling and retry scheduling, full live data for all preview pages, database backup/restore drills and retention policy, application key rotation, a Windows host deployment agent, and any firewall configuration write workflow.
 
@@ -56,6 +56,14 @@ bash scripts/install-linux.sh --local
 ```
 
 `--dev` is accepted as an alias. Local mode installs no systemd Host Agent, needs no root access, creates no root-owned files, and leaves `HUB_ACCESS_DEPLOYMENT_ENABLED=false`, so Hub access deployment requests keep returning `503 HUB_ACCESS_DEPLOYMENT_DISABLED`. It generates the PostgreSQL password and application encryption key, writes `.env` with an empty agent token and socket, validates the Compose configuration, builds and starts the stack, waits for PostgreSQL, API, and web health, and prints the local UI address.
+
+Add `--with-agent` to also run the restricted Host Agent as your own unprivileged account against this checkout, which makes GUI-managed Hub access deployment testable without `sudo`:
+
+```bash
+bash scripts/install-linux.sh --local --with-agent
+```
+
+That flag writes `~/.config/pfsense-hub/deployment-agent.json`, enables the deployment gate in the local `.env`, starts the agent through `scripts/dev-host-agent.sh` (no systemd unit and nothing written to `/etc` or `/opt`), and verifies the socket and bearer-authenticated API handshake. The agent still trusts only files owned by the account running it, and Tailscale Serve additionally needs `sudo tailscale set --operator="$USER"`. See the [Deployment guide](docs/DEPLOYMENT.md#unprivileged-development-host-agent).
 
 The installer refuses to overwrite an existing `.env`, key files, the `pfsense-hub_postgres_data` volume, or running containers for this Compose project, and it refuses a checkout owned by another account. Stop the stack with `docker compose down`, never `docker compose down -v`. Linux local mode cannot exercise Tailscale or Custom Hub access auto-deployment; use the production procedure to test those. See the [Deployment guide](docs/DEPLOYMENT.md#linux-local-development-install-non-root-any-checkout-path).
 

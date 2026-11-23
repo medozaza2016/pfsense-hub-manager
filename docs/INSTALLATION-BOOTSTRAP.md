@@ -107,7 +107,7 @@ The Linux Bash workflow is implemented and verified on the prepared Debian 13 Pr
 
 - Requires Docker Engine, Docker Compose v2, OpenSSL, and standard coreutils. systemd, Python, iproute2, and group management utilities are not required.
 - Refuses to run as root, except through `sudo` with resolvable `SUDO_USER`, `SUDO_UID`, and `SUDO_GID`; created files are then returned to that account. A checkout owned by another account is rejected.
-- Installs no Host Agent, no systemd service, and no agent configuration, and creates no root-owned project files.
+- Installs no Host Agent, no systemd service, and no agent configuration, and creates no root-owned project files. The optional `--with-agent` flag is the documented exception: it runs the same restricted agent binary as the invoking unprivileged account from that checkout, with its configuration in `~/.config/pfsense-hub/deployment-agent.json` and lifecycle control through `scripts/dev-host-agent.sh`. It enables the deployment gate in the local `.env` and still writes nothing to `/etc` or `/opt` and creates no systemd unit. The agent accepts only configuration, project, Compose, and `.env` files owned by the account running it, and a root agent still requires `/opt/pfsense-hub`. See DEC-038.
 - Writes `.env` with empty `HUB_DEPLOYMENT_AGENT_TOKEN` and `HUB_DEPLOYMENT_AGENT_SOCKET`, `HUB_ACCESS_DEPLOYMENT_ENABLED=false`, and the loopback bind, so Hub access deployment stays disabled and requests return `503 HUB_ACCESS_DEPLOYMENT_DISABLED`.
 - Applies the same non-destructive guards: an existing `.env`, key files, the `pfsense-hub_postgres_data` volume, or Compose project containers stop the installer instead of being overwritten.
 - Builds and starts web, API, and PostgreSQL, waits for all three to become healthy, and prints `http://127.0.0.1:8080`.
@@ -166,6 +166,7 @@ The installation and onboarding milestone has separate platform and product acce
 - [x] The installer generates a protected application encryption key and requires confirmation that its one-time recovery copy was saved.
 - [x] The installer refuses to overwrite existing secrets, agent configuration/service, containers, or PostgreSQL volume.
 - [x] The unprivileged `--local` mode installs and starts the Hub from an arbitrary checkout path with no Host Agent, and keeps `HUB_ACCESS_DEPLOYMENT_ENABLED=false`.
+- [x] `--local --with-agent` provisions an unprivileged development Host Agent from the same checkout, verifies the socket and bearer handshake, and adds no systemd unit, `/etc` write, or `/opt` write.
 - [x] Hub Settings can apply and verify the Tailscale MagicDNS HTTPS endpoint on the tested prepared Debian 13 CT.
 - [ ] Reboot and snapshot-restore recovery drill.
 - [ ] Database and encryption-key backup/restore drill.
