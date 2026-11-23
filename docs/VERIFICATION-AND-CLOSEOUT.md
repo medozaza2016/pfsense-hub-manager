@@ -1,8 +1,8 @@
 # Verification and documentation closeout
 
 **Closeout date:** November 22, 2026 (America/New_York)  
-**Active branch:** `feature/multi-site-onboarding`  
-**Branch status:** This work is on the feature branch. It has not been merged into `main`.  
+**Active branch:** `main`  
+**Branch status:** The multi-site onboarding and Linux deployment work is merged into `main`. The System Monitoring & Recovery frontend preview was subsequently merged through PR #10.  
 **Purpose:** Record the actual local, container, clean-install, and browser verification performed for this increment. This record supersedes older pending-verification statements in planning documents where those statements cover the checks recorded below.
 
 ## 1. Outcome
@@ -151,3 +151,17 @@ No hosted CI workflow is used for this project by the current workflow decision.
 ## 9. Delivery boundary
 
 This closeout records a successful feature-branch implementation and verification. It does not authorize a merge into `main`, a branch deletion, a production release, firewall write operations, or a change to the deferred second-firewall transport decision. Those require separate user direction.
+
+
+## 10. System Monitoring & Recovery frontend merge status
+
+**Pull request:** [#10, Add System Monitoring & Recovery UI preview](https://github.com/medozaza2016/pfsense-hub-manager/pull/10)  
+**Merge target:** `main`  
+**Merge method:** Squash  
+**Merge commit:** `9a55bfc4c7e5e165b16881f752232168558fcae6`
+
+The merged frontend adds the Administration navigation entry and `/settings/system-recovery` route, with a dedicated page containing host-resource placeholders, Web/API/PostgreSQL service health placeholders, disabled service and stack controls, service-log and Compose-validation placeholders, and host-side recovery guidance. The code-server service is explicitly excluded. The UI states that live monitoring and operations are not connected.
+
+**Not verified by this merge:** No browser visual test, new typecheck, automated test run, production build, deployment, or live Host Agent operation was performed for PR #10 in the available evidence. The user's subsequent Application Settings screenshot showed the existing two-card page but did not show the System Monitoring & Recovery navigation item. Therefore, do not assume that the browser was running the merged web image. Confirm the local repository is updated to `main`, rebuild/recreate the web service, and inspect the new page before treating visual acceptance as complete.
+
+The page is a frontend-only milestone. Host metrics, service status, bounded logs, Compose validation, service/stack operations, role enforcement, audit events, and recovery tests remain future implementation work under DEC-026 and DEC-027. See [System Monitoring & Recovery requirements and implementation plan](SYSTEM-MONITORING-RECOVERY.md).
