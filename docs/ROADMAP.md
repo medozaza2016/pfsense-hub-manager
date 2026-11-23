@@ -130,3 +130,20 @@ python3 -m unittest discover -s host-agent -p 'test_*.py' -v
 - The production Linux LXC does not need Node.js or npm installed. Docker builds the API and web images.
 - Do not run development seed commands against production data.
 - Preserve the approved application design and current architecture. Any new firewall write capability requires a separate decision and security/recovery design before implementation.
+
+## Application Settings redesign, November 22, 2026
+
+**Design specification:** [Application Settings page redesign](APPLICATION-SETTINGS-REDESIGN.md)
+
+The approved page scope follows the supplied mockup: one **General** card and one **Preferences** card. The immediate work is the visual redesign and responsive layout. Do not expand this page with System Information, Maintenance, Backup & Restore, or host/Docker administration as part of this increment.
+
+- [x] Document the approved two-card layout, exact labels/descriptions, scope boundaries, and acceptance criteria.
+- [ ] Redesign the Application Settings frontend to match the supplied mockup at desktop, tablet, and mobile widths.
+- [ ] Keep controls clearly preview-only until their corresponding functional work is implemented. Do not claim that local state changes are persisted or enforced.
+- [ ] Future phase: define and persist the Hub application name and timezone behavior.
+- [ ] Future phase: design and implement the Hub-wide polling policy, scheduler, interval, concurrency, retries, and relationship to per-site polling enablement.
+- [ ] Future phase: design and implement email notification events, recipients, provider configuration, secret handling, retries, and delivery history.
+- [ ] Future phase: define consequential actions and enforce confirmation policy at the backend/API boundary.
+- [ ] Future phase: define settings authorization, persistence, validation, audit requirements, and automated tests.
+
+**Implementation boundary:** This documentation/design milestone does not add API routes, database migrations, scheduler jobs, email delivery, or backend security enforcement. Functional wiring is explicitly deferred to the future items above.
