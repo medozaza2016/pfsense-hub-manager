@@ -192,4 +192,23 @@ Verified for commit `eb008f5` on Linux:
 | Agent tests | `python3 -m unittest discover -p 'test_*.py'` in `host-agent` | 64 tests passed |
 | Web build (`tsc -b` and `vite build`) | `npm run build` in `apps/web` | pass |
 
-Not verified: browser acceptance against a running stack with `HUB_HOST_MONITORING_ENABLED` and `HUB_HOST_OPERATIONS_ENABLED` enabled, a live start/stop/restart on the deployment host, and the stack-stop recovery rehearsal. Running `vitest run` without the `src` filter also picks up stale compiled tests in `apps/api/dist/`, which fail for reasons unrelated to source; use the package script. Do not treat the implemented code as operational readiness until the live checks are recorded in [VERIFICATION-AND-CLOSEOUT.md](VERIFICATION-AND-CLOSEOUT.md).
+### Live stack verification, November 23, 2026
+
+Run on the Ubuntu Docker host against commit `eb008f5`, using the unprivileged development harness (`scripts/dev-host-agent.sh`) and a local `.env` with `HUB_HOST_MONITORING_ENABLED=true`, `HUB_HOST_OPERATIONS_ENABLED=true`, and `HUB_HOST_OPERATION_TIMEOUT_MS=180000`. The API container was recreated and its environment confirmed to carry those three values.
+
+| Check | Method | Result |
+|---|---|---|
+| Agent restarted on current source | `bash scripts/dev-host-agent.sh restart` | Restarted; socket, pid file, and journal directory present |
+| Protocol v2 `system.status` | direct newline-delimited JSON on the agent socket | `state: "ok"` with live host metrics (16 CPUs, memory, disk, uptime) and `web`/`api`/`db` container state and health |
+| Protocol v2 `system.logs` | same | `state: "ok"`, 5 lines returned, `truncated: false` |
+| Protocol v2 `compose.validate` | same | `state: "valid"` |
+| Unknown operation result | same, random operation id | `OPERATION_NOT_FOUND` |
+| Unsupported action | same, `action: "delete"` | `OPERATION_ACTION_UNSUPPORTED` |
+| Migration 015 applied | `\d host_operations` | Table plus `host_operations_recent` and the partial unique index `host_operations_single_active` (`WHERE state IN ('requested','running')`), with action, target, and state check constraints and the actor foreign key |
+| Manager authorization boundary | unauthenticated `GET /api/v1/system/status` and `GET /api/v1/system/operations` | `401` for both; the SPA routes `/` and `/settings/system-recovery` serve `200` |
+| Browser against the live agent | page open in a browser session | `GET /api/v1/system/status` polled every 10 s returning `200`, and `POST /api/v1/system/compose/validate` returned `200` |
+| Live stack operation | Initiated by the operator from the browser | `restart` on target `stack`, request id `req-f`, actor `ahmed`: `requested` at `2026-11-23T05:06:48Z`, `verified_at` at `05:06:49Z`, `succeeded` at `05:06:50Z`. The agent journal recorded the same operation as `completed`/`succeeded` with `verified: true`, and all three containers restarted and returned to healthy |
+
+The operator-initiated stack restart coincided with the image rebuild for this verification; both completed, and the stack came back healthy with the new API configuration.
+
+Still outstanding: the stack-stop recovery rehearsal (stopping the stack and recovering it from a host shell without the GUI), and an observed single-service `start`/`stop`/`restart` in the browser. Running `vitest run` without the `src` filter also picks up stale compiled tests in `apps/api/dist/`, which fail for reasons unrelated to source; use the package script. See [VERIFICATION-AND-CLOSEOUT.md](VERIFICATION-AND-CLOSEOUT.md).

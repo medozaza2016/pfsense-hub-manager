@@ -166,6 +166,33 @@ The merged frontend adds the Administration navigation entry and `/settings/syst
 
 The page is a frontend-only milestone. Host metrics, service status, bounded logs, Compose validation, service/stack operations, role enforcement, audit events, and recovery tests remain future implementation work under DEC-026 and DEC-027. See [System Monitoring & Recovery requirements and implementation plan](SYSTEM-MONITORING-RECOVERY.md).
 
+**Superseded by section 12**, which records the implemented backend, agent, and browser verification. Section 10 remains the historical record of the PR #10 merge.
+
+## 12. System Monitoring & Recovery live verification, November 23, 2026
+
+**Environment:** Ubuntu Docker host, commit `eb008f5`, unprivileged development Host Agent (`scripts/dev-host-agent.sh`), local `.env` with `HUB_HOST_MONITORING_ENABLED=true`, `HUB_HOST_OPERATIONS_ENABLED=true`, and `HUB_HOST_OPERATION_TIMEOUT_MS=180000`. The API container was recreated and its environment verified.
+
+**Results:**
+
+| Check | Result |
+|---|---|
+| `docker compose up -d --build api web` | Rebuilt and restarted; `api`, `db`, and `web` all healthy, bound to `127.0.0.1:3001` and `127.0.0.1:8080` |
+| Served web bundle | Contains the implemented System Monitoring & Recovery page (`index-B58j0DIx.js`) |
+| Agent protocol v2 `system.status` | `state: "ok"` with live host metrics and `web`/`api`/`db` container state and health |
+| Agent protocol v2 `system.logs` | `state: "ok"`, 5 lines, `truncated: false` |
+| Agent protocol v2 `compose.validate` | `state: "valid"` |
+| `system.operationResult` with unknown id | `OPERATION_NOT_FOUND` |
+| `system.operation` with `action: "delete"` | `OPERATION_ACTION_UNSUPPORTED` |
+| Migration 015 | `host_operations` applied with `host_operations_single_active` partial unique index and action/target/state constraints |
+| Unauthenticated `GET /api/v1/system/status`, `GET /api/v1/system/operations` | `401` for both |
+| Browser session | `/api/v1/system/status` polled every 10 s returning `200`; `POST /api/v1/system/compose/validate` returned `200` |
+| Live stack operation from the browser | `restart` on target `stack`, request id `req-f`, actor `ahmed`, `requested` `2026-11-23T05:06:48Z` → `verified_at` `05:06:49Z` → `succeeded` `05:06:50Z`; agent journal matched with `verified: true`; all containers returned to healthy |
+
+**Note on ordering:** the operator-initiated stack restart overlapped the image rebuild for this verification. Both completed successfully; the stack came back healthy with the new API environment.
+
+**Still outstanding:** the stack-stop recovery rehearsal (stop the stack and recover it from a host shell without the GUI), an observed single-service `start`/`stop`/`restart` in the browser, visual acceptance against the approved mockup for this page, and any deployment to a production host or systemd-managed agent. No firewall configuration was changed and no pfSense endpoint was contacted.
+
+
 ## 11. Linux source validation and dependency lockfile fix, November 22, 2026
 
 **Environment:** Ubuntu Docker host, Node.js 22.23.3, npm 10.9.9, Docker 29.10.0. This is the first recorded Linux source validation run; the Windows figures in sections 2 and 8 remain the historical record of that separate run and were not re-measured.
