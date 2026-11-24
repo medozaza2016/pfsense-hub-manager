@@ -41,9 +41,10 @@ It must not contain per-firewall settings such as:
 - `PFSENSE_DEVICE_LOCATION`
 - `PFSENSE_EDITION`
 - `PFSENSE_API_BASE_URL`
-- `PFSENSE_API_TIMEOUT_MS` as a global device setting
 - `PFSENSE_CA_FILE`
 - A global `PFSENSE_API_KEY_FILE` secret
+
+The upstream timeout and the observation-cache lifetimes are not settings for this file either, but for a different reason: they no longer exist as environment variables. DEC-046 moved them into the `hub_collection_settings` row, edited at **Administration → Hub Settings → Collection limits**, exactly as DEC-044 moved the polling cadence into `hub_polling_settings`. Adding `PFSENSE_API_TIMEOUT_MS`, `PFSENSE_OBSERVATION_CACHE_MS`, or `PFSENSE_OBSERVATION_ERROR_CACHE_MS` to a `.env` has no effect; the installer and `.env.example` name them only to say so.
 
 Per-site credentials must be encrypted in PostgreSQL by the backend. The application encryption key remains a separate protected runtime secret, never a normal `.env` value.
 

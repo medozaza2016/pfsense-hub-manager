@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig, loadEncryptionKey } from "./config.js";
-const valid={NODE_ENV:"test",HOST:"127.0.0.1",PORT:"3000",DATABASE_URL:"postgres://user:pass@localhost:5432/db",PFSENSE_DEVICE_ID:"00000000-0000-4000-8000-000000000001",PFSENSE_DEVICE_NAME:"Test firewall",PFSENSE_DEVICE_LOCATION:"Test",PFSENSE_EDITION:"plus",PFSENSE_API_BASE_URL:"https://firewall.example.test:10443",PFSENSE_API_KEY_FILE:"./secret",APP_ENCRYPTION_KEY_FILE:"./app-key",PFSENSE_API_TIMEOUT_MS:"10000"};
+const valid={NODE_ENV:"test",HOST:"127.0.0.1",PORT:"3000",DATABASE_URL:"postgres://user:pass@localhost:5432/db",PFSENSE_DEVICE_ID:"00000000-0000-4000-8000-000000000001",PFSENSE_DEVICE_NAME:"Test firewall",PFSENSE_DEVICE_LOCATION:"Test",PFSENSE_EDITION:"plus",PFSENSE_API_BASE_URL:"https://firewall.example.test:10443",PFSENSE_API_KEY_FILE:"./secret",APP_ENCRYPTION_KEY_FILE:"./app-key"};
 let directory:string|undefined;
 afterEach(async()=>{if(directory)await rm(directory,{recursive:true,force:true});directory=undefined;});
 describe("configuration validation",()=>{
@@ -26,6 +26,11 @@ describe("configuration validation",()=>{
  it("enables host monitoring only for the explicit true value",()=>{expect(loadConfig({...valid,HUB_HOST_MONITORING_ENABLED:"true"}).HUB_HOST_MONITORING_ENABLED).toBe(true);});
  it("refuses host operations without host monitoring",()=>{expect(()=>loadConfig({...valid,HUB_HOST_OPERATIONS_ENABLED:"true"})).toThrow(/HUB_HOST_OPERATIONS_ENABLED: Requires HUB_HOST_MONITORING_ENABLED=true/);expect(loadConfig({...valid,HUB_HOST_MONITORING_ENABLED:"true",HUB_HOST_OPERATIONS_ENABLED:"true"}).HUB_HOST_OPERATIONS_ENABLED).toBe(true);});
  it("rejects a short host-agent token",()=>{expect(()=>loadConfig({...valid,HUB_DEPLOYMENT_AGENT_TOKEN:"too-short"})).toThrow(/Invalid application configuration/);});
+ it("ignores the retired collection variables and starts from the install defaults",()=>{
+  const config=loadConfig({...valid,PFSENSE_API_TIMEOUT_MS:"1500",PFSENSE_OBSERVATION_CACHE_MS:"3000",PFSENSE_OBSERVATION_ERROR_CACHE_MS:"500"});
+  // DEC-046: the stored `hub_collection_settings` row owns these values.
+  expect(config.upstreamRequestTimeoutMs).toBe(10_000);
+ });
  it("loads exactly 32 bytes from a 64-character hexadecimal key file",async()=>{
   directory=await mkdtemp(join(tmpdir(),"pfsense-key-"));const path=join(directory,"key");await writeFile(path,"ab".repeat(32));
   expect((await loadEncryptionKey(path)).length).toBe(32);

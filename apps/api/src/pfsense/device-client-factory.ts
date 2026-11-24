@@ -19,8 +19,21 @@ export class DevicePfSenseClientFactory {
     private readonly config: AppConfig,
     private readonly devices: DeviceRepository,
     private readonly buildClient: PfSenseClientBuilder = (config, apiKey, tlsTrust) =>
-      new PfSenseClient(config, apiKey, tlsTrust)
+      new PfSenseClient(config, apiKey, tlsTrust),
+    /**
+     * Stored collection limits (DEC-046). Clients are built per operation, so a
+     * saved timeout applies to the next request without restarting the API.
+     */
+    private readonly options: { limits?: { readonly requestTimeoutMs: number } } = {}
   ) {}
+
+  private connectionConfig(overrides: Pick<AppConfig, "PFSENSE_API_BASE_URL">): AppConfig {
+    return {
+      ...this.config,
+      ...overrides,
+      upstreamRequestTimeoutMs: this.options.limits?.requestTimeoutMs ?? this.config.upstreamRequestTimeoutMs
+    };
+  }
 
   async testConnection(input: {
     apiBaseUrl: string;
@@ -45,7 +58,7 @@ export class DevicePfSenseClientFactory {
       : isLegacyBootstrapOrigin
         ? { mode: "legacy-ca-file", servername: input.tlsServername ?? null }
         : { mode: "system", servername: input.tlsServername ?? null };
-    const testConfig: AppConfig = { ...this.config, PFSENSE_API_BASE_URL: input.apiBaseUrl };
+    const testConfig = this.connectionConfig({ PFSENSE_API_BASE_URL: input.apiBaseUrl });
     const client = this.buildClient(testConfig, input.apiKey, trust);
     try {
       await client.get("version");
@@ -77,10 +90,7 @@ export class DevicePfSenseClientFactory {
         : { mode: "system", servername: profile.tlsServername }
       : { mode: "custom-ca", certificateAuthority: Buffer.from(caBundle, "utf8"), servername: profile.tlsServername };
 
-    const deviceConfig: AppConfig = {
-      ...this.config,
-      PFSENSE_API_BASE_URL: profile.apiBaseUrl
-    };
+    const deviceConfig = this.connectionConfig({ PFSENSE_API_BASE_URL: profile.apiBaseUrl });
 
     return this.buildClient(deviceConfig, apiKey, tlsTrust);
   }

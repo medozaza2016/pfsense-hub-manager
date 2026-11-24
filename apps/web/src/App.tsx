@@ -642,6 +642,9 @@ const defaultHubEndpoints: HubAccessEndpoint[] = [
 type PollingDraft = {intervalSeconds:number;concurrency:number;jitterSeconds:number;retentionDays:number};
 type PollingMeta = {source:"hub"|"install";pollingEnabled:boolean;updatedAt:string|null;updatedBy:string|null};
 type PollingResponse = {intervalMs:number;concurrency:number;jitterMs:number;retentionDays:number;source?:string;pollingEnabled?:boolean;updatedAt?:string|null;updatedBy?:string|null};
+type CollectionDraft = {requestTimeoutMs:number;successCacheTtlMs:number;failureCacheTtlMs:number};
+type CollectionMeta = {source:"hub"|"install";updatedAt:string|null;updatedBy:string|null};
+type CollectionResponse = CollectionDraft & CollectionMeta;
 function HubSettingsPage(){
  const {notify}=useToast();
  const [endpoints,setEndpoints]=useState<HubAccessEndpoint[]>(defaultHubEndpoints);
@@ -657,6 +660,10 @@ function HubSettingsPage(){
  const [pollingLoaded,setPollingLoaded]=useState(false);
  const [pollingMeta,setPollingMeta]=useState<PollingMeta>({source:"install",pollingEnabled:false,updatedAt:null,updatedBy:null});
  const [pollingSaving,setPollingSaving]=useState(false);
+ const [collection,setCollection]=useState<CollectionDraft>({requestTimeoutMs:10000,successCacheTtlMs:10000,failureCacheTtlMs:2000});
+ const [collectionMeta,setCollectionMeta]=useState<CollectionMeta>({source:"install",updatedAt:null,updatedBy:null});
+ const [collectionLoaded,setCollectionLoaded]=useState(false);
+ const [collectionSaving,setCollectionSaving]=useState(false);
  useEffect(()=>{
   let active=true;
   fetch("/api/v1/hub-settings",{credentials:"same-origin"}).then(async response=>{
@@ -734,6 +741,26 @@ function HubSettingsPage(){
    .catch(()=>{if(active)setPollingLoaded(false);});
   return()=>{active=false;};
  },[]);
+ useEffect(()=>{
+  let active=true;
+  fetch("/api/v1/hub-settings/collection",{credentials:"same-origin"})
+   .then(async response=>{if(!response.ok)throw new Error("Unable to load collection limits.");return response.json();})
+   .then(result=>{if(!active)return;applyCollectionResponse(result.data);setCollectionLoaded(true);})
+   .catch(()=>{if(active)setCollectionLoaded(false);});
+  return()=>{active=false;};
+ },[]);
+ function applyCollectionResponse(data:CollectionResponse){
+  setCollection({
+   requestTimeoutMs:Number(data.requestTimeoutMs),
+   successCacheTtlMs:Number(data.successCacheTtlMs),
+   failureCacheTtlMs:Number(data.failureCacheTtlMs)
+  });
+  setCollectionMeta({
+   source:data.source==="hub"?"hub":"install",
+   updatedAt:data.updatedAt??null,
+   updatedBy:data.updatedBy??null
+  });
+ }
  function applyPollingResponse(data:PollingResponse){
   setPolling({
    intervalSeconds:Math.round(Number(data.intervalMs)/1000),
@@ -775,6 +802,25 @@ function HubSettingsPage(){
    const failure=error instanceof Error?error.message:"Unable to save polling settings.";
    setMessage(failure);notify(failure,"error");
   }finally{setPollingSaving(false);}
+ }
+ const collectionValid=Number.isInteger(collection.requestTimeoutMs)&&collection.requestTimeoutMs>=1000&&collection.requestTimeoutMs<=60000
+  &&Number.isInteger(collection.successCacheTtlMs)&&collection.successCacheTtlMs>=1000&&collection.successCacheTtlMs<=60000
+  &&Number.isInteger(collection.failureCacheTtlMs)&&collection.failureCacheTtlMs>=0&&collection.failureCacheTtlMs<=60000
+  &&collection.failureCacheTtlMs<=collection.successCacheTtlMs;
+ async function saveCollection(){
+  if(collectionSaving||!collectionValid)return;
+  setCollectionSaving(true);setMessage("");
+  try{
+   const response=await fetch("/api/v1/hub-settings/collection",{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(collection)});
+   const result=await response.json();
+   if(!response.ok)throw new Error(result.error?.message??"Unable to save collection limits.");
+   applyCollectionResponse(result.data);setCollectionLoaded(true);
+   const note=result.data.applied?"Collection limits applied. The next collection uses them.":"Collection limits saved.";
+   setMessage(note);notify(note,"success");
+  }catch(error){
+   const failure=error instanceof Error?error.message:"Unable to save collection limits.";
+   setMessage(failure);notify(failure,"error");
+  }finally{setCollectionSaving(false);}
  }
  const deploymentInProgress=saving||(Boolean(deployment.deploymentId)&&["pending","queued","applying","validating","verifying","rolling_back"].includes(deployment.status));
  const saveButtonLabel=saving?"Saving settings…":deployment.status==="queued"?"Starting deployment…":deployment.status==="applying"?"Applying settings…":deployment.status==="validating"?"Validating configuration…":deployment.status==="verifying"?"Verifying endpoint…":deployment.status==="rolling_back"?"Restoring previous access…":"Applying settings…";
@@ -858,6 +904,17 @@ function HubSettingsPage(){
     {!pollingValid&&<p className="hub-settings-note">Use a 15-3600 s interval, 1-8 devices at once, 0-60 s jitter shorter than the interval, and 1-365 days of history.</p>}
     <p className="hub-settings-note">{pollingMeta.source==="install"?"Still at the install defaults.":`Saved in Hub Settings${pollingMeta.updatedBy?` by ${pollingMeta.updatedBy}`:""}${pollingMeta.updatedAt?` on ${new Date(pollingMeta.updatedAt).toLocaleString()}`:""}.`} The scheduler refuses jitter at or above the interval.</p>
     <div className="hub-settings-actions"><button type="button" className="primary-button hub-save-button" onClick={()=>void savePolling()} disabled={busy||pollingSaving||!pollingValid} aria-busy={pollingSaving}>{pollingSaving?"Saving…":"Save polling settings"}</button></div>
+   </Panel>
+   <Panel title="Collection limits">
+    <p className="hub-settings-intro">These values replace the former <code>PFSENSE_API_TIMEOUT_MS</code>, <code>PFSENSE_OBSERVATION_CACHE_MS</code>, and <code>PFSENSE_OBSERVATION_ERROR_CACHE_MS</code> environment variables. They are stored in the Hub and apply to the next collection; no restart is needed.</p>
+    <div className="hub-polling-fields">
+     <label>Upstream request timeout (ms)<input type="number" min="1000" max="60000" step="500" value={collection.requestTimeoutMs} onChange={event=>setCollection(current=>({...current,requestTimeoutMs:Number(event.target.value)}))} disabled={busy||collectionSaving}/></label>
+     <label>Successful observation reuse (ms)<input type="number" min="1000" max="60000" step="500" value={collection.successCacheTtlMs} onChange={event=>setCollection(current=>({...current,successCacheTtlMs:Number(event.target.value)}))} disabled={busy||collectionSaving}/></label>
+     <label>Failed observation reuse (ms)<input type="number" min="0" max="60000" step="500" value={collection.failureCacheTtlMs} onChange={event=>setCollection(current=>({...current,failureCacheTtlMs:Number(event.target.value)}))} disabled={busy||collectionSaving}/></label>
+    </div>
+    {!collectionValid&&<p className="hub-settings-note">Use a 1000-60000 ms timeout, a 1000-60000 ms success reuse, and a 0-60000 ms failure reuse that is not longer than the success reuse.</p>}
+    <p className="hub-settings-note">{collectionLoaded?(collectionMeta.source==="install"?"Still at the install defaults.":`Saved in Hub Settings${collectionMeta.updatedBy?` by ${collectionMeta.updatedBy}`:""}${collectionMeta.updatedAt?` on ${new Date(collectionMeta.updatedAt).toLocaleString()}`:""}.`):"Loading stored limits…"} A failed observation is reused for the shorter failure window so a recovering firewall is noticed quickly.</p>
+    <div className="hub-settings-actions"><button type="button" className="primary-button hub-save-button" onClick={()=>void saveCollection()} disabled={busy||collectionSaving||!collectionLoaded||!collectionValid} aria-busy={collectionSaving}>{collectionSaving?"Saving…":"Save collection limits"}</button></div>
    </Panel>
   </form>
  </>;

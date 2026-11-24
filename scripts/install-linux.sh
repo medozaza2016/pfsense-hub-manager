@@ -478,7 +478,6 @@ PFSENSE_DEVICE_NAME=
 PFSENSE_DEVICE_LOCATION=
 PFSENSE_EDITION=unknown
 PFSENSE_API_BASE_URL=
-PFSENSE_API_TIMEOUT_MS=10000
 # The polling cadence and retention are seeded in the Hub database at install and
 # edited in Administration > Hub Settings (DEC-044). Only the process-level gate
 # lives here: exactly one API process may schedule.
@@ -504,7 +503,6 @@ PFSENSE_DEVICE_NAME=
 PFSENSE_DEVICE_LOCATION=
 PFSENSE_EDITION=unknown
 PFSENSE_API_BASE_URL=
-PFSENSE_API_TIMEOUT_MS=10000
 # The polling cadence and retention are seeded in the Hub database at install and
 # edited in Administration > Hub Settings (DEC-044). Only the process-level gate
 # lives here: exactly one API process may schedule.

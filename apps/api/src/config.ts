@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
+import { COLLECTION_SETTING_DEFAULTS } from "./hub-settings.js";
 const schema = z.object({
  NODE_ENV:z.enum(["development","test","production"]).default("development"),
  HOST:z.string().default("127.0.0.1"), PORT:z.coerce.number().int().min(1).max(65535).default(3000),
@@ -10,9 +11,11 @@ const schema = z.object({
  PFSENSE_API_BASE_URL:z.preprocess(value=>typeof value==="string"&&value.trim()===""?undefined:typeof value==="string"?value.trim():value,z.string().url().optional()),
  PFSENSE_API_KEY_FILE:z.string().min(1),
  APP_ENCRYPTION_KEY_FILE:z.string().min(1),
- PFSENSE_API_TIMEOUT_MS:z.coerce.number().int().min(1000).max(60000).default(10000),
- PFSENSE_OBSERVATION_CACHE_MS:z.coerce.number().int().min(1000).max(60000).default(10000),
- PFSENSE_OBSERVATION_ERROR_CACHE_MS:z.coerce.number().int().min(0).max(60000).default(2000),
+ // Upstream read timeout and observation-cache lifetimes are stored settings
+ // (DEC-046), not environment variables. `upstreamRequestTimeoutMs` below carries
+ // only the install default for the legacy/bootstrap path; the effective values
+ // come from `hub_collection_settings` and are supplied by the client factory and
+ // `CollectionLimits`.
  // Background polling is opt-in. An installation that does not set the flag keeps
  // the previous request-driven behaviour exactly.
  PFSENSE_POLLING_ENABLED:z.enum(["true","false"]).default("false").transform(value=>value==="true"),
@@ -33,7 +36,13 @@ const schema = z.object({
  if(!value.PFSENSE_DEVICE_NAME) context.addIssue({code:"custom",path:["PFSENSE_DEVICE_NAME"],message:"Required when legacy firewall bootstrap is configured."});
  if(!value.PFSENSE_API_BASE_URL) context.addIssue({code:"custom",path:["PFSENSE_API_BASE_URL"],message:"Required when legacy firewall bootstrap is configured."});
 });
-export type AppConfig=z.infer<typeof schema>;
+export type AppConfig=z.infer<typeof schema> & {
+ /**
+  * Upstream read timeout used when a client is built without stored limits — the
+  * install default. Never read from the environment (DEC-046).
+  */
+ upstreamRequestTimeoutMs:number;
+};
 export function loadConfig(env:NodeJS.ProcessEnv=process.env):AppConfig {
  const parsed=schema.safeParse(env);
  if(!parsed.success) throw new Error("Invalid application configuration: "+parsed.error.issues.map(i=>i.path.join(".")+": "+i.message).join("; "));
@@ -41,7 +50,7 @@ export function loadConfig(env:NodeJS.ProcessEnv=process.env):AppConfig {
   const url=new URL(parsed.data.PFSENSE_API_BASE_URL);
   if(url.protocol!=="https:" || url.username || url.password || url.search || url.hash || (url.pathname!=="" && url.pathname!=="/")) throw new Error("PFSENSE_API_BASE_URL must be an HTTPS origin without credentials, path, query, or fragment.");
  }
- return parsed.data;
+ return {...parsed.data,upstreamRequestTimeoutMs:COLLECTION_SETTING_DEFAULTS.requestTimeoutMs};
 }
 export async function loadApiKey(path:string):Promise<string>{
  const key=(await readFile(path,"utf8")).trim();

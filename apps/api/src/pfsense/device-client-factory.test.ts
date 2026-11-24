@@ -64,6 +64,19 @@ describe("DevicePfSenseClientFactory", () => {
     expect(repository.decryptDeviceCaBundle).toHaveBeenCalledWith(deviceId);
   });
 
+  it("uses the stored request timeout for the client it builds", async () => {
+    const repository = makeRepository({});
+    const buildClient = vi.fn(() => ({} as PfSenseClient));
+    const factory = new DevicePfSenseClientFactory(config, repository, buildClient, { limits: { requestTimeoutMs: 12_345 } });
+
+    await factory.create(deviceId);
+    expect(buildClient).toHaveBeenCalledWith(
+      expect.objectContaining({ upstreamRequestTimeoutMs: 12_345 }),
+      apiKey,
+      expect.anything()
+    );
+  });
+
   it("preserves the legacy global CA for the configured bootstrap device when no device CA exists", async () => {
     const repository = makeRepository({ listProfiles: async () => [profile({ apiBaseUrl: "https://legacy-firewall.example" })] });
     const buildClient = vi.fn(() => ({} as PfSenseClient));

@@ -15,8 +15,9 @@ import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration } from "./metrics.js";
 import { appendAudit } from "./audit.js";
-import { hubAccessEndpointsSchema, type PollingSettings } from "./hub-settings.js";
+import { hubAccessEndpointsSchema, type CollectionSettings, type PollingSettings } from "./hub-settings.js";
 import { registerHubPollingSettingsRoutes, resolvePollingSettings } from "./hub-polling-settings.js";
+import { CollectionLimits, registerHubCollectionSettingsRoutes, resolveCollectionSettings } from "./hub-collection-settings.js";
 import { dispatchHubDeployment } from "./hub-deployment-service.js";
 import { createHostSystemService } from "./host-system/service.js";
 import { registerHostSystemRoutes } from "./host-system/routes.js";
@@ -29,14 +30,18 @@ const encryptionKey = await loadEncryptionKey(config.APP_ENCRYPTION_KEY_FILE);
 const deploymentAgentToken = config.HUB_DEPLOYMENT_AGENT_TOKEN ?? null;
 const pool = createPool(config);
 await migrate(pool);
+// Collection limits are stored, not read from the environment (DEC-046). Resolve
+// them before any client or cache exists so the first request already uses them.
+const initialCollection = await resolveCollectionSettings(pool);
+const collectionLimits = new CollectionLimits(initialCollection.settings);
 const devices = new DeviceRepository(pool, encryptionKey);
-const clientFactory = new DevicePfSenseClientFactory(config, devices);
+const clientFactory = new DevicePfSenseClientFactory(config, devices, undefined, { limits: collectionLimits });
 const provider = new PfSenseProvider(clientFactory, devices, config, bootstrapApiKey, pool);
 // One short-lived cache per process: navigation across site pages must not
 // multiply upstream collections, and nothing here survives a restart.
 const observationCache = new ObservationCache<SiteSnapshot>({
-  successTtlMs: config.PFSENSE_OBSERVATION_CACHE_MS,
-  failureTtlMs: config.PFSENSE_OBSERVATION_ERROR_CACHE_MS,
+  successTtlMs: collectionLimits.successCacheTtlMs,
+  failureTtlMs: collectionLimits.failureCacheTtlMs,
   maxEntries: 64
 });
 await provider.ensureDevice();
@@ -119,6 +124,7 @@ app.addHook("preHandler", async (request, reply) => {
     || path.startsWith("/api/v1/users/")
     || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
     || path === "/api/v1/hub-settings/polling"
+    || path === "/api/v1/hub-settings/collection"
     || (path === "/api/v1/hub-settings/access-endpoints" && request.method === "PUT")
     || path.startsWith("/api/v1/hub-settings/deployments")
     || path === "/api/v1/system/compose/validate"
@@ -585,14 +591,15 @@ function buildPollScheduler(settings: PollingSettings): PollScheduler | null {
       concurrency: settings.concurrency,
       jitterMs: settings.jitterMs,
       successCacheTtlMs: Math.min(settings.intervalMs, 600_000),
-      failureCacheTtlMs: config.PFSENSE_OBSERVATION_ERROR_CACHE_MS,
+      failureCacheTtlMs: collectionLimits.failureCacheTtlMs,
       retentionDays: settings.retentionDays
     }
   );
 }
 
 const initialPolling = await resolvePollingSettings(pool);
-let pollScheduler = buildPollScheduler(initialPolling.settings);
+let currentPollingSettings: PollingSettings = initialPolling.settings;
+let pollScheduler = buildPollScheduler(currentPollingSettings);
 
 /**
  * Apply a saved cadence. The replacement scheduler is constructed before the
@@ -603,6 +610,7 @@ function applyPollingSettings(settings: PollingSettings): boolean {
   const replacement = buildPollScheduler(settings);
   pollScheduler?.stop();
   pollScheduler = replacement;
+  currentPollingSettings = settings;
   pollScheduler?.start();
   return replacement !== null;
 }
@@ -611,6 +619,22 @@ registerHubPollingSettingsRoutes(app, {
   pool,
   pollingEnabled: config.PFSENSE_POLLING_ENABLED,
   apply: applyPollingSettings
+});
+
+/**
+ * Apply saved collection limits (DEC-046). The timeout reaches the next client
+ * the factory builds and the TTLs govern the next cached observation, so no
+ * restart is needed. The scheduler captures the failure TTL when it seeds the
+ * cache, so it is re-armed with the cadence it already had.
+ */
+registerHubCollectionSettingsRoutes(app, {
+  pool,
+  apply: (settings: CollectionSettings) => {
+    collectionLimits.apply(settings);
+    observationCache.setTtls(settings.successCacheTtlMs, settings.failureCacheTtlMs);
+    if (pollScheduler) applyPollingSettings(currentPollingSettings);
+    return true;
+  }
 });
 
 await app.listen({ host: config.HOST, port: config.PORT });

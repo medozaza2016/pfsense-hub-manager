@@ -10,11 +10,11 @@
 |---|---|---|
 | Collection | `PfSenseProvider.collect(deviceId, onResult)` runs the fixed eight GET operations sequentially | `apps/api/src/pfsense/provider.ts` |
 | Trigger | Only `GET /api/v1/devices/:deviceId/snapshot` (and its `/overview` alias) | `apps/api/src/pfsense/observation-routes.ts` |
-| Reuse | In-process cache, 10 s success / 2 s failure, single-flight, 64-device bound | `apps/api/src/pfsense/observation-cache.ts` |
+| Reuse | In-process cache, 10 s success / 2 s failure, single-flight, 64-device bound; both windows are editable at **Hub Settings → Collection limits** (DEC-046) | `apps/api/src/pfsense/observation-cache.ts` |
 | History | One `poll_runs` row per operation per collection, never pruned | `apps/api/migrations/001_initial.sql` (table), `device-repository.ts` |
 | Alerts | Deduplicated `device-poll:<deviceId>` warning/critical while failing, auto-resolved with an audit event after a fully successful collection | `apps/api/src/pfsense/poll-health.ts` |
 | Metrics | `pfsense_poll_total`, `pfsense_poll_errors_total`, `pfsense_poll_duration_seconds` labeled by `device_id` and `operation_group` | `apps/api/src/metrics.ts` |
-| Config | `PFSENSE_API_TIMEOUT_MS`, `PFSENSE_OBSERVATION_CACHE_MS`, `PFSENSE_OBSERVATION_ERROR_CACHE_MS` | `apps/api/src/config.ts` |
+| Config | `hub_collection_settings` row (DEC-046): read timeout, success reuse, failure reuse — edited at **Hub Settings → Collection limits**; the three former environment variables are retired | `apps/api/src/hub-collection-settings.ts` |
 
 So the scheduler needed no new collection path, endpoint, upstream route, or firewall permission. It needed a trigger, a cadence policy, isolation between devices, and retention.
 

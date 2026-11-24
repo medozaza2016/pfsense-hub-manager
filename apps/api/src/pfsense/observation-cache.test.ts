@@ -38,6 +38,30 @@ describe("ObservationCache", () => {
     expect(load).toHaveBeenCalledTimes(2);
   });
 
+  it("applies stored TTLs saved in Hub Settings to later entries", async () => {
+    const cache = makeCache();
+    const load = vi.fn(async () => "fresh");
+
+    await cache.get("a", load, () => false);
+    // A save replaces both TTLs; the entry already stored keeps its old expiry.
+    cache.setTtls(30_000, 5_000);
+    clock += 9_999;
+    await cache.get("a", load, () => false);
+    clock += 20_001;
+    await cache.get("a", load, () => false);
+    expect(load).toHaveBeenCalledTimes(2);
+
+    clock += 30_001;
+    await cache.get("a", load, () => false);
+    expect(load).toHaveBeenCalledTimes(3);
+  });
+
+  it("refuses a TTL outside the cache bounds", () => {
+    const cache = makeCache();
+    expect(() => cache.setTtls(600_001, 2_000)).toThrow(/successTtlMs/);
+    expect(() => cache.setTtls(10_000, -1)).toThrow(/failureTtlMs/);
+  });
+
   it("collapses concurrent misses into one loader call", async () => {
     const cache = makeCache();
     let release: (value: string) => void = () => undefined;

@@ -99,6 +99,18 @@ export class ObservationCache<T> {
     this.entries.delete(key);
   }
 
+  /**
+   * Applies new TTLs from Administration > Hub Settings (DEC-046). Entries already
+   * stored keep the expiry they were written with; the next successful or failed
+   * observation uses the new values.
+   */
+  setTtls(successTtlMs: number, failureTtlMs: number): void {
+    assertTtl("successTtlMs", successTtlMs);
+    assertTtl("failureTtlMs", failureTtlMs);
+    this.options.successTtlMs = successTtlMs;
+    this.options.failureTtlMs = failureTtlMs;
+  }
+
   clear(): void {
     this.entries.clear();
   }

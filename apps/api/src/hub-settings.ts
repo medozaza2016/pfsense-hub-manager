@@ -100,3 +100,53 @@ export const POLLING_SETTING_DEFAULTS: PollingSettings = {
   jitterMs: 15_000,
   retentionDays: 30
 };
+
+/**
+ * Runtime collection limits (DEC-046).
+ *
+ * These three integers replace the former `PFSENSE_API_TIMEOUT_MS`,
+ * `PFSENSE_OBSERVATION_CACHE_MS`, and `PFSENSE_OBSERVATION_ERROR_CACHE_MS`
+ * environment variables. Migration 020 stores them in one row, Administration >
+ * Hub Settings edits them, and the API registers them with the client factory
+ * and the in-process observation cache.
+ *
+ * The bounds match what the consumers already assert: `ObservationCache`
+ * (`0..600000`) and the previous configuration schema (`1000..60000` for the
+ * timeout and the success TTL). Nothing here grants a capability, reaches a host
+ * path, or holds a secret — the values only change how long one upstream read may
+ * take and how long its result is reused.
+ */
+export const COLLECTION_SETTING_BOUNDS = {
+  requestTimeoutMs: { min: 1_000, max: 60_000 },
+  successCacheTtlMs: { min: 1_000, max: 60_000 },
+  failureCacheTtlMs: { min: 0, max: 60_000 }
+} as const;
+
+export const collectionSettingsSchema = z.object({
+  requestTimeoutMs: z.number().int().min(COLLECTION_SETTING_BOUNDS.requestTimeoutMs.min).max(COLLECTION_SETTING_BOUNDS.requestTimeoutMs.max),
+  successCacheTtlMs: z.number().int().min(COLLECTION_SETTING_BOUNDS.successCacheTtlMs.min).max(COLLECTION_SETTING_BOUNDS.successCacheTtlMs.max),
+  failureCacheTtlMs: z.number().int().min(COLLECTION_SETTING_BOUNDS.failureCacheTtlMs.min).max(COLLECTION_SETTING_BOUNDS.failureCacheTtlMs.max)
+}).strict().superRefine((settings, context) => {
+  // The cache exists so a recovering firewall is noticed quickly. A failure that
+  // outlived a success would invert that intent and hide recovery.
+  if (settings.failureCacheTtlMs > settings.successCacheTtlMs) {
+    context.addIssue({
+      code: "custom",
+      message: "A failed observation must not be reused longer than a successful one.",
+      path: ["failureCacheTtlMs"]
+    });
+  }
+});
+
+export type CollectionSettings = z.infer<typeof collectionSettingsSchema>;
+
+/**
+ * Values written by migration 020. They are the values the removed environment
+ * variables defaulted to, so an installation that never edited `.env` behaves
+ * exactly as before.
+ */
+export const COLLECTION_SETTING_DEFAULTS: CollectionSettings = {
+  requestTimeoutMs: 10_000,
+  successCacheTtlMs: 10_000,
+  failureCacheTtlMs: 2_000
+};

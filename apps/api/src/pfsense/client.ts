@@ -84,7 +84,7 @@ export class PfSenseClient{
  async get(operation:PfSenseOperation){
   const dispatcher=await this.dispatcher;
   let response;
-  try{response=await fetch(new URL(routes[operation],this.base),{method:"GET",headers:{"X-API-Key":this.key,Accept:"application/json"},redirect:"error",signal:AbortSignal.timeout(this.config.PFSENSE_API_TIMEOUT_MS),dispatcher});}
+  try{response=await fetch(new URL(routes[operation],this.base),{method:"GET",headers:{"X-API-Key":this.key,Accept:"application/json"},redirect:"error",signal:AbortSignal.timeout(this.config.upstreamRequestTimeoutMs),dispatcher});}
   catch(error){if(hasTlsFailure(error))throw new PfSenseApiError("Firewall TLS verification failed.","tls",undefined,findUpstreamErrorCode(error));if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError"))throw new PfSenseApiError("Firewall request timed out.","timeout");throw new PfSenseApiError("Firewall connection failed.","unknown",undefined,findUpstreamErrorCode(error));}
   if(response.status===401)throw new PfSenseApiError("Firewall authentication failed.","authentication",401);
   if(response.status===403)throw new PfSenseApiError("Firewall denied the requested operation.","authorization",403);

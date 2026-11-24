@@ -368,7 +368,7 @@ The roadmap and PRD carried an open item to "verify a trusted TLS connection to 
 | Runtime | Save constructs the replacement scheduler, stops the old one, starts the new one; a rejected value leaves the running cadence untouched; a failed write restores it |
 | Audit | `hub.settings.update`, `targetType: "hub_polling_settings"`, previous and updated integers, `applied`, `pollingEnabled` |
 | Unchanged | No new upstream route, firewall endpoint, or permission; `PFSENSE_POLLING_ENABLED` stays environment-only; the single-scheduler rule and read-only boundary are untouched |
-| Not moved | Secrets, host fail-closed gates, infrastructure variables, per-device identity/TLS/credentials, `PFSENSE_API_TIMEOUT_MS`, cache lifetimes, and the legacy bootstrap keys (DEC-044 lists each and why) |
+| Not moved | Secrets, host fail-closed gates, infrastructure variables, per-device identity/TLS/credentials, and the legacy bootstrap keys (DEC-044 lists each and why). `PFSENSE_API_TIMEOUT_MS` and the two observation-cache lifetimes were named here at the time and were moved afterwards by DEC-046 — see section 18 |
 
 **Checks observed on this increment:**
 
@@ -398,6 +398,40 @@ The roadmap and PRD carried an open item to "verify a trusted TLS connection to 
 | Deletion blocked | `dec044-verify` holds 7 `audit_events` rows; `DELETE FROM admin_users WHERE username = 'dec044-verify'` returned `ERROR: audit_events are append-only` (`prevent_audit_event_mutation`), with the failing statement shown as the FK's `UPDATE ONLY "public"."audit_events" SET "actor_id" = NULL` |
 
 **Not verified:** the same save clicked inside the browser UI. The session was created through the login endpoint and used over HTTP against the same web entrypoint the browser uses, so every server-side layer — cookie, session lookup, admin hook, route guard, scheduler swap, audit — was exercised; only the form submission itself was not driven by a human. The repair path (missing or out-of-bounds row) remains unit-tested, not exercised live.
+
+## 18. Collection limits in Hub Settings, November 23, 2026
+
+**Scope:** the upstream read timeout and the two observation-cache lifetimes moved out of `.env` into a `hub_collection_settings` row edited at **Administration → Hub Settings → Collection limits**. Recorded as DEC-046; contract and rationale in [Runtime Settings in Hub Settings](RUNTIME-SETTINGS-PROPOSAL.md) section 9. This closes the last non-security tuning values that still required a file edit and a container recreate.
+
+| Area | Implementation |
+|---|---|
+| Storage | `020_hub_collection_settings.sql` creates the singleton row with `CHECK` bounds (1000–60000 timeout, 1000–60000 success reuse, 0–60000 failure reuse, and `failure_cache_ttl_ms <= success_cache_ttl_ms`), a `saved_at` marker, and `updated_by` FK; it seeds `10000 / 10000 / 2000` with both attribution columns NULL |
+| Source of truth | The row only. `PFSENSE_API_TIMEOUT_MS`, `PFSENSE_OBSERVATION_CACHE_MS`, and `PFSENSE_OBSERVATION_ERROR_CACHE_MS` were removed from `config.ts`, `.env.example`, `compose.yaml`, the `.env` that `scripts/install-linux.sh` generates, and this deployment's `.env` |
+| Repair | A missing row, or one outside the bounds after a manual `UPDATE`, is rewritten to the install values when read |
+| Reported source | `GET` returns `source: "install"` while `saved_at` is NULL and `"hub"` after a save, with `updatedAt` and `updatedBy` |
+| API | `GET`/`PUT /api/v1/hub-settings/collection`, administrator-only in the route and in the server's admin-only path list; `strict` integer schema with the cross-field rule |
+| Runtime | Holder read per short-lived client and by the cache on its next stored entry; the scheduler is rebuilt after a save so its failure window is current. Applied before persisted, with the previous values restored if the write fails |
+| Audit | `hub.settings.update`, `targetType: "hub_collection_settings"`, previous and updated integers, `applied` |
+| Unchanged | No new upstream route, firewall endpoint, or permission; no write, apply, reboot, or command operation; TLS verification and the eight-operation allowlist untouched |
+
+**Checks observed on this increment:**
+
+| Check | Result |
+|---|---|
+| API tests | `29 test files / 371 tests passed`, including 15 in `hub-collection-settings.test.ts` |
+| API and web typecheck | exit 0 |
+| Production build | exit 0 (`dist/assets/index-C2vEzwEc.css`, `dist/assets/index-CJiOD1To.js`) |
+| Migration | `schema_migrations` lists `020_hub_collection_settings`; `hub_collection_settings` holds `1 | 10000 | 10000 | 2000` with `updated_by` and `saved_at` NULL before the save below |
+| No retired keys in the environment | `printenv` inside the `api` container lists none of `PFSENSE_API_TIMEOUT_MS`, `PFSENSE_OBSERVATION_CACHE_MS`, `PFSENSE_OBSERVATION_ERROR_CACHE_MS`; `grep` finds them in `docs/` and `.env.example` commentary only |
+| Panel served | Hub Settings renders **Collection limits** with three inputs, per-field range help, and the note that these values replace the former environment variables |
+| Save clicked in the browser | Submitting the form returned "Collection limits applied. The next collection uses them." and the panel's note changed to "Saved in Hub Settings by ahmed on 11/23/2026, 8:55:49 PM." |
+| Request observed | The `api` log recorded `GET /api/v1/hub-settings/collection` followed by `PUT /api/v1/hub-settings/collection` from the browser session |
+| Row after the save | `saved_at` `2026-11-24 01:55:49.436+00`, `updated_by` resolving to `ahmed`, values unchanged at `10000 / 10000 / 2000` |
+| Audit trail | `audit_events` holds `hub.settings.update / success`, `target_type: hub_collection_settings`, summary `Updated collection limits`, at `2026-11-24 01:55:49.472033+00` |
+| Rebuild | `docker compose up -d --build`: Compose reported the `api` and `web` images current (all build steps cached from this increment's source), `api` and `db` healthy |
+| Restore path for `.env` | The deployment's previous `.env` was saved to `/tmp/.env.before-dec046` before the three keys were stripped |
+
+**Not verified:** a live behavioural change from a non-default value. The save recorded here carried the install values, so no difference in timeout or cache reuse was observable end to end; that path is pinned by `device-client-factory.test.ts`, `observation-cache.test.ts`, and the `applied` flag the route returns. The repair path for a missing or out-of-bounds row remains unit-tested only, and no non-default value has yet been saved through the browser form.
 
 **Retiring an administrator, the only removal path.** Because the account cannot be deleted (see the finding below), retirement is: set `is_active = false`, replace `password_hash`/`password_salt` with a value that cannot verify, and delete the account's `admin_sessions` rows. That is what was done to `dec044-verify`, directly in SQL, because no API route offers it. Two consequences are recorded rather than glossed over: the action produced no `user.*` audit event, since no route performed it, and the row itself remains visible as an inactive account. An audited deactivation endpoint would be a new feature with its own record, not a cleanup step. DEC-045 makes this the settled lifecycle for administrators.
 
