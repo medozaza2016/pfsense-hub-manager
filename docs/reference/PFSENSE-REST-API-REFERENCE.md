@@ -90,6 +90,16 @@ These eight GET operations previously returned HTTP 200 on the recorded Plus fir
 
 The pfSense CE profile remains unverified. Do not claim Plus/CE compatibility until independently tested.
 
+### Approved page-scoped configuration reads (DEC-047)
+
+These are read-only GETs on a separate, fixed allowlist. They are **not** part of the eight-operation polling set, are never called by the health snapshot, and do not count as capability evidence.
+
+| Method | Endpoint | Privilege | Status |
+|---|---|---|---|
+| GET | `/api/v2/firewall/aliases` | `api-v2-firewall-aliases-get` | Manager route implemented; runtime access not yet verified |
+
+The entry above appears in the pinned OpenAPI export (`docs/API-MATRIX.generated.md`), which is a candidate rather than proof: the route, method, response schema, and package compatibility must be confirmed against the installed REST API package on each firewall profile before the operation is reported as supported. The `pfsense_hub` account currently holds only the eight status GET privileges, so this read returns `403` until an operator grants exactly this privilege and records the test in [INTEGRATION-STATUS.md](../INTEGRATION-STATUS.md). Write methods on the same path (`PUT`, `DELETE`) remain prohibited.
+
 ## High-risk operations, excluded from initial scope
 
 - `POST /api/v2/diagnostics/command_prompt`: arbitrary command execution.

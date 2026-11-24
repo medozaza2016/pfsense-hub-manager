@@ -14,6 +14,19 @@ const routes={
 } as const;
 export type PfSenseOperation=keyof typeof routes;
 
+/**
+ * Page-scoped configuration reads (DEC-047).
+ *
+ * This is a second fixed allowlist, deliberately separate from the polled status
+ * operations: a configuration page must never join the health-collection cycle,
+ * and the manager still never accepts a caller-supplied path, method, or URL.
+ * Adding an entry here is a product and security decision, not configuration.
+ */
+const configurationRoutes={
+ aliases:"/api/v2/firewall/aliases"
+} as const;
+export type PfSenseConfigurationOperation=keyof typeof configurationRoutes;
+
 export type PfSenseTlsTrust =
  | { mode: "system"; servername?: string | null }
  | { mode: "custom-ca"; certificateAuthority: Buffer; servername?: string | null }
@@ -81,10 +94,14 @@ export class PfSenseClient{
    }});
   })();
  }
- async get(operation:PfSenseOperation){
+ /**
+  * The single upstream request path. Both allowlists use it, so timeout, TLS,
+  * redirect, response-size, envelope, and error-class handling cannot diverge.
+  */
+ private async send(path:string){
   const dispatcher=await this.dispatcher;
   let response;
-  try{response=await fetch(new URL(routes[operation],this.base),{method:"GET",headers:{"X-API-Key":this.key,Accept:"application/json"},redirect:"error",signal:AbortSignal.timeout(this.config.upstreamRequestTimeoutMs),dispatcher});}
+  try{response=await fetch(new URL(path,this.base),{method:"GET",headers:{"X-API-Key":this.key,Accept:"application/json"},redirect:"error",signal:AbortSignal.timeout(this.config.upstreamRequestTimeoutMs),dispatcher});}
   catch(error){if(hasTlsFailure(error))throw new PfSenseApiError("Firewall TLS verification failed.","tls",undefined,findUpstreamErrorCode(error));if(error instanceof Error&&(error.name==="AbortError"||error.name==="TimeoutError"))throw new PfSenseApiError("Firewall request timed out.","timeout");throw new PfSenseApiError("Firewall connection failed.","unknown",undefined,findUpstreamErrorCode(error));}
   if(response.status===401)throw new PfSenseApiError("Firewall authentication failed.","authentication",401);
   if(response.status===403)throw new PfSenseApiError("Firewall denied the requested operation.","authorization",403);
@@ -96,12 +113,29 @@ export class PfSenseClient{
   let json:unknown;try{json=JSON.parse(text);}catch{throw new PfSenseApiError("Firewall returned invalid JSON.","invalid_response");}
   const parsed=envelope.safeParse(json);if(!parsed.success)throw new PfSenseApiError("Firewall response did not match the expected API envelope.","invalid_response");
   if(parsed.data.code!==undefined&&parsed.data.code>=400)throw new PfSenseApiError("Firewall API reported an unsuccessful operation.",parsed.data.code===401?"authentication":parsed.data.code===403?"authorization":"remote_server",parsed.data.code);
-  validatePfSenseOperationData(operation,parsed.data.data);
   return parsed.data;
+ }
+ /**
+  * Approved status operation (the eight-operation allowlist). The endpoint's
+  * minimum response contract is validated before the data is returned.
+  */
+ async get(operation:PfSenseOperation){
+  const result=await this.send(routes[operation]);
+  validatePfSenseOperationData(operation,result.data);
+  return result;
+ }
+ /**
+  * Approved page-scoped configuration operation. The endpoint-specific schema is
+  * applied by the caller (`configuration.ts`), which also builds the sanitized
+  * read model, so upstream fields are never passed through.
+  */
+ async getConfiguration(operation:PfSenseConfigurationOperation){
+  return this.send(configurationRoutes[operation]);
  }
  async close(){await (await this.dispatcher).close();}
 }
 export const pfSenseOperations=Object.keys(routes) as PfSenseOperation[];
+export const pfSenseConfigurationOperations=Object.keys(configurationRoutes) as PfSenseConfigurationOperation[];
 
 /**
  * Validate the minimum response contract for each approved read-only endpoint.

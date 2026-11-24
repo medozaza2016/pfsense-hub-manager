@@ -9,6 +9,7 @@ import { PfSenseProvider } from "./pfsense/provider.js";
 import { ObservationCache } from "./pfsense/observation-cache.js";
 import { PollScheduler } from "./pfsense/poll-scheduler.js";
 import { registerObservationRoutes } from "./pfsense/observation-routes.js";
+import { registerConfigurationRoutes, type AliasReadResult } from "./pfsense/configuration-routes.js";
 import type { SiteSnapshot } from "./pfsense/observations.js";
 import { DeviceRepository } from "./devices/device-repository.js";
 import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
@@ -42,6 +43,15 @@ const provider = new PfSenseProvider(clientFactory, devices, config, bootstrapAp
 const observationCache = new ObservationCache<SiteSnapshot>({
   successTtlMs: collectionLimits.successCacheTtlMs,
   failureTtlMs: collectionLimits.failureCacheTtlMs,
+  maxEntries: 64
+});
+// Configuration reads have their own cache and their own lifetimes (DEC-047):
+// they are not part of the health snapshot, and they never feed capability
+// evidence. A successful read is reused for one minute; a failed one only
+// briefly, so an operator who has just granted the privilege sees the change.
+const configurationCache = new ObservationCache<AliasReadResult>({
+  successTtlMs: 60_000,
+  failureTtlMs: 10_000,
   maxEntries: 64
 });
 await provider.ensureDevice();
@@ -130,7 +140,11 @@ app.addHook("preHandler", async (request, reply) => {
     || path === "/api/v1/system/compose/validate"
     || (path.startsWith("/api/v1/alerts/") && request.method !== "GET")
     || (path === "/api/v1/devices" && request.method !== "GET")
-    || (path.startsWith("/api/v1/devices/") && (request.method !== "GET" || path.endsWith("/connection-test")));
+    || (path.startsWith("/api/v1/devices/") && (request.method !== "GET" || path.endsWith("/connection-test")))
+    // Page-scoped configuration reads (DEC-047) reveal firewall configuration
+    // rather than telemetry, so they stay administrator-only until a decision
+    // records a wider role policy.
+    || (path.startsWith("/api/v1/devices/") && path.includes("/configuration/"));
   if (adminOnly) await requireAdmin(request, reply);
 });
 
@@ -535,11 +549,15 @@ app.get("/api/v1/devices/:deviceId", async (request, reply) => {
   return { data: device };
 });
 await registerObservationRoutes(app, { provider, devices, pool, cache: observationCache });
+await registerConfigurationRoutes(app, { factory: clientFactory, devices, cache: configurationCache });
 await registerDeviceAdminRoutes(app, {
   devices,
   clientFactory,
   pool,
-  onDeviceChanged: deviceId => observationCache.invalidate(deviceId)
+  onDeviceChanged: deviceId => {
+    observationCache.invalidate(deviceId);
+    configurationCache.invalidate(deviceId);
+  }
 });
 await registerHostSystemRoutes(app, { service: hostSystem, pool });
 

@@ -30,7 +30,7 @@ The frontend is a React/TypeScript/Vite application. It uses the existing backen
 
 The Site workspace contains Overview, Monitoring, Interfaces, Firewall Rules, Aliases, NAT, Routing, Gateways, DHCP, DNS, Services, Certificates, VPN, Compatibility, and Site Settings.
 
-The Hub inventory and site registration/profile/connection lifecycle are API-backed. Overview, Monitoring, Interfaces, Gateways, Services, and Compatibility are API-backed read-only telemetry from the approved eight-endpoint snapshot (DEC-042). Firewall Rules, Aliases, NAT, Routing, DHCP, DNS, Certificates, and VPN still contain preview fixtures because no approved endpoint supplies their data. Preview fixtures are not live firewall state and remain visibly identified as preview data. No frontend action may imply a firewall configuration change.
+The Hub inventory and site registration/profile/connection lifecycle are API-backed. Overview, Monitoring, Interfaces, Gateways, Services, and Compatibility are API-backed read-only telemetry from the approved eight-endpoint snapshot (DEC-042). Aliases is API-backed from the separate page-scoped configuration allowlist (DEC-047) and shows a permission or unsupported notice when the firewall refuses or does not expose the route. Firewall Rules, NAT, Routing, DHCP, DNS, Certificates, and VPN still contain preview fixtures because no approved endpoint supplies their data. Preview fixtures are not live firewall state and remain visibly identified as preview data. No frontend action may imply a firewall configuration change.
 
 ### Site onboarding and lifecycle
 

@@ -77,6 +77,8 @@ The read-only release shall log security-relevant access and operational errors 
 
 The product is intended to support creating, viewing, editing, and deleting supported firewall configuration objects, including rules, aliases, NAT mappings, interfaces, routing, and service configuration. Each operation must be gated by the capability matrix for the target firewall and API version. Unsupported operations must be clearly identified rather than silently emulated.
 
+Read-only configuration viewing is delivered incrementally ahead of any write phase, on a separate fixed upstream allowlist (DEC-047). The first increment is the Aliases page: `GET /api/v2/firewall/aliases` through `GET /api/v1/devices/:deviceId/configuration/aliases`, sanitized, bounded, cached per device, administrator-only, and never part of the health poll. A firewall that refuses the privilege or does not expose the route is reported as unverified for that device, not approximated. Every additional area requires the same per-endpoint verification and an amended decision.
+
 ### FR-9: Safe change workflow (before write release)
 
 For consequential changes, the application shall validate input, show a human-readable change preview, identify the target firewall, require explicit confirmation, preserve a recoverable configuration backup or equivalent rollback path where available, apply changes through documented API operations, and verify the resulting state. Risky changes that could cut off management access require additional safeguards.

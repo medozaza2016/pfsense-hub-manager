@@ -129,3 +129,25 @@ Field names are taken from the pinned OpenAPI schemas `SystemStatus`, `SystemVer
 Honest absences: the installed REST API package version and CPU architecture are not exposed by any of the eight endpoints, so the manager reports them as unknown. `uptime` is converted to seconds only when it matches a complete duration; otherwise the sanitized text is shown with a null duration. Utilization values outside a sane range become null instead of being clamped.
 
 Compatibility verdicts: `verified` means a release was reported and nothing contradicts the declared edition; `mismatch` means the release/platform string names the other edition; `unknown` means there is not enough evidence. Capability state comes from `poll_runs`, not from this specification.
+
+## Manager configuration-read contract, November 23, 2026
+
+DEC-047 adds page-scoped configuration reads on their own fixed allowlist, separate from the eight polled status operations. The first, and currently only, entry is Aliases:
+
+`GET /api/v1/devices/:deviceId/configuration/aliases` → `{ data: { deviceId, collectedAt, truncated, aliases[] }, meta: { cacheHit, durationMs } }`
+
+| Upstream endpoint | Manager fields retained | Deliberately excluded |
+|---|---|---|
+| `GET /api/v2/firewall/aliases` | `name`, `type`, `descr` (as `description`), `address` (as `entries`) | `id`, `detail`, `tracker`, and every other upstream field |
+
+Manager behavior for this route:
+
+- The device is resolved from the manager database; there is no caller-supplied URL, path, method, or body. The route is administrator-only at the server boundary. A malformed device id returns `400 INVALID_DEVICE_ID`, unknown or demo devices return `404 DEVICE_NOT_FOUND`, and a disabled device returns `409 DEVICE_DISABLED`.
+- `name` is capped at 31 characters, `description` at 200, each entry at 256, and control characters are replaced with spaces. Entries the firewall reports beyond 200 per alias are withheld and flagged with `entriesTruncated`; aliases beyond 2,000 are withheld and flagged with `truncated`. `entryCount` always reports the firewall's own count.
+- An `address` value that is not a string is ignored rather than coerced. A `type` other than `host`, `network`, or `port` becomes `null`; it is never guessed.
+- A response whose `data` is not an array of objects is rejected as `FIREWALL_INVALID_RESPONSE`; nothing is partially displayed.
+- Upstream refusals are translated to manager-owned codes, all `502` except the timeout: `FIREWALL_PERMISSION_DENIED` (names the `api-v2-firewall-aliases-get` privilege), `FIREWALL_ENDPOINT_UNSUPPORTED` (names the route), `FIREWALL_INVALID_RESPONSE`, and `FIREWALL_UNAVAILABLE` for authentication, TLS, rate-limit, and transport failures; `FIREWALL_TIMEOUT` is `504`. The manager's own `403 ADMINISTRATOR_REQUIRED` stays distinct, so a missing firewall privilege is never mistaken for a manager permission problem. No upstream body, credential, or address is echoed.
+- Results are cached per device for 60 seconds on success and 10 seconds on failure, with single-flight reuse and the same size bounds as the observation cache. The cache is invalidated when the device profile changes.
+- These reads do not write `poll_runs`, so they cannot produce evidence that would mark an operation supported or unsupported, and they are not part of the health snapshot or its metrics.
+
+Runtime status: implemented and unit-tested in the manager, **not yet verified against a firewall**. The `pfsense_hub` account does not currently hold `api-v2-firewall-aliases-get`, so the first live call is expected to return `FIREWALL_PERMISSION_DENIED` until an operator grants exactly that privilege and records the test (AGENTS.md, "Endpoint onboarding and authentication maintenance"). The privilege exists in the pinned OpenAPI export (`docs/API-MATRIX.generated.md`), which is a candidate, not proof of runtime support.

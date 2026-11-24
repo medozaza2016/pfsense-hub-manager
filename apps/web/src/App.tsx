@@ -15,6 +15,7 @@ import {
   type InterfaceView,
   type ServiceView
 } from "./lib/site-snapshot";
+import { useDeviceAliases, type AliasView } from "./lib/device-configuration";
 
 type IconName = "grid" | "sites" | "network" | "bell" | "settings" | "monitor" | "layers" | "shield" | "list" | "route" | "server" | "globe" | "key" | "file" | "plus" | "search" | "refresh" | "chevron" | "menu" | "close" | "clock" | "cpu" | "database" | "harddrive" | "check" | "alert" | "wifi" | "building" | "activity" | "more" | "external";
 function Icon({name,size=18}:{name:IconName;size?:number}) {
@@ -575,13 +576,37 @@ function ServicesLive({device,query,setQuery}:{device:Device;query:string;setQue
   <p className="preview-footnote">This page reports state only. It has no start, stop, or restart control, and nothing on it changes firewall configuration.</p>
  </>;
 }
+type AliasRow=AliasView&{key:string};
+function aliasTypeLabel(type:AliasView["type"]):string{return type===null?"—":type.charAt(0).toUpperCase()+type.slice(1);}
+function aliasContent(row:AliasRow):string{
+ const shown=row.entries.slice(0,3).join(", ");
+ const hidden=row.entryCount-row.entries.length;
+ if(shown.length===0)return hidden>0?"+"+hidden+" more":"—";
+ return hidden>0?shown+" +"+hidden+" more":shown;
+}
+function AliasesLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
+ const live=useDeviceAliases(device.id,device.enabled!==false);
+ const collection=live.data;
+ const rows:AliasRow[]=(collection?.aliases??[]).map((row,index)=>({...row,key:String(index)}));
+ const columns=[{id:"name",header:"Name",sortable:true,value:(row:AliasRow)=>row.name??"",accessor:(row:AliasRow)=><strong>{row.name??"—"}</strong>},{id:"type",header:"Type",sortable:true,value:(row:AliasRow)=>row.type??"",accessor:(row:AliasRow)=>aliasTypeLabel(row.type)},{id:"description",header:"Description",value:(row:AliasRow)=>row.description??"",accessor:(row:AliasRow)=>row.description??"—"},{id:"entries",header:"Entries",sortable:true,value:(row:AliasRow)=>row.entryCount,accessor:(row:AliasRow)=><span title={row.entries.join(", ")}>{row.entryCount}{row.entriesTruncated?" ("+row.entries.length+" shown)":""}</span>},{id:"content",header:"Content",value:(row:AliasRow)=>row.entries.join(" "),accessor:(row:AliasRow)=><code title={row.entries.join(", ")}>{aliasContent(row)}</code>}];
+ const guidance=live.errorCode==="FIREWALL_PERMISSION_DENIED"||live.errorCode==="FIREWALL_ENDPOINT_UNSUPPORTED"?"warning":"error";
+ return <><div className="page-heading"><div><h1>Aliases</h1><p>Address and port aliases reported by this firewall</p></div><button className="secondary-button" onClick={live.refresh} disabled={live.loading}>{live.loading?"Refreshing…":"Refresh"}</button></div>
+  {device.enabled===false&&<Feedback tone="warning">Polling is disabled for this site. Enable it in Site Settings before reading firewall configuration.</Feedback>}
+  {live.error&&<Feedback tone={guidance}>{live.error}</Feedback>}
+  {!live.error&&live.loading&&!collection&&<Feedback tone="info">Reading firewall aliases through the approved read-only API…</Feedback>}
+  <ListToolbar search={query} onSearch={setQuery} placeholder="Search aliases"/>
+  <Panel title="Aliases" action={<span className="subtle">{rows.length} reported{collection?.truncated?" (list truncated)":""}</span>}><DataTable rows={rows} columns={columns} getRowId={row=>row.key} searchableText={row=>[row.name??"",row.type??"",row.description??"",row.entries.join(" ")].join(" ")} search={query} loading={live.loading} emptyTitle={device.enabled===false?"Configuration read unavailable":"No aliases reported"} emptyDescription={device.enabled===false?"Polling is disabled for this site, so the manager did not read its aliases.":"This firewall returned no alias records in this read."} pageSize={25}/></Panel>
+  <p className="preview-footnote">Alias entries are read from this firewall. The manager keeps at most 2,000 aliases and 200 entries per alias, marks anything withheld, and persists none of it. Creating, editing, or deleting aliases is not available because it would change firewall configuration.</p>
+ </>;
+}
 function LiveDevicePage({page,device,query,setQuery}:{page:Page;device:Device;query:string;setQuery:(s:string)=>void}){
  if(page==="interfaces")return <InterfacesLive device={device} query={query} setQuery={setQuery}/>;
  if(page==="gateways")return <GatewaysLive device={device} query={query} setQuery={setQuery}/>;
+ if(page==="aliases")return <AliasesLive device={device} query={query} setQuery={setQuery}/>;
  return <ServicesLive device={device} query={query} setQuery={setQuery}/>;
 }
 function DataPage({page,query,setQuery,onAdd,device}:{page:Page;query:string;setQuery:(s:string)=>void;onAdd:()=>void;device:Device|null}){
- const livePage=page==="interfaces"||page==="gateways"||page==="services";
+ const livePage=page==="interfaces"||page==="gateways"||page==="services"||page==="aliases";
  if(device&&!device.isDemo&&livePage)return <LiveDevicePage page={page} device={device} query={query} setQuery={setQuery}/>;
  const rows=mockRows[page]??[];
  const [statusFilter,setStatusFilter]=useState("all");

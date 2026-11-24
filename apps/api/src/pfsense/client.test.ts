@@ -4,7 +4,7 @@ import {checkServerIdentity} from "node:tls";
 import type {AddressInfo} from "node:net";
 import {Agent,fetch} from "undici";
 import {describe,expect,it,vi} from "vitest";
-import {createPinnedLookup,pfSenseOperations,selectTlsCa,validatePfSenseOperationData,type PfSenseOperation} from "./client.js";
+import {createPinnedLookup,pfSenseConfigurationOperations,pfSenseOperations,selectTlsCa,validatePfSenseOperationData,type PfSenseOperation} from "./client.js";
 import {PfSenseApiError} from "./errors.js";
 
 const testCertificate=readFileSync(new URL("./fixtures/firewall-test-cert.pem",import.meta.url));
@@ -35,6 +35,16 @@ async function withTlsServer<T>(work:(port:number)=>Promise<T>):Promise<T>{
 describe("pfSense upstream allowlist",()=>{
  it("contains only the eight approved read-only GET operations",()=>{
   expect(pfSenseOperations).toEqual(["system","gateways","interfaces","services","version","arpTable","firewallStates","firewallStateSize"]);
+ });
+});
+
+describe("pfSense configuration allowlist",()=>{
+ it("contains only the approved page-scoped configuration GET operation",()=>{
+  expect(pfSenseConfigurationOperations).toEqual(["aliases"]);
+ });
+
+ it("keeps configuration reads out of the health-poll allowlist",()=>{
+  expect(pfSenseOperations).not.toContain("aliases");
  });
 });
 
