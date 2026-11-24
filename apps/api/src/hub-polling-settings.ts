@@ -11,7 +11,9 @@ import { POLLING_SETTING_DEFAULTS, pollingSettingsSchema, type PollingSettings }
  * Migration 017 seeds it at install time, Administration > Hub Settings edits it,
  * and the API restores the defaults if the row is ever missing or unreadable, so
  * there is never a second set of values for the running scheduler to disagree
- * with. No environment variable carries them.
+ * with. No environment variable carries them. Migration 019 adds `saved_at`, the
+ * marker that distinguishes the install values from a saved cadence independently
+ * of the administrator who saved them.
  *
  * `PFSENSE_POLLING_ENABLED` stays environment-only: whether this process may
  * schedule at all is a deployment decision that must not be flippable from the
@@ -22,7 +24,12 @@ export type PollingSettingsSource = "hub" | "install";
 
 export interface ResolvedPollingSettings {
   settings: PollingSettings;
-  /** `install` while the seeded row is untouched; `hub` once an administrator saved it. */
+  /**
+   * `install` while `saved_at` is NULL; `hub` once an administrator saved it.
+   * Deliberately not derived from `updatedBy`: attribution can disappear when an
+   * account is retired, and a saved non-default cadence must not revert to
+   * "install" because of it.
+   */
   source: PollingSettingsSource;
   updatedAt: string | null;
   updatedBy: string | null;
@@ -35,6 +42,7 @@ interface StoredSettingsRow {
   retentionDays: unknown;
   updatedAt: unknown;
   updatedBy: unknown;
+  savedAt: unknown;
 }
 
 function asIsoString(value: unknown): string | null {
@@ -46,7 +54,8 @@ function asIsoString(value: unknown): string | null {
 async function readPollingRow(pool: Pool): Promise<StoredSettingsRow | null> {
   const result = await pool.query<StoredSettingsRow>(
     `SELECT s.interval_ms AS "intervalMs", s.concurrency, s.jitter_ms AS "jitterMs",
-            s.retention_days AS "retentionDays", s.updated_at AS "updatedAt", u.username AS "updatedBy"
+            s.retention_days AS "retentionDays", s.updated_at AS "updatedAt", s.saved_at AS "savedAt",
+            u.username AS "updatedBy"
        FROM hub_polling_settings s
        LEFT JOIN admin_users u ON u.id = s.updated_by
       WHERE s.id = 1`
@@ -71,31 +80,43 @@ export async function resolvePollingSettings(pool: Pool): Promise<ResolvedPollin
       })
     : null;
   if (!row || !parsed?.success) {
-    await savePollingSettings(pool, POLLING_SETTING_DEFAULTS, null);
+    await savePollingSettings(pool, POLLING_SETTING_DEFAULTS, { actorId: null, savedAt: null });
     return { settings: POLLING_SETTING_DEFAULTS, source: "install", updatedAt: null, updatedBy: null };
   }
   const updatedBy = typeof row.updatedBy === "string" ? row.updatedBy : null;
   return {
     settings: parsed.data,
-    source: updatedBy ? "hub" : "install",
+    source: asIsoString(row.savedAt) ? "hub" : "install",
     updatedAt: asIsoString(row.updatedAt),
     updatedBy
   };
 }
 
-/** Persist the singleton row. Callers validate with `pollingSettingsSchema` first. */
-export async function savePollingSettings(pool: Pool, settings: PollingSettings, actorId: string | null): Promise<void> {
+/**
+ * Persist the singleton row. Callers validate with `pollingSettingsSchema` first.
+ *
+ * `savedAt` is the save marker from migration 019, kept separate from `actorId` so
+ * the row still reads as saved if the saving account is later retired. A repair
+ * that restores the install values passes `{ actorId: null, savedAt: null }`, which
+ * is what makes `source` report `install` again.
+ */
+export async function savePollingSettings(
+  pool: Pool,
+  settings: PollingSettings,
+  write: { actorId: string | null; savedAt: Date | null }
+): Promise<void> {
   await pool.query(
-    `INSERT INTO hub_polling_settings(id,interval_ms,concurrency,jitter_ms,retention_days,updated_at,updated_by)
-     VALUES(1,$1,$2,$3,$4,now(),$5)
+    `INSERT INTO hub_polling_settings(id,interval_ms,concurrency,jitter_ms,retention_days,updated_at,updated_by,saved_at)
+     VALUES(1,$1,$2,$3,$4,now(),$5,$6)
      ON CONFLICT (id) DO UPDATE SET
        interval_ms=EXCLUDED.interval_ms,
        concurrency=EXCLUDED.concurrency,
        jitter_ms=EXCLUDED.jitter_ms,
        retention_days=EXCLUDED.retention_days,
        updated_at=now(),
-       updated_by=EXCLUDED.updated_by`,
-    [settings.intervalMs, settings.concurrency, settings.jitterMs, settings.retentionDays, actorId]
+       updated_by=EXCLUDED.updated_by,
+       saved_at=EXCLUDED.saved_at`,
+    [settings.intervalMs, settings.concurrency, settings.jitterMs, settings.retentionDays, write.actorId, write.savedAt]
   );
 }
 
@@ -188,7 +209,7 @@ export function registerHubPollingSettingsRoutes(app: FastifyInstance, dependenc
     }
 
     try {
-      await savePollingSettings(dependencies.pool, parsed.data, actor?.id ?? null);
+      await savePollingSettings(dependencies.pool, parsed.data, { actorId: actor?.id ?? null, savedAt: new Date() });
     } catch {
       // Keep runtime and storage consistent: restore the cadence that was running.
       try { dependencies.apply(previous.settings); } catch { /* the previous values were already accepted once */ }

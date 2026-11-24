@@ -85,6 +85,7 @@ Delivered on the feature branch:
 - Central audit service with recursive secret-key redaction and bounded metadata.
 - Administrator-only user listing/search, creation, role changes, activation/deactivation, and password reset API.
 - Last-active-administrator protection and session revocation after role, activation, or password changes.
+- No account deletion: administrators are retired by deactivation, and `audit_events.actor_id`'s `ON DELETE SET NULL` can never fire because the audit table is append-only (DEC-045).
 - Disabled accounts are rejected during login and session lookup.
 - Audit retrieval and event coverage for setup/login/logout, failed authentication, access denials, user changes, Hub reachability settings, alert lifecycle, and automatic polling recovery.
 - Deduplicated Critical/Warning alerts for firewall polling failures, automatically resolved after a fully successful polling cycle.

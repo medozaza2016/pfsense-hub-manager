@@ -15,7 +15,8 @@ const storedRow = {
   jitterMs: 5_000,
   retentionDays: 14,
   updatedAt: "2026-11-23T10:00:00.000Z",
-  updatedBy: "admin"
+  updatedBy: "admin",
+  savedAt: "2026-11-23T10:00:00.000Z"
 };
 
 function fakePool(row: Record<string, unknown> | null) {
@@ -83,11 +84,11 @@ describe("polling settings resolution", () => {
     expect(resolved).toEqual({ settings: defaults, source: "install", updatedAt: null, updatedBy: null });
     const inserts = insertCalls(pool);
     expect(inserts).toHaveLength(1);
-    expect(inserts[0]?.[1]).toEqual([defaults.intervalMs, defaults.concurrency, defaults.jitterMs, defaults.retentionDays, null]);
+    expect(inserts[0]?.[1]).toEqual([defaults.intervalMs, defaults.concurrency, defaults.jitterMs, defaults.retentionDays, null, null]);
   });
 
   it("reports the seeded row as install defaults while nobody has saved it", async () => {
-    const resolved = await resolvePollingSettings(fakePool({ ...storedRow, updatedBy: null }));
+    const resolved = await resolvePollingSettings(fakePool({ ...storedRow, updatedBy: null, savedAt: null }));
     expect(resolved.source).toBe("install");
     expect(resolved.settings).toEqual({ intervalMs: 120_000, concurrency: 4, jitterMs: 5_000, retentionDays: 14 });
     expect(resolved.updatedBy).toBeNull();
@@ -100,6 +101,15 @@ describe("polling settings resolution", () => {
     expect(resolved.settings).toEqual({ intervalMs: 120_000, concurrency: 4, jitterMs: 5_000, retentionDays: 14 });
     expect(resolved.updatedBy).toBe("admin");
     expect(resolved.updatedAt).toBe("2026-11-23T10:00:00.000Z");
+  });
+
+  it("still reports a saved cadence when the saving account is no longer attributed", async () => {
+    // Migration 019: `saved_at` marks the save, so losing the author cannot revert
+    // a saved cadence to "install" while its values stay non-default.
+    const resolved = await resolvePollingSettings(fakePool({ ...storedRow, updatedBy: null }));
+    expect(resolved.source).toBe("hub");
+    expect(resolved.updatedBy).toBeNull();
+    expect(resolved.settings).toEqual({ intervalMs: 120_000, concurrency: 4, jitterMs: 5_000, retentionDays: 14 });
   });
 
   it("repairs a row edited outside the manager that no longer satisfies the bounds", async () => {
@@ -118,7 +128,8 @@ const savedRow = {
   jitterMs: saved.jitterMs,
   retentionDays: saved.retentionDays,
   updatedAt: "2026-11-23T11:00:00.000Z",
-  updatedBy: "admin"
+  updatedBy: "admin",
+  savedAt: "2026-11-23T11:00:00.000Z"
 };
 
 describe("polling settings routes", () => {
@@ -170,9 +181,19 @@ describe("polling settings routes", () => {
     expect(state.apply).toHaveBeenCalledTimes(1);
     expect(state.apply).toHaveBeenCalledWith(saved);
     expect(insertCalls(state.pool)).toHaveLength(1);
-    expect(insertCalls(state.pool)[0]?.[1]).toEqual([saved.intervalMs, saved.concurrency, saved.jitterMs, saved.retentionDays, admin.id]);
+    expect(insertCalls(state.pool)[0]?.[1]).toEqual([saved.intervalMs, saved.concurrency, saved.jitterMs, saved.retentionDays, admin.id, expect.any(Date)]);
     const audit = state.pool.query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO audit_events"));
     expect(audit?.[1]).toContain("hub.settings.update");
+    await state.app.close();
+  });
+
+  it("counts a save that writes the install values as saved", async () => {
+    const state = setup(admin, { row: { ...defaults, updatedAt: "2026-11-23T11:00:00.000Z", updatedBy: "admin", savedAt: "2026-11-23T11:00:00.000Z" } });
+    const response = await state.app.inject({ method: "PUT", url: "/api/v1/hub-settings/polling", payload: defaults });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({ ...defaults, source: "hub", applied: true });
+    const savedAt = insertCalls(state.pool)[0]?.[1]?.[5];
+    expect(savedAt).toBeInstanceOf(Date);
     await state.app.close();
   });
 
