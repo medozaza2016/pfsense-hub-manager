@@ -639,6 +639,9 @@ const defaultHubEndpoints: HubAccessEndpoint[] = [
  {method:"tailscale",addressType:null,address:null,httpsPort:443,enabled:false},
  {method:"hostname",addressType:null,address:null,httpsPort:443,enabled:false}
 ];
+type PollingDraft = {intervalSeconds:number;concurrency:number;jitterSeconds:number;retentionDays:number};
+type PollingMeta = {source:"hub"|"install";pollingEnabled:boolean;updatedAt:string|null;updatedBy:string|null};
+type PollingResponse = {intervalMs:number;concurrency:number;jitterMs:number;retentionDays:number;source?:string;pollingEnabled?:boolean;updatedAt?:string|null;updatedBy?:string|null};
 function HubSettingsPage(){
  const {notify}=useToast();
  const [endpoints,setEndpoints]=useState<HubAccessEndpoint[]>(defaultHubEndpoints);
@@ -650,6 +653,10 @@ function HubSettingsPage(){
  const [loadFailed,setLoadFailed]=useState(false);
  const [saving,setSaving]=useState(false);
  const [message,setMessage]=useState("");
+ const [polling,setPolling]=useState<PollingDraft>({intervalSeconds:60,concurrency:2,jitterSeconds:15,retentionDays:30});
+ const [pollingLoaded,setPollingLoaded]=useState(false);
+ const [pollingMeta,setPollingMeta]=useState<PollingMeta>({source:"install",pollingEnabled:false,updatedAt:null,updatedBy:null});
+ const [pollingSaving,setPollingSaving]=useState(false);
  useEffect(()=>{
   let active=true;
   fetch("/api/v1/hub-settings",{credentials:"same-origin"}).then(async response=>{
@@ -719,6 +726,28 @@ function HubSettingsPage(){
    .catch(()=>{if(active)setHistory([]);});
   return()=>{active=false;};
  },[deployment.status,deployment.desiredRevision]);
+ useEffect(()=>{
+  let active=true;
+  fetch("/api/v1/hub-settings/polling",{credentials:"same-origin"})
+   .then(async response=>{if(!response.ok)throw new Error("Unable to load polling settings.");return response.json();})
+   .then(result=>{if(!active)return;applyPollingResponse(result.data);setPollingLoaded(true);})
+   .catch(()=>{if(active)setPollingLoaded(false);});
+  return()=>{active=false;};
+ },[]);
+ function applyPollingResponse(data:PollingResponse){
+  setPolling({
+   intervalSeconds:Math.round(Number(data.intervalMs)/1000),
+   concurrency:Number(data.concurrency),
+   jitterSeconds:Math.round(Number(data.jitterMs)/1000),
+   retentionDays:Number(data.retentionDays)
+  });
+  setPollingMeta({
+   source:data.source==="hub"?"hub":"install",
+   pollingEnabled:data.pollingEnabled===true,
+   updatedAt:data.updatedAt??null,
+   updatedBy:data.updatedBy??null
+  });
+ }
  function selectMethod(method:HubAccessMethod){
   setActiveMethod(method);
   setEndpoints(current=>current.map(endpoint=>({...endpoint,enabled:endpoint.method===method})));
@@ -730,6 +759,22 @@ function HubSettingsPage(){
   if(method==="local")return <><option value="">Select address type</option><option value="hostname">LAN hostname</option><option value="ip">LAN IP address</option></>;
   if(method==="tailscale")return <><option value="">Select address type</option><option value="magic_dns">Tailscale MagicDNS hostname</option><option value="tailscale_ip" disabled>Tailscale IPv4, not valid for HTTPS</option></>;
   return <><option value="">Select address type</option><option value="hostname">Hostname</option><option value="ip">IP address</option></>;
+ }
+ const pollingValid=polling.intervalSeconds>=15&&polling.intervalSeconds<=3600&&polling.jitterSeconds>=0&&polling.jitterSeconds<=60&&polling.jitterSeconds<polling.intervalSeconds&&polling.concurrency>=1&&polling.concurrency<=8&&polling.retentionDays>=1&&polling.retentionDays<=365;
+ async function savePolling(){
+  if(pollingSaving||!pollingValid)return;
+  setPollingSaving(true);setMessage("");
+  try{
+   const response=await fetch("/api/v1/hub-settings/polling",{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({intervalMs:polling.intervalSeconds*1000,concurrency:polling.concurrency,jitterMs:polling.jitterSeconds*1000,retentionDays:polling.retentionDays})});
+   const result=await response.json();
+   if(!response.ok)throw new Error(result.error?.message??"Unable to save polling settings.");
+   applyPollingResponse(result.data);setPollingLoaded(true);
+   const note=result.data.applied?"Polling settings applied. The next collection uses the new cadence.":"Polling settings saved. Background scheduling is disabled for this deployment, so the cadence is stored but not running.";
+   setMessage(note);notify(note,"success");
+  }catch(error){
+   const failure=error instanceof Error?error.message:"Unable to save polling settings.";
+   setMessage(failure);notify(failure,"error");
+  }finally{setPollingSaving(false);}
  }
  const deploymentInProgress=saving||(Boolean(deployment.deploymentId)&&["pending","queued","applying","validating","verifying","rolling_back"].includes(deployment.status));
  const saveButtonLabel=saving?"Saving settings…":deployment.status==="queued"?"Starting deployment…":deployment.status==="applying"?"Applying settings…":deployment.status==="validating"?"Validating configuration…":deployment.status==="verifying"?"Verifying endpoint…":deployment.status==="rolling_back"?"Restoring previous access…":"Applying settings…";
@@ -800,6 +845,19 @@ function HubSettingsPage(){
       {item.errorCode&&<small>{item.errorCode}</small>}
      </div>)}
     </div>}
+   </Panel>
+   <Panel title="Polling cadence">
+    <p className="hub-settings-intro">Background polling runs inside this API process and uses the same read-only collection as the site pages. These values are stored in the Hub, apply immediately, and survive restarts and upgrades.</p>
+    {pollingLoaded&&!pollingMeta.pollingEnabled?<p className="hub-settings-note">Background scheduling is disabled for this deployment (<code>PFSENSE_POLLING_ENABLED</code>). Changes are stored, but nothing is polled until the deployment enables it.</p>:null}
+    <div className="hub-polling-fields">
+     <label>Interval (seconds)<input type="number" min="15" max="3600" step="1" value={polling.intervalSeconds} onChange={event=>setPolling(current=>({...current,intervalSeconds:Number(event.target.value)}))} disabled={busy||pollingSaving}/></label>
+     <label>Devices at once<input type="number" min="1" max="8" step="1" value={polling.concurrency} onChange={event=>setPolling(current=>({...current,concurrency:Number(event.target.value)}))} disabled={busy||pollingSaving}/></label>
+     <label>Jitter (seconds)<input type="number" min="0" max="60" step="1" value={polling.jitterSeconds} onChange={event=>setPolling(current=>({...current,jitterSeconds:Number(event.target.value)}))} disabled={busy||pollingSaving}/></label>
+     <label>History retention (days)<input type="number" min="1" max="365" step="1" value={polling.retentionDays} onChange={event=>setPolling(current=>({...current,retentionDays:Number(event.target.value)}))} disabled={busy||pollingSaving}/></label>
+    </div>
+    {!pollingValid&&<p className="hub-settings-note">Use a 15-3600 s interval, 1-8 devices at once, 0-60 s jitter shorter than the interval, and 1-365 days of history.</p>}
+    <p className="hub-settings-note">{pollingMeta.source==="install"?"Still at the install defaults.":`Saved in Hub Settings${pollingMeta.updatedBy?` by ${pollingMeta.updatedBy}`:""}${pollingMeta.updatedAt?` on ${new Date(pollingMeta.updatedAt).toLocaleString()}`:""}.`} The scheduler refuses jitter at or above the interval.</p>
+    <div className="hub-settings-actions"><button type="button" className="primary-button hub-save-button" onClick={()=>void savePolling()} disabled={busy||pollingSaving||!pollingValid} aria-busy={pollingSaving}>{pollingSaving?"Saving…":"Save polling settings"}</button></div>
    </Panel>
   </form>
  </>;

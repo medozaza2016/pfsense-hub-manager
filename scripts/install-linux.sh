@@ -479,6 +479,10 @@ PFSENSE_DEVICE_LOCATION=
 PFSENSE_EDITION=unknown
 PFSENSE_API_BASE_URL=
 PFSENSE_API_TIMEOUT_MS=10000
+# The polling cadence and retention are seeded in the Hub database at install and
+# edited in Administration > Hub Settings (DEC-044). Only the process-level gate
+# lives here: exactly one API process may schedule.
+PFSENSE_POLLING_ENABLED=false
 HUB_AGENT_API_PORT=3001
 HUB_DEPLOYMENT_AGENT_TOKEN=$AGENT_TOKEN
 HUB_DEPLOYMENT_AGENT_SOCKET=/run/pfsense-hub/agent.sock
@@ -501,6 +505,10 @@ PFSENSE_DEVICE_LOCATION=
 PFSENSE_EDITION=unknown
 PFSENSE_API_BASE_URL=
 PFSENSE_API_TIMEOUT_MS=10000
+# The polling cadence and retention are seeded in the Hub database at install and
+# edited in Administration > Hub Settings (DEC-044). Only the process-level gate
+# lives here: exactly one API process may schedule.
+PFSENSE_POLLING_ENABLED=false
 HUB_AGENT_API_PORT=3001
 HUB_DEPLOYMENT_AGENT_TOKEN=
 HUB_DEPLOYMENT_AGENT_SOCKET=
@@ -655,6 +663,7 @@ PY
   docker compose ps
   echo
   echo "Hub UI: http://127.0.0.1:8080"
+  echo "Polling settings: Administration > Hub Settings (seeded at install; background scheduling stays off until PFSENSE_POLLING_ENABLED=true)."
   echo "Host Agent: active (systemd), restricted Unix socket verified."
   echo "GUI-managed Hub access: enabled after successful Host Agent verification."
   if command -v tailscale >/dev/null 2>&1; then
@@ -694,6 +703,7 @@ else
   docker compose ps
   echo
   echo "Hub UI: http://127.0.0.1:8080"
+  echo "Polling settings: Administration > Hub Settings (seeded at install; background scheduling stays off until PFSENSE_POLLING_ENABLED=true)."
   echo "Mode: local development (Docker Compose only, no root-owned services)."
   if [[ "$WITH_AGENT" == "true" ]]; then
     echo "Host Agent: running as $(id -nu "$TARGET_UID") from $PROJECT_DIR (development mode, not systemd)."

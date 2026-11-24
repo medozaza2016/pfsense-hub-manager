@@ -15,7 +15,8 @@ import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
 import { authorizationFailure, createSession, deleteSession, findSession, hashPassword, verifyPassword, type AdminUser } from "./auth.js";
 import { registry, requests, requestDuration } from "./metrics.js";
 import { appendAudit } from "./audit.js";
-import { hubAccessEndpointsSchema } from "./hub-settings.js";
+import { hubAccessEndpointsSchema, type PollingSettings } from "./hub-settings.js";
+import { registerHubPollingSettingsRoutes, resolvePollingSettings } from "./hub-polling-settings.js";
 import { dispatchHubDeployment } from "./hub-deployment-service.js";
 import { createHostSystemService } from "./host-system/service.js";
 import { registerHostSystemRoutes } from "./host-system/routes.js";
@@ -117,6 +118,7 @@ app.addHook("preHandler", async (request, reply) => {
     || path === "/api/v1/users"
     || path.startsWith("/api/v1/users/")
     || path === "/api/v1/audit" || path.startsWith("/api/v1/audit/")
+    || path === "/api/v1/hub-settings/polling"
     || (path === "/api/v1/hub-settings/access-endpoints" && request.method === "PUT")
     || path.startsWith("/api/v1/hub-settings/deployments")
     || path === "/api/v1/system/compose/validate"
@@ -571,19 +573,45 @@ async function recoverQueuedHubDeployments(): Promise<void> {
 // Background polling is opt-in (DEC-043). It shares the request path's
 // collection, health recorder, and cache so scheduled and manual polls cannot
 // diverge. Exactly one API replica may schedule; disable the flag on any other.
-const pollScheduler = config.PFSENSE_POLLING_ENABLED
-  ? new PollScheduler(
-      { provider, devices, cache: observationCache, pool, log: app.log },
-      {
-        intervalMs: config.PFSENSE_POLLING_INTERVAL_MS,
-        concurrency: config.PFSENSE_POLLING_CONCURRENCY,
-        jitterMs: config.PFSENSE_POLLING_JITTER_MS,
-        successCacheTtlMs: Math.min(config.PFSENSE_POLLING_INTERVAL_MS, 600_000),
-        failureCacheTtlMs: config.PFSENSE_OBSERVATION_ERROR_CACHE_MS,
-        retentionDays: config.PFSENSE_POLLING_RETENTION_DAYS
-      }
-    )
-  : null;
+// Cadence and retention live in the `hub_polling_settings` row, seeded at install
+// and edited in Hub Settings (DEC-044). The flag itself stays environment-only:
+// whether this process may schedule at all must not be flippable from a browser.
+function buildPollScheduler(settings: PollingSettings): PollScheduler | null {
+  if (!config.PFSENSE_POLLING_ENABLED) return null;
+  return new PollScheduler(
+    { provider, devices, cache: observationCache, pool, log: app.log },
+    {
+      intervalMs: settings.intervalMs,
+      concurrency: settings.concurrency,
+      jitterMs: settings.jitterMs,
+      successCacheTtlMs: Math.min(settings.intervalMs, 600_000),
+      failureCacheTtlMs: config.PFSENSE_OBSERVATION_ERROR_CACHE_MS,
+      retentionDays: settings.retentionDays
+    }
+  );
+}
+
+const initialPolling = await resolvePollingSettings(pool);
+let pollScheduler = buildPollScheduler(initialPolling.settings);
+
+/**
+ * Apply a saved cadence. The replacement scheduler is constructed before the
+ * running one is stopped, so values the scheduler refuses leave the current
+ * cadence untouched; the swap is stop-then-start so two schedulers never run.
+ */
+function applyPollingSettings(settings: PollingSettings): boolean {
+  const replacement = buildPollScheduler(settings);
+  pollScheduler?.stop();
+  pollScheduler = replacement;
+  pollScheduler?.start();
+  return replacement !== null;
+}
+
+registerHubPollingSettingsRoutes(app, {
+  pool,
+  pollingEnabled: config.PFSENSE_POLLING_ENABLED,
+  apply: applyPollingSettings
+});
 
 await app.listen({ host: config.HOST, port: config.PORT });
 app.log.info("pfSense Hub Manager API started");

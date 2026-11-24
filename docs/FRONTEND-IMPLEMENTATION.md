@@ -22,7 +22,7 @@ The frontend is a React/TypeScript/Vite application. It uses the existing backen
 - **Alerts:** API-backed records and lifecycle actions, including bulk acknowledge/resolve behavior.
 - **User Management:** API-backed user listing, creation, role/status changes, and password reset flows.
 - **Audit Logs:** API-backed audit events with sanitized metadata.
-- **Hub Settings:** Local, Tailscale, and Custom access method tabs, deployment state, revision tracking, last-verified recovery address, and recent deployment history.
+- **Hub Settings:** Local, Tailscale, and Custom access method tabs, deployment state, revision tracking, last-verified recovery address, recent deployment history, and a **Polling cadence** panel for the four background-polling integers, which are stored in the Hub database rather than in `.env` (DEC-044).
 - **Application Settings:** retired November 23, 2026 (DEC-041). The Administration entry, the `/settings/application` route, and the preview cards were removed; `/settings/application` now redirects to `/settings/hub`.
 - **System Monitoring & Recovery:** live Administration page at `/settings/system-recovery`, wired through the API to the restricted Host Agent (DEC-039). Also the Hub mobile **System monitoring** tab (DEC-040). See [System Monitoring & Recovery](SYSTEM-MONITORING-RECOVERY.md).
 

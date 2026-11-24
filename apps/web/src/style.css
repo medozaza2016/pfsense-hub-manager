@@ -150,9 +150,10 @@
 .hub-endpoint-toggle{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:11px;font-weight:650;color:#405775}
 .hub-endpoint-toggle input{accent-color:#075df5}
 .hub-endpoint-fields{display:grid;grid-template-columns:1fr 1.3fr 110px;gap:10px}
-.hub-endpoint-fields label{display:grid;gap:6px;min-width:0;color:#405775;font-size:11px;font-weight:650}
-.hub-endpoint-fields input,.hub-endpoint-fields select{width:100%;min-width:0;min-height:38px;padding:8px 10px;border:1px solid #d5dfec;border-radius:8px;background:#fff;color:#183252;font:inherit;font-size:12px}
-.hub-endpoint-fields input:disabled{background:#f1f4f8;color:#9aa7b8}
+.hub-polling-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.hub-endpoint-fields label,.hub-polling-fields label{display:grid;gap:6px;min-width:0;color:#405775;font-size:11px;font-weight:650}
+.hub-endpoint-fields input,.hub-endpoint-fields select,.hub-polling-fields input{width:100%;min-width:0;min-height:38px;padding:8px 10px;border:1px solid #d5dfec;border-radius:8px;background:#fff;color:#183252;font:inherit;font-size:12px}
+.hub-endpoint-fields input:disabled,.hub-polling-fields input:disabled{background:#f1f4f8;color:#9aa7b8}
 .hub-settings-actions{display:flex;justify-content:flex-end;margin-top:14px}
 .hub-deployment-state{display:grid;gap:5px;padding:12px;border-radius:9px;margin-bottom:12px}
 .hub-deployment-state strong{font-size:13px}
@@ -163,8 +164,8 @@
 .secondary-button{border:1px solid #d2ddeb;border-radius:7px;background:#fff;color:#294361;padding:9px 12px;font-size:11px;font-weight:650}
 .secondary-button:hover:not(:disabled){border-color:#9db8dc;background:#f7faff}
 .secondary-button:disabled{opacity:.55;cursor:not-allowed}
-@media(max-width:900px){.hub-settings-layout{grid-template-columns:1fr}}
-@media(max-width:600px){.hub-endpoint-fields{grid-template-columns:1fr}.hub-endpoint-heading{flex-direction:column}}
+@media(max-width:900px){.hub-settings-layout{grid-template-columns:1fr}.hub-polling-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.hub-endpoint-fields,.hub-polling-fields{grid-template-columns:1fr}.hub-endpoint-heading{flex-direction:column}}
 
 
 /* Single-active Hub access tabs */

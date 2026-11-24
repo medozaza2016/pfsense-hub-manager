@@ -61,3 +61,42 @@ export const hubAccessEndpointsSchema = z.object({
 
 
 export type HubAccessEndpoint = z.infer<typeof hubAccessEndpointSchema>;
+
+/**
+ * Runtime background-polling settings (DEC-044).
+ *
+ * These bounds are the same ones `PollScheduler` asserts in its constructor and
+ * migration 017 enforces with CHECK constraints. The route rejects first so no
+ * scheduler is ever constructed with values the API would refuse.
+ */
+export const POLLING_SETTING_BOUNDS = {
+  intervalMs: { min: 15_000, max: 3_600_000 },
+  concurrency: { min: 1, max: 8 },
+  jitterMs: { min: 0, max: 60_000 },
+  retentionDays: { min: 1, max: 365 }
+} as const;
+
+export const pollingSettingsSchema = z.object({
+  intervalMs: z.number().int().min(POLLING_SETTING_BOUNDS.intervalMs.min).max(POLLING_SETTING_BOUNDS.intervalMs.max),
+  concurrency: z.number().int().min(POLLING_SETTING_BOUNDS.concurrency.min).max(POLLING_SETTING_BOUNDS.concurrency.max),
+  jitterMs: z.number().int().min(POLLING_SETTING_BOUNDS.jitterMs.min).max(POLLING_SETTING_BOUNDS.jitterMs.max),
+  retentionDays: z.number().int().min(POLLING_SETTING_BOUNDS.retentionDays.min).max(POLLING_SETTING_BOUNDS.retentionDays.max)
+}).strict().superRefine((settings, context) => {
+  if (settings.jitterMs >= settings.intervalMs) {
+    context.addIssue({ code: "custom", message: "Jitter must be shorter than the polling interval.", path: ["jitterMs"] });
+  }
+});
+
+export type PollingSettings = z.infer<typeof pollingSettingsSchema>;
+
+/**
+ * Values written by migration 017 and restored if the singleton row is missing or
+ * unreadable. They are a starting point an administrator edits in Hub Settings,
+ * not an environment-overridable default (DEC-044).
+ */
+export const POLLING_SETTING_DEFAULTS: PollingSettings = {
+  intervalMs: 60_000,
+  concurrency: 2,
+  jitterMs: 15_000,
+  retentionDays: 30
+};

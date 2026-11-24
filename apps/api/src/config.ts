@@ -16,10 +16,6 @@ const schema = z.object({
  // Background polling is opt-in. An installation that does not set the flag keeps
  // the previous request-driven behaviour exactly.
  PFSENSE_POLLING_ENABLED:z.enum(["true","false"]).default("false").transform(value=>value==="true"),
- PFSENSE_POLLING_INTERVAL_MS:z.coerce.number().int().min(15000).max(3600000).default(60000),
- PFSENSE_POLLING_CONCURRENCY:z.coerce.number().int().min(1).max(8).default(2),
- PFSENSE_POLLING_JITTER_MS:z.coerce.number().int().min(0).max(60000).default(15000),
- PFSENSE_POLLING_RETENTION_DAYS:z.coerce.number().int().min(1).max(365).default(30),
  HUB_DEPLOYMENT_AGENT_SOCKET:z.union([z.string().trim().min(1),z.literal("")]).optional(),
  HUB_DEPLOYMENT_AGENT_TOKEN:z.union([z.string().min(32).max(256),z.literal("")]).optional(),
  HUB_DEPLOYMENT_AGENT_API_PORT:z.coerce.number().int().min(1).max(65535).default(3001),
@@ -31,10 +27,6 @@ const schema = z.object({
  // Host operations are a strict superset of monitoring: refuse the incoherent pairing.
  if(value.HUB_HOST_OPERATIONS_ENABLED && !value.HUB_HOST_MONITORING_ENABLED)
   context.addIssue({code:"custom",path:["HUB_HOST_OPERATIONS_ENABLED"],message:"Requires HUB_HOST_MONITORING_ENABLED=true."});
- // Jitter spreads a fleet's polls; at or beyond one interval it would push every
- // poll past its own cadence instead.
- if(value.PFSENSE_POLLING_JITTER_MS >= value.PFSENSE_POLLING_INTERVAL_MS)
-  context.addIssue({code:"custom",path:["PFSENSE_POLLING_JITTER_MS"],message:"Must be shorter than PFSENSE_POLLING_INTERVAL_MS."});
  const bootstrapRequested=Boolean(value.PFSENSE_DEVICE_ID||value.PFSENSE_DEVICE_NAME||value.PFSENSE_API_BASE_URL);
  if(!bootstrapRequested) return;
  if(!value.PFSENSE_DEVICE_ID) context.addIssue({code:"custom",path:["PFSENSE_DEVICE_ID"],message:"Required when legacy firewall bootstrap is configured."});

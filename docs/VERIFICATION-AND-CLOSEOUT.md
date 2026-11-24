@@ -353,3 +353,38 @@ The roadmap and PRD carried an open item to "verify a trusted TLS connection to 
 | Retention | Startup prune ran and removed 0 rows (all history younger than 30 days), so no `polling.history_pruned` event was written — correct behavior, but the delete-and-audit path is still unexercised |
 
 **Not verified:** a repeated poll failure producing one deduplicated alert that auto-resolves on recovery; a page load inside the interval reporting `cacheHit: true`; and a retention prune that removes and audits real rows. The cadence itself is verified. Describe background polling as running and observed on cadence, not as proven under failure and retention conditions.
+
+## 17. Runtime polling settings in Hub Settings, November 23, 2026
+
+**Scope:** the four background-polling integers — interval, concurrency, jitter, and `poll_runs` retention — became editable at **Administration → Hub Settings → Polling cadence**. Recorded as DEC-044; contract and rationale in [Runtime Settings in Hub Settings](RUNTIME-SETTINGS-PROPOSAL.md).
+
+| Area | Implementation |
+|---|---|
+| Storage | `017_hub_polling_settings.sql` creates the singleton row with `CHECK` bounds, `jitter_ms < interval_ms`, and `updated_by` FK. `018_seed_hub_polling_settings.sql` seeds `60000 / 2 / 15000 / 30` with `updated_by` NULL. A new migration rather than editing `017`, because the API checksum-verifies applied migrations at boot |
+| Source of truth | The row only. The four `PFSENSE_POLLING_*` cadence variables were removed from `config.ts`, `.env.example`, `compose.yaml`, the `.env` that `scripts/install-linux.sh` generates, and this deployment's `.env`. There is no environment default or fallback |
+| Repair | A missing row, or one outside the bounds, is rewritten to the install values when it is read, so the API and the panel always describe the cadence that is running |
+| Reported source | `GET` returns `source: "install"` while `updated_by` is NULL and `source: "hub"` once an administrator saves, with `updatedAt` and `updatedBy` |
+| API | `GET`/`PUT /api/v1/hub-settings/polling`, administrator-only in the route and in the server's admin-only hook; `strict` integer schema reusing the scheduler bounds |
+| Runtime | Save constructs the replacement scheduler, stops the old one, starts the new one; a rejected value leaves the running cadence untouched; a failed write restores it |
+| Audit | `hub.settings.update`, `targetType: "hub_polling_settings"`, previous and updated integers, `applied`, `pollingEnabled` |
+| Unchanged | No new upstream route, firewall endpoint, or permission; `PFSENSE_POLLING_ENABLED` stays environment-only; the single-scheduler rule and read-only boundary are untouched |
+| Not moved | Secrets, host fail-closed gates, infrastructure variables, per-device identity/TLS/credentials, `PFSENSE_API_TIMEOUT_MS`, cache lifetimes, and the legacy bootstrap keys (DEC-044 lists each and why) |
+
+**Checks observed on this increment:**
+
+| Check | Result |
+|---|---|
+| API tests | `28 test files / 350 tests passed` (15 in `hub-polling-settings.test.ts`) |
+| API and web typecheck | exit 0 |
+| Production build | exit 0 (`dist/assets/index-C2vEzwEc.css`, `dist/assets/index-BckBOM3d.js`) |
+| Rebuild | `docker compose up -d --build api web`: `api` healthy, `web` started |
+| Migration | `schema_migrations` lists `018_seed_hub_polling_settings`; `hub_polling_settings` holds `1 | 60000 | 2 | 15000 | 30` with `updated_by` NULL |
+| Install values drive the scheduler | Start log: `intervalMs: 60000, concurrency: 2, jitterMs: 15000, retentionDays: 30` |
+| Row drives the scheduler | Row updated to `30000 / 3 / 5000 / 7`, `api` restarted; start log reported exactly those values |
+| Restore | Row set back to the install values, `api` restarted; start log reported `60000 / 2 / 15000 / 30` |
+| No cadence in the environment | `printenv` inside the `api` container lists `PFSENSE_POLLING_ENABLED` only; the four cadence variables are absent |
+| Served bundle | `index-BckBOM3d.js` served by `web` contains `Polling cadence` and `Still at the install defaults` |
+| Authorization | Unauthenticated `GET` and `PUT` each returned `401` |
+
+**Not verified:** a save through the browser with a real administrator session, which is the only path that reports `source: "hub"` — the route tests cover the save, both failure recoveries, and `401`/`403`, but the deployment was not driven through the UI. The repair path (missing or out-of-bounds row) is unit-tested, not exercised live. The deployment was left on the install values with `updated_by` NULL.
+

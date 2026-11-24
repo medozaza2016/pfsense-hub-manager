@@ -9,13 +9,15 @@ Implemented and enabled in the local Docker Compose deployment on November 23, 2
 
 | Behavior | Value |
 |---|---|
-| Interval per enabled, non-demo device | 60 s (`PFSENSE_POLLING_INTERVAL_MS`, 15 s–1 h) |
-| Devices collected at once | 2 (`PFSENSE_POLLING_CONCURRENCY`, 1–8) |
-| Jitter | 0–15 s on first sighting and each success (`PFSENSE_POLLING_JITTER_MS`) |
+| Interval per enabled, non-demo device | 60 s install default (15 s–1 h) |
+| Devices collected at once | 2 install default (1–8) |
+| Jitter | 0–15 s install default on first sighting and each success |
 | Retry after failure | 30 → 60 → 120 → 300 s cap, floored at the interval, reset on a fully successful collection |
-| `poll_runs` retention | 30 days (`PFSENSE_POLLING_RETENTION_DAYS`), bounded 5,000-row batches at startup and every 24 h |
+| `poll_runs` retention | 30 days install default, bounded 5,000-row batches at startup and every 24 h |
 | Cache | A scheduled success serves page loads for one interval; a failed collection keeps the 2 s failure window |
 | Lifecycle | One scheduler per API process, started after migrations and listen, stopped on `SIGINT`/`SIGTERM`; no leader election |
+
+The four values in the table (`interval`, `concurrency`, `jitter`, `retention`) are stored in the Hub database and edited at **Administration → Hub Settings → Polling cadence** (DEC-044). A save restarts the scheduler in place without recreating the container; there is no environment variable to keep in step. `PFSENSE_POLLING_ENABLED` is deliberately not exposed there: whether this process may schedule at all stays a deployment decision.
 
 Operational implications:
 

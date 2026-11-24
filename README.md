@@ -144,7 +144,7 @@ Do not describe the product as production-ready. The first Plus firewall's histo
 - [Automatic Hub access deployment](docs/AUTOMATIC-HUB-ACCESS-DEPLOYMENT.md)
 - [Frontend implementation](docs/FRONTEND-IMPLEMENTATION.md)
 - [Monitoring](docs/MONITORING.md)
-- [Runtime settings proposal (not approved)](docs/RUNTIME-SETTINGS-PROPOSAL.md)
+- [Runtime settings in Hub Settings (DEC-044: stored in the Hub, not in `.env`)](docs/RUNTIME-SETTINGS-PROPOSAL.md)
 - [Verification and documentation closeout](docs/VERIFICATION-AND-CLOSEOUT.md)
 
 ## Security
