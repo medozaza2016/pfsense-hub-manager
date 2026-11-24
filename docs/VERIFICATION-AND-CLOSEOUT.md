@@ -439,3 +439,72 @@ The roadmap and PRD carried an open item to "verify a trusted TLS connection to 
 
 **Resolved, how `source` is derived.** The first live save showed that `source` was `"install"` exactly while `hub_polling_settings.updated_by` was NULL, which made attribution the marker of a save and would have flipped a saved cadence back to `"install"` if the saving account were ever removed. Migration `019_hub_polling_settings_saved_at.sql` adds `saved_at`, written on every save and NULL for the seed and for a repair that restores the defaults, and `resolvePollingSettings` now derives `source` from it. Rows that already carried attribution were backfilled from `updated_at`, so no existing save changed meaning. Two new route tests cover the marker (`still reports a saved cadence when the saving account is no longer attributed`, `counts a save that writes the install values as saved`), and the three live rows above exercise the same three states against the deployment. `017`'s header comment still describes the superseded environment-default design; it is left byte-identical because applied migrations keep a checksum the API verifies at boot, so `019` and DEC-044 carry the current description.
 
+
+## 19. Background polling behaviour drills, November 23, 2026
+
+**Scope:** the three behaviours DEC-043 left unrecorded — a repeated poll failure producing one deduplicated alert that auto-resolves on recovery, a read inside the interval served from the observation cache, and a retention prune that deletes and audits real rows — exercised end to end against the registered Plus firewall in this deployment. No application code changed in this increment; the only files touched are documentation.
+
+**Method.** A drill-only administrator (`drill-verify`) signed in over the web entrypoint (`POST /api/v1/auth/login` `200`, `pfsense_hub_session` cookie returned) and drove the API at `http://127.0.0.1:8080/api/v1/...`, the same origin the browser uses, so cookie handling, session lookup, the admin-only hook, the route guards, the scheduler, and the audit path were all exercised. Every fault was injected through manager-owned settings. No firewall configuration changed, no credential was rotated, the `api` service was never restarted, and no secret was read or logged.
+
+| Drill | Injection | Restore |
+|---|---|---|
+| 1. Cache hit | Saved the device profile with unchanged values, which invalidates the observation entry (`onDeviceChanged` → `observationCache.invalidate`), then read the snapshot at three different ages | Nothing — re-saving an identical profile is not a configuration change |
+| 2. Failure, dedup, auto-resolve | `tlsServername` set to `drill.invalid`, so all eight read-only operations fail certificate hostname validation | `tlsServername` set back to `<pinned-certificate-name>` |
+| 3. Retention prune | Aged the 40 newest `poll_runs` rows by two days, then lowered `retentionDays` 30 → 1 and raised it back, both through `PUT /api/v1/hub-settings/polling` | `retentionDays` back to 30, verified below |
+
+### 19.1 Cache hit
+
+| Observation | Result |
+|---|---|
+| Entry invalidated, then read | `PATCH /api/v1/devices/{deviceId}` `200`; the next `GET …/snapshot` returned `200` with `meta.cacheHit: false`, `meta.durationMs: 6075`, `collectedAt: 2026-11-24T03:14:45.926Z`, and `poll_runs` grew 1684 → 1692 — eight rows, one per operation |
+| Read inside the page window | The immediately following `GET` returned `200` with `meta.cacheHit: true`, `meta.durationMs: 0`, the same `collectedAt`, and no new `poll_runs` row |
+| Page entry expiry | A read 46 s after a route-served collection returned `meta.cacheHit: false`, `durationMs: 5447`, a newer `collectedAt` (`03:17:12.640Z`), and eight new rows: a route-side miss stores its result with `successCacheTtlMs` (10 s), not the scheduler's window |
+| Scheduled write-through entry | A completed cycle at `03:18:57.332` produced `collectedAt: 03:18:57.338Z`; a `GET` at that moment returned `cacheHit: true`, `durationMs: 0`, and the same `GET` repeated at `03:19:49` — 52 s after the store, while `successCacheTtlMs` was still the 10 s default — still returned `cacheHit: true`, `durationMs: 0`, the identical `collectedAt`, with `poll_runs` frozen at 1740 across both reads |
+| What the 52 s read proves | Only the scheduler stores with `min(intervalMs, 600 s)` = 60 s, so a hit at 52 s cannot come from the page lifetime. The write-through window is real, and two cached reads performed zero upstream operations |
+
+### 19.2 Failure, deduplication, auto-resolve
+
+| Observation | Result |
+|---|---|
+| Injection, first failure | `03:20:34` `PATCH` `200` with `tlsServername: "drill.invalid"`, `enabled` still `true`; the cycle at `03:21:16.43–16.60` wrote eight `poll_runs` rows with `outcome = failure`, `error_class = tls`, 20–50 ms each — a name mismatch fails in milliseconds, so the fault is fast and unambiguous |
+| Second failure, same cause | The cycle at `03:22:16` wrote eight more `failure`/`tls` rows; 16 failed operations in total |
+| Deduplication | `alerts` holds exactly **one** row: `deduplication_key = device-poll:<deviceId>`, `severity = critical`, `title = Firewall is unreachable`, `status = active`, `occurrence_count` 1 → 2, `first_seen_at 03:21:16.611763`, `last_seen_at 03:22:16.820639`. Sixteen failed operations produced one alert whose counter advanced instead of sixteen alerts |
+| Alert read path | `GET /api/v1/alerts` returned one alert with `occurrenceCount: 2` and the device id as `resourceId` |
+| Snapshot during the outage | `GET …/snapshot` returned **502** with `data.outcome: "unavailable"`, eight `data.failures` entries all `errorClass: "tls"`, `error.code: DEVICE_UNAVAILABLE`, and `meta.cacheHit: true` — the failure was served from the 2 s failure entry instead of re-attempting eight operations |
+| Recovery and auto-resolve | `PATCH` back to the pinned name at `03:22:41` (`200`); the cycle at `03:23:21–22` succeeded; the alert became `status = resolved` with `resolved_at 03:23:22.496217` and `resolved_by` NULL, i.e. resolved by the system, not a person |
+| Audit | `audit_events` at `03:23:22` holds `alert.auto_resolve / success`, actor `system`, `target_type: device`, `metadata: {"resolvedCount": 1}` |
+| Snapshot after recovery | `GET …/snapshot` returned `200` with `outcome: "success"` and zero failures |
+
+**Observation, alert creation is not an audit event.** The alert row itself is the only record that a critical alert was opened; only the automatic resolve writes an audit event (`alert.auto_resolve`). That matches the implemented design and is reported here rather than papered over, because an operator reading the audit trail alone would not see the outage. Whether creation should also be audited is a product decision that has not been taken.
+
+### 19.3 Retention prune
+
+| Observation | Result |
+|---|---|
+| Baseline | `03:26:24`: 1788 `poll_runs` rows, none older than a day |
+| Aging | `UPDATE` of the 40 newest rows minus two days: 40 rows older than a day, total unchanged at 1788, all still inside the 30-day window |
+| Prune through the settings save | `PUT /api/v1/hub-settings/polling` with `retentionDays: 1` returned `200` carrying `source: "hub"`, `updatedBy: "drill-verify"`, and the unchanged `60000 / 2 / 15000`; within three seconds the 40 aged rows were gone (zero rows older than a day) and the total fell to 1750 — 40 removed, plus two rows written by a cycle already in flight |
+| Prune audit | `audit_events` at `03:26:25` holds `polling.history_pruned / success`, actor `system`, `metadata: {"removedRuns": 40, "retentionDays": 1}` |
+| Live re-arm without a restart | The `api` container logged `Background firewall polling stopped` and then `Background firewall polling started` with `intervalMs: 60000, concurrency: 2, jitterMs: 15000, retentionDays: 1` under the same pid — the save swaps the scheduler in process, and `start()` prunes immediately, so a retention change takes effect without a container recreate |
+| Raised back, nothing to delete | `PUT` with `retentionDays: 30` returned `200`; the prune-event count stayed at 1, because a prune that removes nothing writes no audit event, and `poll_runs` continued to grow (1750 → 1758) with no alert |
+| Final state | `hub_polling_settings` `60000 / 2 / 15000 / 30` with `saved_at` set, `hub_collection_settings` `10000 / 10000 / 2000`, device profile identical to the pre-drill row (`enabled` still true) |
+
+### 19.4 Checks observed on this increment
+
+| Check | Result |
+|---|---|
+| Scope of the change | Documentation only: no route, method, migration, endpoint, or firewall permission added; no firewall write, and no secret read or logged |
+| API tests | `29 test files / 371 tests passed` |
+| API and web typecheck | exit 0 |
+| Production build | exit 0 |
+| Deployment left as found | Device `tls_servername` and origin restored, polling row `60000 / 2 / 15000 / 30`, collection row `10000 / 10000 / 2000`, polling still running on cadence after the drills |
+| Evidence left in place | One `resolved` drill alert and the drill's `audit_events`/`poll_runs` rows are kept rather than deleted, because they are the record this section describes |
+
+### 19.5 Findings and residual gaps
+
+**Finding, backoff is floored by the interval, so two failures cannot demonstrate widening.** On a failure the scheduler sets `nextAttemptAt = now + max(step, intervalMs)` with steps `[30 s, 60 s, 120 s, 300 s]`. At the default 60 s interval the first two retries therefore land at exactly 60 s, and only a third consecutive failure reaches 120 s. The observed spacing was `03:21:16` → `03:22:16`, 60 s, which matches that formula and is *not* evidence of the widening steps. Anyone citing this drill as backoff evidence would be overstating it; the widening sequence remains covered by `poll-scheduler.test.ts` at a 15 s interval only.
+
+**Not verified:** the drills were driven with API calls over the web origin, not by clicking the Hub Settings form or the device form, so the browser form submission remains untested for the cadence save (unchanged from section 18) and for the profile edit; a third consecutive failure and the 300 s ceiling; a prune batch at the 5,000-row bound (40 rows were exercised); the 24 h repeat prune timer (only the prune that runs when the scheduler starts); the timeout, refused-connection, authorization, authentication, rate-limit, and schema failure classes (only `tls` was injected); fleet concurrency above 1 and per-device isolation across two devices (one device is registered); the repair path for a missing or out-of-bounds settings row; and any pfSense CE behaviour.
+
+**Retiring the drill account.** `drill-verify` was left `is_active = false` with 0 `admin_sessions` rows and a stored credential replaced by a value that cannot verify, per the lifecycle settled in DEC-045 and applied to `dec044-verify` in section 18; the retired session cookie then returned `401` on a read. `DELETE FROM admin_users WHERE username = 'drill-verify'` again failed with `ERROR: audit_events are append-only` (6 audit rows), reconfirming section 18's finding on a second account rather than leaving it as a single observation.
+
