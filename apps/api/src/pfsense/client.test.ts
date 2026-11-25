@@ -4,7 +4,7 @@ import {checkServerIdentity} from "node:tls";
 import type {AddressInfo} from "node:net";
 import {Agent,fetch} from "undici";
 import {describe,expect,it,vi} from "vitest";
-import {createPinnedLookup,pfSenseConfigurationOperations,pfSenseOperations,selectTlsCa,validatePfSenseOperationData,type PfSenseOperation} from "./client.js";
+import {createPinnedLookup,pfSenseConfigurationOperations,pfSenseOperations,pfSenseReadPrivilege,pfSenseStatusDetailOperations,selectTlsCa,validatePfSenseOperationData,type PfSenseOperation} from "./client.js";
 import {PfSenseApiError} from "./errors.js";
 
 const testCertificate=readFileSync(new URL("./fixtures/firewall-test-cert.pem",import.meta.url));
@@ -39,12 +39,30 @@ describe("pfSense upstream allowlist",()=>{
 });
 
 describe("pfSense configuration allowlist",()=>{
- it("contains only the approved page-scoped configuration GET operation",()=>{
-  expect(pfSenseConfigurationOperations).toEqual(["aliases"]);
+ it("contains only the approved page-scoped configuration GET operations",()=>{
+  expect(pfSenseConfigurationOperations).toEqual([
+   "aliases","interfaces","rules","natPortForwards","natOutbound","natOneToOne","staticRoutes",
+   "dhcpServers","dhcpAddressPools","dhcpStaticMappings","dnsSettings","dnsHostOverrides","dnsDomainOverrides",
+   "certificates","certificateAuthorities"
+  ]);
  });
 
- it("keeps configuration reads out of the health-poll allowlist",()=>{
+ it("contains only the approved VPN status detail GET operations",()=>{
+  expect(pfSenseStatusDetailOperations).toEqual(["ipsecSas","openvpnServers","openvpnClients","wireguardTunnels","wireguardPeers","restapiVersion"]);
+ });
+
+ it("keeps page-scoped reads out of both the health-poll and configuration allowlists",()=>{
   expect(pfSenseOperations).not.toContain("aliases");
+  expect(pfSenseOperations).not.toContain("ipsecSas");
+  expect(pfSenseConfigurationOperations).not.toContain("ipsecSas");
+  expect(pfSenseStatusDetailOperations).not.toContain("rules");
+ });
+
+ it("derives the REST API privilege name the package uses for a path",()=>{
+  expect(pfSenseReadPrivilege("/api/v2/firewall/aliases")).toBe("api-v2-firewall-aliases-get");
+  expect(pfSenseReadPrivilege("/api/v2/firewall/nat/port_forwards")).toBe("api-v2-firewall-nat-port-forwards-get");
+  expect(pfSenseReadPrivilege("/api/v2/services/dhcp_server/address_pools")).toBe("api-v2-services-dhcp-server-address-pools-get");
+  expect(pfSenseReadPrivilege("/api/v2/status/ipsec/sas")).toBe("api-v2-status-ipsec-sas-get");
  });
 });
 

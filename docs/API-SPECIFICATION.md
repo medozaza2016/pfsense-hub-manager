@@ -130,24 +130,59 @@ Honest absences: the installed REST API package version and CPU architecture are
 
 Compatibility verdicts: `verified` means a release was reported and nothing contradicts the declared edition; `mismatch` means the release/platform string names the other edition; `unknown` means there is not enough evidence. Capability state comes from `poll_runs`, not from this specification.
 
-## Manager configuration-read contract, November 23, 2026
+## Manager page-scoped read contract, November 23, 2026 (DEC-047, DEC-048)
 
-DEC-047 adds page-scoped configuration reads on their own fixed allowlist, separate from the eight polled status operations. The first, and currently only, entry is Aliases:
+On-demand page reads use two fixed namespaces, separate from the eight polled status operations. Both return the same envelope:
 
-`GET /api/v1/devices/:deviceId/configuration/aliases` → `{ data: { deviceId, collectedAt, truncated, aliases[] }, meta: { cacheHit, durationMs } }`
+```json
+{ "data": { "deviceId": "…", "area": "rules", "collectedAt": "…", "count": 12, "truncated": false, "items": [] }, "meta": { "cacheHit": false, "durationMs": 12 } }
+```
 
-| Upstream endpoint | Manager fields retained | Deliberately excluded |
-|---|---|---|
-| `GET /api/v2/firewall/aliases` | `name`, `type`, `descr` (as `description`), `address` (as `entries`) | `id`, `detail`, `tracker`, and every other upstream field |
+- `GET /api/v1/devices/:deviceId/configuration/:area` — **administrator-only** (server boundary; a non-administrator receives `403 ADMINISTRATOR_REQUIRED`).
+- `GET /api/v1/devices/:deviceId/telemetry/:area` — **any authenticated caller**, matching the existing telemetry policy, because these areas report tunnel state or package-version metadata rather than stored configuration.
 
-Manager behavior for this route:
+`items` holds the sanitized records; `dns-settings` and `restapi-version` each return exactly one element because the upstream endpoints document an object. `count` is the number retained and `truncated` marks a withheld tail. Unknown areas have no route and return the manager's `404` without any upstream call.
 
-- The device is resolved from the manager database; there is no caller-supplied URL, path, method, or body. The route is administrator-only at the server boundary. A malformed device id returns `400 INVALID_DEVICE_ID`, unknown or demo devices return `404 DEVICE_NOT_FOUND`, and a disabled device returns `409 DEVICE_DISABLED`.
-- `name` is capped at 31 characters, `description` at 200, each entry at 256, and control characters are replaced with spaces. Entries the firewall reports beyond 200 per alias are withheld and flagged with `entriesTruncated`; aliases beyond 2,000 are withheld and flagged with `truncated`. `entryCount` always reports the firewall's own count.
-- An `address` value that is not a string is ignored rather than coerced. A `type` other than `host`, `network`, or `port` becomes `null`; it is never guessed.
-- A response whose `data` is not an array of objects is rejected as `FIREWALL_INVALID_RESPONSE`; nothing is partially displayed.
-- Upstream refusals are translated to manager-owned codes, all `502` except the timeout: `FIREWALL_PERMISSION_DENIED` (names the `api-v2-firewall-aliases-get` privilege), `FIREWALL_ENDPOINT_UNSUPPORTED` (names the route), `FIREWALL_INVALID_RESPONSE`, and `FIREWALL_UNAVAILABLE` for authentication, TLS, rate-limit, and transport failures; `FIREWALL_TIMEOUT` is `504`. The manager's own `403 ADMINISTRATOR_REQUIRED` stays distinct, so a missing firewall privilege is never mistaken for a manager permission problem. No upstream body, credential, or address is echoed.
-- Results are cached per device for 60 seconds on success and 10 seconds on failure, with single-flight reuse and the same size bounds as the observation cache. The cache is invalidated when the device profile changes.
-- These reads do not write `poll_runs`, so they cannot produce evidence that would mark an operation supported or unsupported, and they are not part of the health snapshot or its metrics.
+### Configuration areas
 
-Runtime status: implemented and unit-tested in the manager, **not yet verified against a firewall**. The `pfsense_hub` account does not currently hold `api-v2-firewall-aliases-get`, so the first live call is expected to return `FIREWALL_PERMISSION_DENIED` until an operator grants exactly that privilege and records the test (AGENTS.md, "Endpoint onboarding and authentication maintenance"). The privilege exists in the pinned OpenAPI export (`docs/API-MATRIX.generated.md`), which is a candidate, not proof of runtime support.
+| Manager area | Upstream endpoint | Fields retained | Deliberately excluded |
+|---|---|---|---|
+| `aliases` | `/api/v2/firewall/aliases` | `name`, `type`, `descr`, `address` | `id`, `detail`, `tracker` |
+| `interfaces` | `/api/v2/interfaces` | `if`, `descr`, `enable`, `typev4`, `ipaddr`, `subnet`, `typev6`, `ipaddrv6`, `mtu`, `media` | `spoofmac`, `adv_dhcp_*`, `dhcprejectfrom` |
+| `rules` | `/api/v2/firewall/rules` | `type`, `interface`, `ipprotocol`, `protocol`, `source`/`source_port`, `destination`/`destination_port`, `descr`, `disabled`, `log`, `floating`, `direction`, `gateway` | `id`, `tracker`, `associated_rule_id`, `created_*`, `updated_*` |
+| `nat-port-forwards` | `/api/v2/firewall/nat/port_forwards` | `interface`, `ipprotocol`, `protocol`, addresses/ports, `target`, `local_port`, `descr`, `disabled`, `natreflection` | `id`, `associated_rule_id`, `created_*`, `updated_*` |
+| `nat-outbound` | `/api/v2/firewall/nat/outbound/mappings` | `interface`, `protocol`, `disabled`, `nonat`, addresses/ports, `target`, `target_subnet`, `nat_port`, `poolopts`, `descr` | `id`, `source_hash_key` |
+| `nat-one-to-one` | `/api/v2/firewall/nat/one_to_one/mappings` | `interface`, `disabled`, `ipprotocol`, `natreflection`, `external`, `source`, `destination`, `descr` | `id` |
+| `static-routes` | `/api/v2/routing/static_routes` | `network`, `gateway`, `descr`, `disabled` | `id` |
+| `dhcp-servers` | `/api/v2/services/dhcp_servers` | `interface`, `enable`, `range_from`, `range_to`, `domain`, `gateway`, `dnsserver`, lease times, `denyunknown`, `staticarp` | `id`, advanced boot/option fields, `numberoptions` |
+| `dhcp-address-pools` | `/api/v2/services/dhcp_server/address_pools` | `parent_id`, `range_from`, `range_to`, `gateway`, `domain` | `id`, advanced options |
+| `dhcp-static-mappings` | `/api/v2/services/dhcp_server/static_mappings` | `parent_id`, `mac`, `ipaddr`, `hostname`, `descr`, `arp_table_static_entry` | `id`, `cid` |
+| `dns-settings` | `/api/v2/services/dns_resolver/settings` | `enable`, `port`, `enablessl`, `tlsport`, `active_interface`, `outgoing_interface`, `dnssec`, `forwarding`, `regdhcp`, `regdhcpstatic`, `regovpnclients`, `strictout` | `custom_options`, `python*`, `sslcertref` |
+| `dns-host-overrides` | `/api/v2/services/dns_resolver/host_overrides` | `host`, `domain`, `ip`, `descr`, `aliases` (count only) | `id`, alias records |
+| `dns-domain-overrides` | `/api/v2/services/dns_resolver/domain_overrides` | `domain`, `ip`, `descr`, `forward_tls_upstream`, `tls_hostname` | `id` |
+| `certificates` | `/api/v2/system/certificates` | `descr`, `type`, `valid_from`, `valid_until`, `valid_days_left` | `crt`, `prv`, `refid`, `caref`, `csr` |
+| `certificate-authorities` | `/api/v2/system/certificate_authorities` | `descr`, `trust` | `crt`, `prv`, `refid`, `caref`, `serial` |
+
+### Telemetry areas
+
+| Manager area | Upstream endpoint | Fields retained | Deliberately excluded |
+|---|---|---|---|
+| `ipsec-sas` | `/api/v2/status/ipsec/sas` | `state`, `version`, host/ID pairs, `encr_alg`+`encr_keysize`, `integ_alg`, `dh_group`, `nat_remote`, `established` (ISO) | SPIs, `con_id`, `uniqueid`, `child_sas` |
+| `openvpn-servers` | `/api/v2/status/openvpn/servers` | `name`, `mode`, `port`, `vpnid`, connection count | `mgmt`, `conns`, `routes` |
+| `openvpn-clients` | `/api/v2/status/openvpn/clients` | `name`, `status`, `state`, `state_detail`, `connect_time`, virtual addresses, remote host/port | `mgmt` |
+| `wireguard-tunnels` | `/api/v2/status/wireguard/tunnels` | `name`, `status`, `listen_port`, `mtu`, transfer/packet counters, `descr`, peer count | `public_key`, peer records |
+| `wireguard-peers` | `/api/v2/status/wireguard/peers` | `tunnel_device`, `endpoint`, `allowed_ips`, `latest_handshake` (ISO), counters, `persistent_keepalive`, `descr` | `public_key`, `preshared_key` |
+| `restapi-version` | `/api/v2/system/restapi/version` | `current_version`, `latest_version`, `latest_version_release_date`, `update_available` | every other upstream field |
+
+### Behavior shared by every area
+
+- The device is resolved from `managed_devices`; there is no caller-supplied URL, path, method, header, or body. Routes are GET only and registered per area, so an unapproved area cannot be reached at all.
+- `400 INVALID_DEVICE_ID`; `404 DEVICE_NOT_FOUND` for unknown and demo records alike; `409 DEVICE_DISABLED`; `409 DEVICE_UNAVAILABLE` if the profile disappears between the check and the client build.
+- Bounds: 2,000 records per area, 200 nested entries, 256-character nested entries, 200-character text, 64-character identifiers. Out-of-range integers become `null`; unknown enum members become `null`; only real JSON booleans are accepted; control characters are replaced. A nested list may be a single string when a release returns a scalar where the schema documents an array.
+- A `data` value that does not match the documented top-level shape raises a shape error and returns `FIREWALL_INVALID_RESPONSE`; nothing is partially displayed. A configuration-shaped body cannot satisfy a status area, and vice versa.
+- Upstream refusals: `502 FIREWALL_PERMISSION_DENIED` (message names the derived privilege), `502 FIREWALL_ENDPOINT_UNSUPPORTED` (message names the route), `502 FIREWALL_INVALID_RESPONSE`, `502 FIREWALL_UNAVAILABLE` for authentication/TLS/rate-limit/transport, `504 FIREWALL_TIMEOUT`. Manager `403 ADMINISTRATOR_REQUIRED` stays distinct so a missing firewall privilege is never mistaken for a manager permission problem.
+- Cache: one `ObservationCache` per namespace and area, 60 s success / 10 s failure, 64 devices, single-flight, invalidated when the device profile changes.
+- These reads do not write `poll_runs`, do not feed capability evidence, metrics, alerting, or retention, and persist nothing.
+
+Runtime status: implemented and unit-tested in the manager. The operator has granted the 21 GET privileges to `pfsense_hub`, so a live call should now be answered rather than refused. **Live response verification is still pending**: the exact privilege names as enforced by the installed package, the response schemas, and CE behaviour have not been recorded. Until they are, a page that fails names the privilege or route to check and never claims the data is verified. `INTEGRATION-STATUS.md` carries the per-area checklist. One immediate benefit is that the Compatibility page can now report the installed REST API package version, which previously had to be shown as unknown.
+

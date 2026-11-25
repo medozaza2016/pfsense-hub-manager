@@ -36,7 +36,35 @@ These eight GET calls returned HTTP 200 against the Netgate 2100 running pfSense
 | GET | `/api/v2/firewall/states` | Verified | Implemented | Not exposed | Runtime shape tests |
 | GET | `/api/v2/firewall/states/size` | Verified | Implemented | Not exposed | Runtime shape tests |
 
-## Generate the full inventory
+## Page-scoped read operations (granted, not runtime-verified)
+
+DEC-047 and DEC-048 add a separate, fixed, GET-only allowlist for on-demand page reads. The operator granted all 21 privileges to `pfsense_hub`; **no runtime response has been verified yet**, so "Device" reads *Granted* and the manager tests use constructed fixtures. These operations are not polled, do not write `poll_runs`, and do not count as capability evidence.
+
+| Method | Path | Device | Backend | Frontend | Automated tests |
+|---|---|---|---|---|---|
+| GET | `/api/v2/firewall/aliases` | Granted | Implemented | Aliases page | Sanitizer + route |
+| GET | `/api/v2/interfaces` | Granted | Implemented | Interfaces configuration | Sanitizer + route |
+| GET | `/api/v2/firewall/rules` | Granted | Implemented | Firewall Rules page | Sanitizer + route |
+| GET | `/api/v2/firewall/nat/port_forwards` | Granted | Implemented | NAT page | Sanitizer + route |
+| GET | `/api/v2/firewall/nat/outbound/mappings` | Granted | Implemented | NAT page | Sanitizer + route |
+| GET | `/api/v2/firewall/nat/one_to_one/mappings` | Granted | Implemented | NAT page | Sanitizer + route |
+| GET | `/api/v2/routing/static_routes` | Granted | Implemented | Routing page | Sanitizer + route |
+| GET | `/api/v2/services/dhcp_servers` | Granted | Implemented | DHCP page | Sanitizer + route |
+| GET | `/api/v2/services/dhcp_server/address_pools` | Granted | Implemented | DHCP page | Sanitizer + route |
+| GET | `/api/v2/services/dhcp_server/static_mappings` | Granted | Implemented | DHCP page | Sanitizer + route |
+| GET | `/api/v2/services/dns_resolver/settings` | Granted | Implemented | DNS page | Sanitizer + route |
+| GET | `/api/v2/services/dns_resolver/host_overrides` | Granted | Implemented | DNS page | Sanitizer + route |
+| GET | `/api/v2/services/dns_resolver/domain_overrides` | Granted | Implemented | DNS page | Sanitizer + route |
+| GET | `/api/v2/system/certificates` | Granted | Implemented | Certificates page | Sanitizer + route |
+| GET | `/api/v2/system/certificate_authorities` | Granted | Implemented | Certificates page | Sanitizer + route |
+| GET | `/api/v2/status/ipsec/sas` | Granted | Implemented | VPN page | Sanitizer + route |
+| GET | `/api/v2/status/openvpn/servers` | Granted | Implemented | VPN page | Sanitizer + route |
+| GET | `/api/v2/status/openvpn/clients` | Granted | Implemented | VPN page | Sanitizer + route |
+| GET | `/api/v2/status/wireguard/tunnels` | Granted | Implemented | VPN page | Sanitizer + route |
+| GET | `/api/v2/status/wireguard/peers` | Granted | Implemented | VPN page | Sanitizer + route |
+| GET | `/api/v2/system/restapi/version` | Granted | Implemented | Compatibility page | Sanitizer + route |
+
+Write methods on these paths remain prohibited and unprivileged. See [INTEGRATION-STATUS.md](INTEGRATION-STATUS.md) for the verification checklist that must be completed before any row changes from *Granted* to *Verified*.
 With the original JSON already committed at `docs/reference/pfsense-openapi.json`, run:
 
 ```bash

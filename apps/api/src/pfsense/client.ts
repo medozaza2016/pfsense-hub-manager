@@ -15,7 +15,7 @@ const routes={
 export type PfSenseOperation=keyof typeof routes;
 
 /**
- * Page-scoped configuration reads (DEC-047).
+ * Page-scoped configuration reads (DEC-047, DEC-048).
  *
  * This is a second fixed allowlist, deliberately separate from the polled status
  * operations: a configuration page must never join the health-collection cycle,
@@ -23,9 +23,38 @@ export type PfSenseOperation=keyof typeof routes;
  * Adding an entry here is a product and security decision, not configuration.
  */
 const configurationRoutes={
- aliases:"/api/v2/firewall/aliases"
+ aliases:"/api/v2/firewall/aliases",
+ interfaces:"/api/v2/interfaces",
+ rules:"/api/v2/firewall/rules",
+ natPortForwards:"/api/v2/firewall/nat/port_forwards",
+ natOutbound:"/api/v2/firewall/nat/outbound/mappings",
+ natOneToOne:"/api/v2/firewall/nat/one_to_one/mappings",
+ staticRoutes:"/api/v2/routing/static_routes",
+ dhcpServers:"/api/v2/services/dhcp_servers",
+ dhcpAddressPools:"/api/v2/services/dhcp_server/address_pools",
+ dhcpStaticMappings:"/api/v2/services/dhcp_server/static_mappings",
+ dnsSettings:"/api/v2/services/dns_resolver/settings",
+ dnsHostOverrides:"/api/v2/services/dns_resolver/host_overrides",
+ dnsDomainOverrides:"/api/v2/services/dns_resolver/domain_overrides",
+ certificates:"/api/v2/system/certificates",
+ certificateAuthorities:"/api/v2/system/certificate_authorities"
 } as const;
 export type PfSenseConfigurationOperation=keyof typeof configurationRoutes;
+
+/**
+ * Page-scoped status reads (DEC-048): VPN tunnel state plus the installed REST API
+ * package version. These are not configuration, so they are a third fixed allowlist
+ * with telemetry authorization; they are still read on demand and never polled.
+ */
+const statusDetailRoutes={
+ ipsecSas:"/api/v2/status/ipsec/sas",
+ openvpnServers:"/api/v2/status/openvpn/servers",
+ openvpnClients:"/api/v2/status/openvpn/clients",
+ wireguardTunnels:"/api/v2/status/wireguard/tunnels",
+ wireguardPeers:"/api/v2/status/wireguard/peers",
+ restapiVersion:"/api/v2/system/restapi/version"
+} as const;
+export type PfSenseStatusDetailOperation=keyof typeof statusDetailRoutes;
 
 export type PfSenseTlsTrust =
  | { mode: "system"; servername?: string | null }
@@ -132,10 +161,37 @@ export class PfSenseClient{
  async getConfiguration(operation:PfSenseConfigurationOperation){
   return this.send(configurationRoutes[operation]);
  }
+ /**
+  * Approved page-scoped VPN status operation. Sanitized by `vpn-status.ts`.
+  * Kept separate from `getConfiguration` because it is status, not configuration,
+  * and carries telemetry authorization rather than administrator-only access.
+  */
+ async getStatusDetail(operation:PfSenseStatusDetailOperation){
+  return this.send(statusDetailRoutes[operation]);
+ }
  async close(){await (await this.dispatcher).close();}
 }
 export const pfSenseOperations=Object.keys(routes) as PfSenseOperation[];
 export const pfSenseConfigurationOperations=Object.keys(configurationRoutes) as PfSenseConfigurationOperation[];
+export const pfSenseStatusDetailOperations=Object.keys(statusDetailRoutes) as PfSenseStatusDetailOperation[];
+
+/** The fixed upstream path for an approved configuration operation. */
+export function pfSenseConfigurationRoute(operation:PfSenseConfigurationOperation):string{
+ return configurationRoutes[operation];
+}
+/** The fixed upstream path for an approved VPN status operation. */
+export function pfSenseStatusDetailRoute(operation:PfSenseStatusDetailOperation):string{
+ return statusDetailRoutes[operation];
+}
+/**
+ * The REST API privilege that gates a fixed upstream path, derived with the same
+ * rule the package uses in its permission inventory: `/api/v2/firewall/rules`
+ * becomes `api-v2-firewall-rules-get`. This only builds an operator-facing message;
+ * it never grants anything. A wrong guess produces a 403, not access.
+ */
+export function pfSenseReadPrivilege(path:string):string{
+ return path.replace(/^\//,"").replace(/[/_]/g,"-")+"-get";
+}
 
 /**
  * Validate the minimum response contract for each approved read-only endpoint.

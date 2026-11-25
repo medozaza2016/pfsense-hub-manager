@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { DataTable, Feedback, ListToolbar } from "./components/ui";
+import { DataTable, Feedback, ListToolbar, type DataColumn } from "./components/ui";
 import "./components/ui.css";
 import { useToast } from "./components/ToastProvider";
 import { SystemRecoveryPage } from "./pages/system-recovery";
@@ -15,7 +15,30 @@ import {
   type InterfaceView,
   type ServiceView
 } from "./lib/site-snapshot";
-import { useDeviceAliases, type AliasView } from "./lib/device-configuration";
+import {
+  useConfigurationRead,
+  useTelemetryRead,
+  type PageReadState,
+  type AliasView,
+  type CertificateAuthorityView,
+  type CertificateView,
+  type DhcpAddressPoolView,
+  type DhcpServerView,
+  type DhcpStaticMappingView,
+  type DnsDomainOverrideView,
+  type DnsHostOverrideView,
+  type InterfaceConfigView,
+  type IpsecSaView,
+  type NatOneToOneView,
+  type NatOutboundView,
+  type NatPortForwardView,
+  type OpenVpnClientView,
+  type OpenVpnServerView,
+  type RuleView,
+  type StaticRouteView,
+  type WireGuardPeerView,
+  type WireGuardTunnelView
+} from "./lib/device-configuration";
 
 type IconName = "grid" | "sites" | "network" | "bell" | "settings" | "monitor" | "layers" | "shield" | "list" | "route" | "server" | "globe" | "key" | "file" | "plus" | "search" | "refresh" | "chevron" | "menu" | "close" | "clock" | "cpu" | "database" | "harddrive" | "check" | "alert" | "wifi" | "building" | "activity" | "more" | "external";
 function Icon({name,size=18}:{name:IconName;size?:number}) {
@@ -527,17 +550,20 @@ function Monitoring({device}:{device:Device|null}){
 }
 function Compatibility({device}:{device:Device|null}){
  const live=useSiteSnapshot(device?.id??null,Boolean(device)&&!device?.isDemo);
+ const packageVersion=useTelemetryRead("restapi-version",device?.id??null,Boolean(device)&&!device?.isDemo&&device?.enabled!==false);
+ const restApi=packageVersion.data?.items[0]??null;
  const snapshot=live.snapshot;
  const compatibility=snapshot?.compatibility??null;
  const capabilities=snapshot?.capabilities??[];
  const verdictLabel=compatibility?compatibility.verdict==="verified"?"Verified":compatibility.verdict==="mismatch"?"Edition mismatch":"Not verified":"Not verified";
- return <><div className="page-heading"><div><h1>Compatibility</h1><p>Firewall release, platform, and per-endpoint capability evidence</p></div><button className="secondary-button" onClick={live.refresh} disabled={!device||device.isDemo||live.loading}>{live.loading?"Checking…":"Check again"}</button></div>
+ return <><div className="page-heading"><div><h1>Compatibility</h1><p>Firewall release, platform, and per-endpoint capability evidence</p></div><button className="secondary-button" onClick={()=>{live.refresh();packageVersion.refresh();}} disabled={!device||device.isDemo||live.loading||packageVersion.loading}>{live.loading||packageVersion.loading?"Checking…":"Check again"}</button></div>
   {device?.isDemo&&<Feedback tone="warning">Demo records have no firewall evidence. Register a real firewall to inspect compatibility.</Feedback>}
   {live.error&&<Feedback tone="error">{live.error}</Feedback>}
+  {packageVersion.error&&<Feedback tone={readTone(packageVersion.errorCode)}>{packageVersion.error}</Feedback>}
   {compatibility?.verdict==="mismatch"&&<Feedback tone="error">The site profile declares pfSense {compatibility.declaredEdition.toUpperCase()}, but this firewall reports {compatibility.reportedEdition?.toUpperCase()??"another edition"} ({compatibility.release??"release unknown"}). Correct the profile in Site Settings; the manager does not change firewall configuration.</Feedback>}
-  <Panel title="Device compatibility"><dl className="detail-list"><div><dt>Device</dt><dd>{device?.name??"Selected site"}</dd></div><div><dt>Declared edition</dt><dd>pfSense {compatibility?compatibility.declaredEdition.toUpperCase():device?.edition??"Unknown"}</dd></div><div><dt>Reported edition</dt><dd>{compatibility?.reportedEdition?"pfSense "+compatibility.reportedEdition.toUpperCase():"Not conclusive"}</dd></div><div><dt>Installed release</dt><dd>{compatibility?.release??"Not reported"}</dd></div><div><dt>Reported platform</dt><dd>{compatibility?.platform??"Not reported"}</dd></div><div><dt>REST API package version</dt><dd>Not exposed by the eight approved endpoints</dd></div><div><dt>CPU architecture</dt><dd>Not exposed by the eight approved endpoints</dd></div><div><dt>Verdict</dt><dd>{verdictLabel}</dd></div><div><dt>Last checked</dt><dd>{compatibility?.checkedAt?new Date(compatibility.checkedAt).toLocaleString():"Not checked"}</dd></div></dl></Panel>
+  <Panel title="Device compatibility"><dl className="detail-list"><div><dt>Device</dt><dd>{device?.name??"Selected site"}</dd></div><div><dt>Declared edition</dt><dd>pfSense {compatibility?compatibility.declaredEdition.toUpperCase():device?.edition??"Unknown"}</dd></div><div><dt>Reported edition</dt><dd>{compatibility?.reportedEdition?"pfSense "+compatibility.reportedEdition.toUpperCase():"Not conclusive"}</dd></div><div><dt>Installed release</dt><dd>{compatibility?.release??"Not reported"}</dd></div><div><dt>Reported platform</dt><dd>{compatibility?.platform??"Not reported"}</dd></div><div><dt>REST API package version</dt><dd>{restApi?.currentVersion??"Not reported"}{restApi?.updateAvailable&&restApi.latestVersion?" (update "+restApi.latestVersion+" available)":""}</dd></div><div><dt>CPU architecture</dt><dd>Not exposed by any approved endpoint</dd></div><div><dt>Verdict</dt><dd>{verdictLabel}</dd></div><div><dt>Last checked</dt><dd>{compatibility?.checkedAt?new Date(compatibility.checkedAt).toLocaleString():"Not checked"}</dd></div></dl></Panel>
   <Panel title="Capability status" action={<span className="subtle">{capabilities.filter(item=>item.verification==="verified").length} of 8 verified</span>}><div className="capability-list">{capabilities.length===0?<div><span>No device-derived capability evidence yet</span><Status state="warning" label="Unverified"/></div>:capabilities.map(item=><div key={item.key}><span>{item.label} <code>{item.endpoint}</code></span><Status state={item.verification==="verified"?"online":item.verification==="failed"?"offline":"warning"} label={item.verification==="verified"?"Supported":item.verification==="failed"?"Failed"+(item.errorClass?": "+item.errorClass:""):"Unverified"}/></div>)}</div></Panel>
-  <p className="preview-footnote">Capability state comes from this device's own recorded poll outcomes, not from the upstream OpenAPI inventory. A transport, TLS, or schema failure is reported as failed with an unknown capability rather than as unsupported, and no endpoint is enabled by appearing in the specification.</p>
+  <p className="preview-footnote">Capability state comes from this device's own recorded poll outcomes, not from the upstream OpenAPI inventory. A transport, TLS, or schema failure is reported as failed with an unknown capability rather than as unsupported, and no endpoint is enabled by appearing in the specification. The REST API package version is a separate on-demand read of <code>/api/v2/system/restapi/version</code>; it is reported as unknown if that read fails, and the notice above names what to check.</p>
  </>;
 }
 type InterfaceRow=InterfaceView&{key:string};
@@ -546,12 +572,17 @@ type ServiceRow=ServiceView&{key:string};
 function InterfacesLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
  const live=useSiteSnapshot(device.id,device.enabled!==false);
  const rows:InterfaceRow[]=(live.snapshot?.interfaces??[]).map((row,index)=>({...row,key:String(index)}));
+ const config=useConfigurationRead("interfaces",device.id,device.enabled!==false);
+ const configRows=withReadKeys<InterfaceConfigView>(config.data?.items??[]);
+ const configColumns=[{id:"name",header:"Interface",sortable:true,value:(row:InterfaceConfigView&{key:string})=>row.name??"",accessor:(row:InterfaceConfigView&{key:string})=><strong>{row.name??"—"}</strong>},{id:"description",header:"Description",sortable:true,value:(row:InterfaceConfigView&{key:string})=>row.description??"",accessor:(row:InterfaceConfigView&{key:string})=>row.description??"—"},{id:"ipv4Type",header:"IPv4 type",sortable:true,value:(row:InterfaceConfigView&{key:string})=>row.ipv4Type??"",accessor:(row:InterfaceConfigView&{key:string})=>row.ipv4Type??"—"},{id:"ipv4",header:"IPv4 address",value:(row:InterfaceConfigView&{key:string})=>row.ipv4Address??"",accessor:(row:InterfaceConfigView&{key:string})=>row.ipv4Address?<code>{row.ipv4Address+(row.ipv4Subnet!==null?"/"+row.ipv4Subnet:"")}</code>:"—"},{id:"ipv6Type",header:"IPv6 type",value:(row:InterfaceConfigView&{key:string})=>row.ipv6Type??"",accessor:(row:InterfaceConfigView&{key:string})=>row.ipv6Type??"—"},{id:"ipv6",header:"IPv6 address",value:(row:InterfaceConfigView&{key:string})=>row.ipv6Address??"",accessor:(row:InterfaceConfigView&{key:string})=>row.ipv6Address?<code>{row.ipv6Address}</code>:"—"},{id:"mtu",header:"MTU",sortable:true,value:(row:InterfaceConfigView&{key:string})=>row.mtu??0,accessor:(row:InterfaceConfigView&{key:string})=>row.mtu===null?"—":String(row.mtu)},{id:"enabled",header:"Configured",value:(row:InterfaceConfigView&{key:string})=>row.enabled===null?"":row.enabled?"enabled":"disabled",accessor:(row:InterfaceConfigView&{key:string})=><Status state={row.enabled===null?"unknown":row.enabled?"online":"unknown"} label={row.enabled===null?"Unknown":row.enabled?"Enabled":"Disabled"}/>}];
  const columns=[{id:"name",header:"Interface",sortable:true,value:(row:InterfaceRow)=>row.name??"",accessor:(row:InterfaceRow)=><strong>{row.name??"—"}</strong>},{id:"description",header:"Description",sortable:true,value:(row:InterfaceRow)=>row.description??"",accessor:(row:InterfaceRow)=>row.description??"—"},{id:"address",header:"IPv4 address",sortable:true,value:(row:InterfaceRow)=>row.ipv4??"",accessor:(row:InterfaceRow)=>row.ipv4?(row.ipv4+(row.subnet?"/"+row.subnet:"")):"—"},{id:"ipv6",header:"IPv6 address",value:(row:InterfaceRow)=>row.ipv6??"",accessor:(row:InterfaceRow)=>row.ipv6??"—"},{id:"mtu",header:"MTU",sortable:true,value:(row:InterfaceRow)=>row.mtu??0,accessor:(row:InterfaceRow)=>row.mtu===null?"—":String(row.mtu)},{id:"status",header:"Link",sortable:true,value:(row:InterfaceRow)=>row.status??"",accessor:(row:InterfaceRow)=><Status state={row.enabled===false?"unknown":row.status?.toLowerCase()==="up"?"online":"offline"} label={row.enabled===false?"Disabled":row.status??"Unknown"}/>}];
- return <><div className="page-heading"><div><h1>Interfaces</h1><p>Interface addressing and link state reported by this firewall</p></div><button className="secondary-button" onClick={live.refresh} disabled={live.loading}>{live.loading?"Refreshing…":"Refresh"}</button></div>
+ return <><div className="page-heading"><div><h1>Interfaces</h1><p>Interface addressing and link state reported by this firewall</p></div><button className="secondary-button" onClick={()=>{live.refresh();config.refresh();}} disabled={live.loading||config.loading}>{live.loading||config.loading?"Refreshing…":"Refresh"}</button></div>
   {live.error&&<Feedback tone="error">{live.error}</Feedback>}
+  <ReadNotices states={[config]} device={device} what="this site's interface configuration"/>
   <ListToolbar search={query} onSearch={setQuery} placeholder="Search interfaces"/>
   <Panel title="Interfaces" action={<span className="subtle">{rows.length} reported</span>}><DataTable rows={rows} columns={columns} getRowId={row=>row.key} searchableText={row=>[row.name??"",row.description??"",row.ipv4??"",row.ipv6??"",row.status??""].join(" ")} search={query} loading={live.loading} emptyTitle="No interfaces reported" emptyDescription="The firewall did not return interface records in this collection." pageSize={25}/></Panel>
-  <p className="preview-footnote">Interface MAC addresses, hardware driver names, and packet or byte counters are deliberately excluded. Only the fields listed above are read from this firewall.</p>
+  <ReadPanel title="Interface configuration" state={config} rows={configRows} columns={configColumns} search={query} searchableText={row=>[row.name??"",row.description??"",row.ipv4Address??"",row.ipv6Address??"",row.ipv4Type??""].join(" ")} emptyTitle="No interface configuration reported" emptyDescription="This firewall returned no interface configuration records in this read." disabled={device.enabled===false}/>
+  <p className="preview-footnote">Interface MAC addresses, hardware driver names, DHCP advanced options, and packet or byte counters are deliberately excluded. Link state comes from the health sample; the configuration table is a separate on-demand read.</p>
  </>;
 }
 function GatewaysLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
@@ -584,29 +615,224 @@ function aliasContent(row:AliasRow):string{
  if(shown.length===0)return hidden>0?"+"+hidden+" more":"—";
  return hidden>0?shown+" +"+hidden+" more":shown;
 }
+function withReadKeys<T>(items:T[]):Array<T&{key:string}>{return items.map((item,index)=>({...item,key:String(index)}));}
+function readTone(code:string|null):"warning"|"error"{return code==="FIREWALL_PERMISSION_DENIED"||code==="FIREWALL_ENDPOINT_UNSUPPORTED"?"warning":"error";}
+function portLabel(address:string|null,port:string|null):string{const base=address??"—";return port?base+":"+port:base;}
+function booleanLabel(value:boolean|null):string{return value===null?"Unknown":value?"Yes":"No";}
+function bytesLabel(value:number|null):string{return value===null?"—":formatNumber(value)+" B";}
+function ReadNotices({states,device,what}:{states:Array<PageReadState<unknown>>;device:Device;what:string}){
+ if(device.enabled===false)return <Feedback tone="warning">Polling is disabled for this site. Enable it in Site Settings before reading {what}.</Feedback>;
+ const seen=new Set<string>();
+ const messages:Array<{text:string;code:string|null}>=[];
+ for(const state of states){if(!state.error||seen.has(state.error))continue;seen.add(state.error);messages.push({text:state.error,code:state.errorCode});}
+ return <>{messages.map((message,index)=><Feedback key={index} tone={readTone(message.code)}>{message.text}</Feedback>)}</>;
+}
+function ReadPanel<R extends {key:string}>({title,state,rows,columns,search,searchableText,emptyTitle,emptyDescription,disabled,disabledTitle="Configuration read unavailable"}:{title:string;state:PageReadState<unknown>;rows:R[];columns:DataColumn<R>[];search:string;searchableText:(row:R)=>string;emptyTitle:string;emptyDescription:string;disabled:boolean;disabledTitle?:string}){
+ return <Panel title={title} action={<span className="subtle">{state.data?state.data.count+" reported"+(state.data.truncated?" (list truncated)":""):""}</span>}>
+  <DataTable rows={rows} columns={columns} getRowId={row=>row.key} searchableText={searchableText} search={search} loading={state.loading} emptyTitle={disabled?disabledTitle:emptyTitle} emptyDescription={disabled?"Polling is disabled for this site, so the manager did not read this area.":emptyDescription} pageSize={25}/>
+ </Panel>;
+}
 function AliasesLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
- const live=useDeviceAliases(device.id,device.enabled!==false);
- const collection=live.data;
- const rows:AliasRow[]=(collection?.aliases??[]).map((row,index)=>({...row,key:String(index)}));
+ const live=useConfigurationRead("aliases",device.id,device.enabled!==false);
+ const rows=withReadKeys<AliasView>(live.data?.items??[]);
  const columns=[{id:"name",header:"Name",sortable:true,value:(row:AliasRow)=>row.name??"",accessor:(row:AliasRow)=><strong>{row.name??"—"}</strong>},{id:"type",header:"Type",sortable:true,value:(row:AliasRow)=>row.type??"",accessor:(row:AliasRow)=>aliasTypeLabel(row.type)},{id:"description",header:"Description",value:(row:AliasRow)=>row.description??"",accessor:(row:AliasRow)=>row.description??"—"},{id:"entries",header:"Entries",sortable:true,value:(row:AliasRow)=>row.entryCount,accessor:(row:AliasRow)=><span title={row.entries.join(", ")}>{row.entryCount}{row.entriesTruncated?" ("+row.entries.length+" shown)":""}</span>},{id:"content",header:"Content",value:(row:AliasRow)=>row.entries.join(" "),accessor:(row:AliasRow)=><code title={row.entries.join(", ")}>{aliasContent(row)}</code>}];
- const guidance=live.errorCode==="FIREWALL_PERMISSION_DENIED"||live.errorCode==="FIREWALL_ENDPOINT_UNSUPPORTED"?"warning":"error";
  return <><div className="page-heading"><div><h1>Aliases</h1><p>Address and port aliases reported by this firewall</p></div><button className="secondary-button" onClick={live.refresh} disabled={live.loading}>{live.loading?"Refreshing…":"Refresh"}</button></div>
-  {device.enabled===false&&<Feedback tone="warning">Polling is disabled for this site. Enable it in Site Settings before reading firewall configuration.</Feedback>}
-  {live.error&&<Feedback tone={guidance}>{live.error}</Feedback>}
-  {!live.error&&live.loading&&!collection&&<Feedback tone="info">Reading firewall aliases through the approved read-only API…</Feedback>}
+  <ReadNotices states={[live]} device={device} what="this site's aliases"/>
   <ListToolbar search={query} onSearch={setQuery} placeholder="Search aliases"/>
-  <Panel title="Aliases" action={<span className="subtle">{rows.length} reported{collection?.truncated?" (list truncated)":""}</span>}><DataTable rows={rows} columns={columns} getRowId={row=>row.key} searchableText={row=>[row.name??"",row.type??"",row.description??"",row.entries.join(" ")].join(" ")} search={query} loading={live.loading} emptyTitle={device.enabled===false?"Configuration read unavailable":"No aliases reported"} emptyDescription={device.enabled===false?"Polling is disabled for this site, so the manager did not read its aliases.":"This firewall returned no alias records in this read."} pageSize={25}/></Panel>
+  <ReadPanel title="Aliases" state={live} rows={rows} columns={columns} search={query} searchableText={row=>[row.name??"",row.type??"",row.description??"",row.entries.join(" ")].join(" ")} emptyTitle="No aliases reported" emptyDescription="This firewall returned no alias records in this read." disabled={device.enabled===false}/>
   <p className="preview-footnote">Alias entries are read from this firewall. The manager keeps at most 2,000 aliases and 200 entries per alias, marks anything withheld, and persists none of it. Creating, editing, or deleting aliases is not available because it would change firewall configuration.</p>
+ </>;
+}
+type RuleRow=RuleView&{key:string};
+
+type PortForwardRow=NatPortForwardView&{key:string};
+type OutboundNatRow=NatOutboundView&{key:string};
+type OneToOneNatRow=NatOneToOneView&{key:string};
+function natState(disabled:boolean|null){return <Status state={disabled===null?"unknown":disabled?"unknown":"online"} label={disabled===null?"Unknown":disabled?"Disabled":"Active"}/>;}
+function NatLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
+ const enabled=device.enabled!==false;
+ const forwards=useConfigurationRead("nat-port-forwards",device.id,enabled);
+ const outbound=useConfigurationRead("nat-outbound",device.id,enabled);
+ const oneToOne=useConfigurationRead("nat-one-to-one",device.id,enabled);
+ const forwardRows=withReadKeys<NatPortForwardView>(forwards.data?.items??[]);
+ const outboundRows=withReadKeys<NatOutboundView>(outbound.data?.items??[]);
+ const oneToOneRows=withReadKeys<NatOneToOneView>(oneToOne.data?.items??[]);
+ const forwardColumns=[{id:"interface",header:"Interface",sortable:true,value:(row:PortForwardRow)=>row.interface??"",accessor:(row:PortForwardRow)=><strong>{row.interface??"—"}</strong>},{id:"protocol",header:"Protocol",sortable:true,value:(row:PortForwardRow)=>row.protocol??"",accessor:(row:PortForwardRow)=>row.protocol??"—"},{id:"destination",header:"External",sortable:true,value:(row:PortForwardRow)=>portLabel(row.destination,row.destinationPort),accessor:(row:PortForwardRow)=><code>{portLabel(row.destination,row.destinationPort)}</code>},{id:"target",header:"Internal",sortable:true,value:(row:PortForwardRow)=>portLabel(row.target,row.localPort),accessor:(row:PortForwardRow)=><code>{portLabel(row.target,row.localPort)}</code>},{id:"reflection",header:"Reflection",value:(row:PortForwardRow)=>row.natReflection??"",accessor:(row:PortForwardRow)=>row.natReflection??"—"},{id:"description",header:"Description",value:(row:PortForwardRow)=>row.description??"",accessor:(row:PortForwardRow)=>row.description??"—"},{id:"state",header:"State",sortable:true,value:(row:PortForwardRow)=>row.disabled===null?"":row.disabled?"disabled":"active",accessor:(row:PortForwardRow)=>natState(row.disabled)}];
+ const outboundColumns=[{id:"interface",header:"Interface",sortable:true,value:(row:OutboundNatRow)=>row.interface??"",accessor:(row:OutboundNatRow)=><strong>{row.interface??"—"}</strong>},{id:"protocol",header:"Protocol",sortable:true,value:(row:OutboundNatRow)=>row.protocol??"",accessor:(row:OutboundNatRow)=>row.protocol??"—"},{id:"source",header:"Source",sortable:true,value:(row:OutboundNatRow)=>portLabel(row.source,row.sourcePort),accessor:(row:OutboundNatRow)=><code>{portLabel(row.source,row.sourcePort)}</code>},{id:"target",header:"Translation",sortable:true,value:(row:OutboundNatRow)=>portLabel(row.target,row.natPort),accessor:(row:OutboundNatRow)=><code>{portLabel(row.target,row.natPort)}{row.targetSubnet!==null?"/"+row.targetSubnet:""}</code>},{id:"pool",header:"Pool",value:(row:OutboundNatRow)=>row.poolOptions??"",accessor:(row:OutboundNatRow)=>row.poolOptions??"—"},{id:"description",header:"Description",value:(row:OutboundNatRow)=>row.description??"",accessor:(row:OutboundNatRow)=><div className="alert-cell"><strong>{row.description??"—"}</strong><small>{row.noNat?"No NAT":"NAT applied"}</small></div>},{id:"state",header:"State",sortable:true,value:(row:OutboundNatRow)=>row.disabled===null?"":row.disabled?"disabled":"active",accessor:(row:OutboundNatRow)=>natState(row.disabled)}];
+
+ const oneToOneColumns=[{id:"interface",header:"Interface",sortable:true,value:(row:OneToOneNatRow)=>row.interface??"",accessor:(row:OneToOneNatRow)=><strong>{row.interface??"—"}</strong>},{id:"external",header:"External",sortable:true,value:(row:OneToOneNatRow)=>row.external??"",accessor:(row:OneToOneNatRow)=><code>{row.external??"—"}</code>},{id:"source",header:"Source",sortable:true,value:(row:OneToOneNatRow)=>row.source??"",accessor:(row:OneToOneNatRow)=><code>{row.source??"—"}</code>},{id:"destination",header:"Destination",sortable:true,value:(row:OneToOneNatRow)=>row.destination??"",accessor:(row:OneToOneNatRow)=><code>{row.destination??"—"}</code>},{id:"description",header:"Description",value:(row:OneToOneNatRow)=>row.description??"",accessor:(row:OneToOneNatRow)=>row.description??"—"},{id:"state",header:"State",sortable:true,value:(row:OneToOneNatRow)=>row.disabled===null?"":row.disabled?"disabled":"active",accessor:(row:OneToOneNatRow)=>natState(row.disabled)}];
+ const refresh=()=>{forwards.refresh();outbound.refresh();oneToOne.refresh();};
+ return <><div className="page-heading"><div><h1>NAT</h1><p>Port forwarding and NAT mappings reported by this firewall</p></div><button className="secondary-button" onClick={refresh} disabled={forwards.loading||outbound.loading||oneToOne.loading}>{forwards.loading||outbound.loading||oneToOne.loading?"Refreshing…":"Refresh"}</button></div>
+  <ReadNotices states={[forwards,outbound,oneToOne]} device={device} what="this site's NAT configuration"/>
+  <ListToolbar search={query} onSearch={setQuery} placeholder="Search NAT mappings"/>
+  <ReadPanel title="Port forwards" state={forwards} rows={forwardRows} columns={forwardColumns} search={query} searchableText={row=>[row.interface??"",row.protocol??"",row.destination??"",row.destinationPort??"",row.target??"",row.localPort??"",row.description??""].join(" ")} emptyTitle="No port forwards reported" emptyDescription="This firewall returned no port forward records in this read." disabled={device.enabled===false}/>
+  <ReadPanel title="Outbound NAT" state={outbound} rows={outboundRows} columns={outboundColumns} search={query} searchableText={row=>[row.interface??"",row.protocol??"",row.source??"",row.target??"",row.description??""].join(" ")} emptyTitle="No outbound NAT mappings reported" emptyDescription="This firewall returned no outbound NAT records in this read." disabled={device.enabled===false}/>
+  <ReadPanel title="1:1 NAT" state={oneToOne} rows={oneToOneRows} columns={oneToOneColumns} search={query} searchableText={row=>[row.interface??"",row.external??"",row.source??"",row.destination??"",row.description??""].join(" ")} emptyTitle="No 1:1 NAT mappings reported" emptyDescription="This firewall returned no 1:1 NAT records in this read." disabled={device.enabled===false}/>
+  <p className="preview-footnote">Each NAT mode is a separate approved read. Disabled mappings stay visible and are labelled, because hiding them would misrepresent the firewall. Nothing on this page creates, edits, or applies a mapping.</p>
+ </>;
+}
+function RulesLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
+ const live=useConfigurationRead("rules",device.id,device.enabled!==false);
+ const rows=withReadKeys<RuleView>(live.data?.items??[]);
+ const columns=[{id:"action",header:"Action",sortable:true,value:(row:RuleRow)=>row.action??"",accessor:(row:RuleRow)=><Status state={row.action==="pass"?"online":row.action==="block"?"offline":row.action==="reject"?"warning":"unknown"} label={row.action??"Unknown"}/>},{id:"interface",header:"Interface",sortable:true,value:(row:RuleRow)=>row.interfaces.join(","),accessor:(row:RuleRow)=>row.interfaces.length>0?row.interfaces.join(", "):"—"},{id:"ipprotocol",header:"IP version",sortable:true,value:(row:RuleRow)=>row.ipProtocol??"",accessor:(row:RuleRow)=>row.ipProtocol==="inet46"?"IPv4+IPv6":row.ipProtocol==="inet6"?"IPv6":row.ipProtocol==="inet"?"IPv4":"—"},{id:"protocol",header:"Protocol",sortable:true,value:(row:RuleRow)=>row.protocol??"",accessor:(row:RuleRow)=>row.protocol??"—"},{id:"source",header:"Source",sortable:true,value:(row:RuleRow)=>portLabel(row.source,row.sourcePort),accessor:(row:RuleRow)=><code>{portLabel(row.source,row.sourcePort)}</code>},{id:"destination",header:"Destination",sortable:true,value:(row:RuleRow)=>portLabel(row.destination,row.destinationPort),accessor:(row:RuleRow)=><code>{portLabel(row.destination,row.destinationPort)}</code>},{id:"description",header:"Description",value:(row:RuleRow)=>row.description??"",accessor:(row:RuleRow)=><div className="alert-cell"><strong>{row.description??"—"}</strong><small>{row.disabled?"Disabled":row.floating?"Floating rule":"Interface rule"}</small></div>}];
+ return <><div className="page-heading"><div><h1>Firewall Rules</h1><p>Rules reported by this firewall, in the order the firewall returned them</p></div><button className="secondary-button" onClick={live.refresh} disabled={live.loading}>{live.loading?"Refreshing…":"Refresh"}</button></div>
+  <ReadNotices states={[live]} device={device} what="this site's firewall rules"/>
+  <ListToolbar search={query} onSearch={setQuery} placeholder="Search rules"/>
+  <ReadPanel title="Firewall rules" state={live} rows={rows} columns={columns} search={query} searchableText={row=>[row.action??"",row.interfaces.join(" "),row.protocol??"",row.source??"",row.sourcePort??"",row.destination??"",row.destinationPort??"",row.description??""].join(" ")} emptyTitle="No firewall rules reported" emptyDescription="This firewall returned no rule records in this read." disabled={device.enabled===false}/>
+  <p className="preview-footnote">Rules are read from this firewall in the firewall's own order; the manager does not reorder, evaluate, or simulate them. Rule trackers, internal application identifiers, and change-history fields are excluded. Adding, editing, deleting, or applying a rule is not available because it would change firewall configuration.</p>
+ </>;
+}
+type StaticRouteRow=StaticRouteView&{key:string};
+function RoutingLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
+ const live=useConfigurationRead("static-routes",device.id,device.enabled!==false);
+ const rows=withReadKeys<StaticRouteView>(live.data?.items??[]);
+ const columns=[{id:"network",header:"Destination network",sortable:true,value:(row:StaticRouteRow)=>row.network??"",accessor:(row:StaticRouteRow)=><strong><code>{row.network??"—"}</code></strong>},{id:"gateway",header:"Gateway",sortable:true,value:(row:StaticRouteRow)=>row.gateway??"",accessor:(row:StaticRouteRow)=><code>{row.gateway??"—"}</code>},{id:"description",header:"Description",value:(row:StaticRouteRow)=>row.description??"",accessor:(row:StaticRouteRow)=>row.description??"—"},{id:"state",header:"State",sortable:true,value:(row:StaticRouteRow)=>row.disabled===null?"":row.disabled?"disabled":"active",accessor:(row:StaticRouteRow)=>natState(row.disabled)}];
+ return <><div className="page-heading"><div><h1>Routing</h1><p>Static routes reported by this firewall</p></div><button className="secondary-button" onClick={live.refresh} disabled={live.loading}>{live.loading?"Refreshing…":"Refresh"}</button></div>
+  <ReadNotices states={[live]} device={device} what="this site's static routes"/>
+  <ListToolbar search={query} onSearch={setQuery} placeholder="Search static routes"/>
+  <ReadPanel title="Static routes" state={live} rows={rows} columns={columns} search={query} searchableText={row=>[row.network??"",row.gateway??"",row.description??""].join(" ")} emptyTitle="No static routes reported" emptyDescription="This firewall returned no static route records in this read." disabled={device.enabled===false}/>
+  <p className="preview-footnote">Static routes are read as configured. The manager does not resolve gateways, check reachability, or apply routing changes. Gateway monitoring state lives on the Gateways page and comes from the health sample instead.</p>
+ </>;
+}
+type DhcpServerRow=DhcpServerView&{key:string};
+type DhcpPoolRow=DhcpAddressPoolView&{key:string};
+type DhcpMappingRow=DhcpStaticMappingView&{key:string};
+function leaseLabel(seconds:number|null):string{return seconds===null?"Default":Math.round(seconds/60)+" min";}
+function DhcpLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
+ const enabled=device.enabled!==false;
+ const servers=useConfigurationRead("dhcp-servers",device.id,enabled);
+ const pools=useConfigurationRead("dhcp-address-pools",device.id,enabled);
+ const mappings=useConfigurationRead("dhcp-static-mappings",device.id,enabled);
+ const serverRows=withReadKeys<DhcpServerView>(servers.data?.items??[]);
+ const poolRows=withReadKeys<DhcpAddressPoolView>(pools.data?.items??[]);
+ const mappingRows=withReadKeys<DhcpStaticMappingView>(mappings.data?.items??[]);
+ const serverColumns=[{id:"interface",header:"Interface",sortable:true,value:(row:DhcpServerRow)=>row.interface??"",accessor:(row:DhcpServerRow)=><strong>{row.interface??"—"}</strong>},{id:"range",header:"Range",sortable:true,value:(row:DhcpServerRow)=>(row.rangeFrom??"")+"-"+(row.rangeTo??""),accessor:(row:DhcpServerRow)=><code>{row.rangeFrom??"—"}{row.rangeTo?" – "+row.rangeTo:""}</code>},{id:"domain",header:"Domain",value:(row:DhcpServerRow)=>row.domain??"",accessor:(row:DhcpServerRow)=>row.domain??"—"},{id:"dns",header:"DNS servers",value:(row:DhcpServerRow)=>row.dnsServers.join(" "),accessor:(row:DhcpServerRow)=>row.dnsServers.length>0?row.dnsServers.join(", "):"Inherited"},{id:"lease",header:"Lease",sortable:true,value:(row:DhcpServerRow)=>row.defaultLeaseTime??-1,accessor:(row:DhcpServerRow)=>leaseLabel(row.defaultLeaseTime)},{id:"state",header:"State",sortable:true,value:(row:DhcpServerRow)=>row.enabled===null?"":row.enabled?"enabled":"disabled",accessor:(row:DhcpServerRow)=><Status state={row.enabled===null?"unknown":row.enabled?"online":"unknown"} label={row.enabled===null?"Unknown":row.enabled?"Enabled":"Disabled"}/>}];
+ const poolColumns=[{id:"interface",header:"Interface",sortable:true,value:(row:DhcpPoolRow)=>row.parentId??"",accessor:(row:DhcpPoolRow)=><strong>{row.parentId??"—"}</strong>},{id:"range",header:"Pool range",sortable:true,value:(row:DhcpPoolRow)=>(row.rangeFrom??"")+"-"+(row.rangeTo??""),accessor:(row:DhcpPoolRow)=><code>{row.rangeFrom??"—"}{row.rangeTo?" – "+row.rangeTo:""}</code>},{id:"gateway",header:"Gateway",value:(row:DhcpPoolRow)=>row.gateway??"",accessor:(row:DhcpPoolRow)=>row.gateway??"—"},{id:"domain",header:"Domain",value:(row:DhcpPoolRow)=>row.domain??"",accessor:(row:DhcpPoolRow)=>row.domain??"—"}];
+ const mappingColumns=[{id:"interface",header:"Interface",sortable:true,value:(row:DhcpMappingRow)=>row.parentId??"",accessor:(row:DhcpMappingRow)=><strong>{row.parentId??"—"}</strong>},{id:"hostname",header:"Hostname",sortable:true,value:(row:DhcpMappingRow)=>row.hostname??"",accessor:(row:DhcpMappingRow)=>row.hostname??"—"},{id:"address",header:"Address",sortable:true,value:(row:DhcpMappingRow)=>row.ipAddress??"",accessor:(row:DhcpMappingRow)=><code>{row.ipAddress??"—"}</code>},{id:"mac",header:"MAC address",sortable:true,value:(row:DhcpMappingRow)=>row.mac??"",accessor:(row:DhcpMappingRow)=><code>{row.mac??"—"}</code>},{id:"description",header:"Description",value:(row:DhcpMappingRow)=>row.description??"",accessor:(row:DhcpMappingRow)=>row.description??"—"},{id:"arp",header:"Static ARP",value:(row:DhcpMappingRow)=>row.staticArp===null?"":row.staticArp?"yes":"no",accessor:(row:DhcpMappingRow)=>booleanLabel(row.staticArp)}];
+ const refresh=()=>{servers.refresh();pools.refresh();mappings.refresh();};
+ return <><div className="page-heading"><div><h1>DHCP</h1><p>DHCP servers, address pools, and static mappings reported by this firewall</p></div><button className="secondary-button" onClick={refresh} disabled={servers.loading||pools.loading||mappings.loading}>{servers.loading||pools.loading||mappings.loading?"Refreshing…":"Refresh"}</button></div>
+  <ReadNotices states={[servers,pools,mappings]} device={device} what="this site's DHCP configuration"/>
+  <ListToolbar search={query} onSearch={setQuery} placeholder="Search DHCP records"/>
+  <ReadPanel title="DHCP servers" state={servers} rows={serverRows} columns={serverColumns} search={query} searchableText={row=>[row.interface??"",row.rangeFrom??"",row.rangeTo??"",row.domain??"",row.dnsServers.join(" ")].join(" ")} emptyTitle="No DHCP servers reported" emptyDescription="This firewall returned no DHCP server records in this read." disabled={device.enabled===false}/>
+  <ReadPanel title="Address pools" state={pools} rows={poolRows} columns={poolColumns} search={query} searchableText={row=>[row.parentId??"",row.rangeFrom??"",row.rangeTo??"",row.gateway??"",row.domain??""].join(" ")} emptyTitle="No address pools reported" emptyDescription="This firewall returned no additional address pool records in this read." disabled={device.enabled===false}/>
+  <ReadPanel title="Static mappings" state={mappings} rows={mappingRows} columns={mappingColumns} search={query} searchableText={row=>[row.parentId??"",row.hostname??"",row.ipAddress??"",row.mac??"",row.description??""].join(" ")} emptyTitle="No static mappings reported" emptyDescription="This firewall returned no static mapping records in this read." disabled={device.enabled===false}/>
+  <p className="preview-footnote">Leases currently issued to clients are not read: no approved endpoint exposes them, and the manager does not infer them from static mappings. Client identifiers are excluded from this view.</p>
+ </>;
+}
+type DnsHostRow=DnsHostOverrideView&{key:string};
+type DnsDomainRow=DnsDomainOverrideView&{key:string};
+function flagLabel(value:boolean|null):string{return value===null?"Unknown":value?"Yes":"No";}
+function DnsLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
+ const enabled=device.enabled!==false;
+ const settings=useConfigurationRead("dns-settings",device.id,enabled);
+ const hosts=useConfigurationRead("dns-host-overrides",device.id,enabled);
+ const domains=useConfigurationRead("dns-domain-overrides",device.id,enabled);
+ const setting=settings.data?.items[0]??null;
+ const hostRows=withReadKeys<DnsHostOverrideView>(hosts.data?.items??[]);
+ const domainRows=withReadKeys<DnsDomainOverrideView>(domains.data?.items??[]);
+ const hostColumns=[{id:"host",header:"Host",sortable:true,value:(row:DnsHostRow)=>(row.host??"")+"."+(row.domain??""),accessor:(row:DnsHostRow)=><strong>{row.host??"—"}{row.domain?"."+row.domain:""}</strong>},{id:"addresses",header:"Addresses",sortable:true,value:(row:DnsHostRow)=>row.addresses.join(" "),accessor:(row:DnsHostRow)=><code>{row.addresses.length>0?row.addresses.join(", "):"—"}</code>},{id:"description",header:"Description",value:(row:DnsHostRow)=>row.description??"",accessor:(row:DnsHostRow)=>row.description??"—"},{id:"aliases",header:"Aliases",sortable:true,value:(row:DnsHostRow)=>row.aliasCount,accessor:(row:DnsHostRow)=>String(row.aliasCount)}];
+ const domainColumns=[{id:"domain",header:"Domain",sortable:true,value:(row:DnsDomainRow)=>row.domain??"",accessor:(row:DnsDomainRow)=><strong>{row.domain??"—"}</strong>},{id:"address",header:"Forward to",sortable:true,value:(row:DnsDomainRow)=>row.address??"",accessor:(row:DnsDomainRow)=><code>{row.address??"—"}</code>},{id:"tls",header:"TLS upstream",value:(row:DnsDomainRow)=>row.forwardTlsUpstream===null?"":row.forwardTlsUpstream?"yes":"no",accessor:(row:DnsDomainRow)=>row.forwardTlsUpstream===null?"—":row.forwardTlsUpstream?(row.tlsHostname??"Enabled"):"Disabled"},{id:"description",header:"Description",value:(row:DnsDomainRow)=>row.description??"",accessor:(row:DnsDomainRow)=>row.description??"—"}];
+ const refresh=()=>{settings.refresh();hosts.refresh();domains.refresh();};
+ return <><div className="page-heading"><div><h1>DNS</h1><p>DNS resolver settings and overrides reported by this firewall</p></div><button className="secondary-button" onClick={refresh} disabled={settings.loading||hosts.loading||domains.loading}>{settings.loading||hosts.loading||domains.loading?"Refreshing…":"Refresh"}</button></div>
+  <ReadNotices states={[settings,hosts,domains]} device={device} what="this site's DNS configuration"/>
+  <Panel title="Resolver settings" action={<span className="subtle">{settings.data?"Collected "+new Date(settings.data.collectedAt).toLocaleTimeString():"Not collected"}</span>}>
+   <dl className="detail-list">
+    <div><dt>Resolver enabled</dt><dd>{flagLabel(setting?.enabled??null)}</dd></div>
+    <div><dt>Listen port</dt><dd>{setting?.port??"—"}</dd></div>
+    <div><dt>DNS over TLS</dt><dd>{setting?.enableSsl===null||setting?.enableSsl===undefined?"—":setting.enableSsl?"Enabled on port "+(setting.tlsPort??"853"):"Disabled"}</dd></div>
+    <div><dt>DNSSEC</dt><dd>{flagLabel(setting?.dnssec??null)}</dd></div>
+    <div><dt>Forwarding mode</dt><dd>{flagLabel(setting?.forwarding??null)}</dd></div>
+    <div><dt>Strict outbound</dt><dd>{flagLabel(setting?.strictOut??null)}</dd></div>
+    <div><dt>Active interfaces</dt><dd>{setting&&setting.activeInterfaces.length>0?setting.activeInterfaces.join(", "):"—"}</dd></div>
+    <div><dt>Outgoing interfaces</dt><dd>{setting&&setting.outgoingInterfaces.length>0?setting.outgoingInterfaces.join(", "):"Any"}</dd></div>
+    <div><dt>Register DHCP leases</dt><dd>{flagLabel(setting?.regDhcp??null)}</dd></div>
+    <div><dt>Register static mappings</dt><dd>{flagLabel(setting?.regDhcpStatic??null)}</dd></div>
+    <div><dt>Register OpenVPN clients</dt><dd>{flagLabel(setting?.regOpenVpnClients??null)}</dd></div>
+   </dl>
+  </Panel>
+  <ListToolbar search={query} onSearch={setQuery} placeholder="Search DNS overrides"/>
+  <ReadPanel title="Host overrides" state={hosts} rows={hostRows} columns={hostColumns} search={query} searchableText={row=>[row.host??"",row.domain??"",row.addresses.join(" "),row.description??""].join(" ")} emptyTitle="No host overrides reported" emptyDescription="This firewall returned no host override records in this read." disabled={device.enabled===false}/>
+  <ReadPanel title="Domain overrides" state={domains} rows={domainRows} columns={domainColumns} search={query} searchableText={row=>[row.domain??"",row.address??"",row.description??""].join(" ")} emptyTitle="No domain overrides reported" emptyDescription="This firewall returned no domain override records in this read." disabled={device.enabled===false}/>
+  <p className="preview-footnote">Custom resolver directives and Python integration settings are not displayed: they are free-form configuration text that can contain operator-specific details the manager has no approved reason to read. Nothing on this page changes DNS configuration.</p>
+ </>;
+}
+type CertificateRow=CertificateView&{key:string};
+type CertificateAuthorityRow=CertificateAuthorityView&{key:string};
+function certificateState(days:number|null){
+ if(days===null)return <Status state="unknown" label="Unknown"/>;
+ if(days<0)return <Status state="offline" label="Expired"/>;
+ if(days<=30)return <Status state="warning" label={days+" days left"}/>;
+ return <Status state="online" label={days+" days left"}/>;
+}
+function CertificatesLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
+ const enabled=device.enabled!==false;
+ const certificates=useConfigurationRead("certificates",device.id,enabled);
+ const authorities=useConfigurationRead("certificate-authorities",device.id,enabled);
+ const certificateRows=withReadKeys<CertificateView>(certificates.data?.items??[]);
+ const authorityRows=withReadKeys<CertificateAuthorityView>(authorities.data?.items??[]);
+ const certificateColumns=[{id:"description",header:"Certificate",sortable:true,value:(row:CertificateRow)=>row.description??"",accessor:(row:CertificateRow)=><strong>{row.description??"—"}</strong>},{id:"type",header:"Type",sortable:true,value:(row:CertificateRow)=>row.type??"",accessor:(row:CertificateRow)=>row.type??"—"},{id:"validFrom",header:"Valid from",sortable:true,value:(row:CertificateRow)=>row.validFrom??"",accessor:(row:CertificateRow)=>row.validFrom??"—"},{id:"validUntil",header:"Expires",sortable:true,value:(row:CertificateRow)=>row.validUntil??"",accessor:(row:CertificateRow)=>row.validUntil??"—"},{id:"state",header:"State",sortable:true,value:(row:CertificateRow)=>row.validDaysLeft??-99999,accessor:(row:CertificateRow)=>certificateState(row.validDaysLeft)}];
+ const authorityColumns=[{id:"description",header:"Certificate authority",sortable:true,value:(row:CertificateAuthorityRow)=>row.description??"",accessor:(row:CertificateAuthorityRow)=><strong>{row.description??"—"}</strong>},{id:"trust",header:"Trusted for TLS",value:(row:CertificateAuthorityRow)=>row.trust===null?"":row.trust?"yes":"no",accessor:(row:CertificateAuthorityRow)=>row.trust===null?<Status state="unknown" label="Unknown"/>:row.trust?<Status state="online" label="Trusted"/>:<Status state="unknown" label="Not trusted"/>}];
+ const refresh=()=>{certificates.refresh();authorities.refresh();};
+ return <><div className="page-heading"><div><h1>Certificates</h1><p>Certificate and certificate authority inventory reported by this firewall</p></div><button className="secondary-button" onClick={refresh} disabled={certificates.loading||authorities.loading}>{certificates.loading||authorities.loading?"Refreshing…":"Refresh"}</button></div>
+  <ReadNotices states={[certificates,authorities]} device={device} what="this site's certificate inventory"/>
+  <ListToolbar search={query} onSearch={setQuery} placeholder="Search certificates"/>
+  <ReadPanel title="Certificates" state={certificates} rows={certificateRows} columns={certificateColumns} search={query} searchableText={row=>[row.description??"",row.type??"",row.validFrom??"",row.validUntil??""].join(" ")} emptyTitle="No certificates reported" emptyDescription="This firewall returned no certificate records in this read." disabled={device.enabled===false}/>
+  <ReadPanel title="Certificate authorities" state={authorities} rows={authorityRows} columns={authorityColumns} search={query} searchableText={row=>[row.description??""].join(" ")} emptyTitle="No certificate authorities reported" emptyDescription="This firewall returned no certificate authority records in this read." disabled={device.enabled===false}/>
+  <p className="preview-footnote">Certificates and private keys are deliberately excluded from this view. The manager reads only the description, type, and validity window, so no key material, PEM body, or internal reference identifier reaches the browser or a log. Importing, exporting, renewing, or revoking a certificate is not available.</p>
+ </>;
+}
+type IpsecRow=IpsecSaView&{key:string};
+type VpnServerRow=OpenVpnServerView&{key:string};
+type VpnClientRow=OpenVpnClientView&{key:string};
+type WgTunnelRow=WireGuardTunnelView&{key:string};
+type WgPeerRow=WireGuardPeerView&{key:string};
+function timeLabel(value:string|null):string{return value===null?"—":new Date(value).toLocaleString();}
+function VpnLive({device,query,setQuery}:{device:Device;query:string;setQuery:(s:string)=>void}){
+ const enabled=device.enabled!==false;
+ const ipsec=useTelemetryRead("ipsec-sas",device.id,enabled);
+ const servers=useTelemetryRead("openvpn-servers",device.id,enabled);
+ const clients=useTelemetryRead("openvpn-clients",device.id,enabled);
+ const tunnels=useTelemetryRead("wireguard-tunnels",device.id,enabled);
+ const peers=useTelemetryRead("wireguard-peers",device.id,enabled);
+ const ipsecRows=withReadKeys<IpsecSaView>(ipsec.data?.items??[]);
+ const serverRows=withReadKeys<OpenVpnServerView>(servers.data?.items??[]);
+ const clientRows=withReadKeys<OpenVpnClientView>(clients.data?.items??[]);
+ const tunnelRows=withReadKeys<WireGuardTunnelView>(tunnels.data?.items??[]);
+ const peerRows=withReadKeys<WireGuardPeerView>(peers.data?.items??[]);
+ const ipsecColumns=[{id:"peer",header:"Peer",sortable:true,value:(row:IpsecRow)=>row.remoteId??row.remoteHost??"",accessor:(row:IpsecRow)=><div className="alert-cell"><strong>{row.remoteId??row.remoteHost??"—"}</strong><small>{row.remoteHost??""}</small></div>},{id:"local",header:"Local",value:(row:IpsecRow)=>row.localId??row.localHost??"",accessor:(row:IpsecRow)=>row.localId??row.localHost??"—"},{id:"encryption",header:"Encryption",sortable:true,value:(row:IpsecRow)=>row.encryption??"",accessor:(row:IpsecRow)=>row.encryption??"—"},{id:"integrity",header:"Integrity",value:(row:IpsecRow)=>row.integrity??"",accessor:(row:IpsecRow)=>row.integrity??"—"},{id:"dhgroup",header:"DH group",value:(row:IpsecRow)=>row.dhGroup??"",accessor:(row:IpsecRow)=>row.dhGroup??"—"},{id:"established",header:"Established",sortable:true,value:(row:IpsecRow)=>row.establishedAt??"",accessor:(row:IpsecRow)=>timeLabel(row.establishedAt)},{id:"state",header:"State",sortable:true,value:(row:IpsecRow)=>row.state??"",accessor:(row:IpsecRow)=><Status state={row.state==="established"?"online":row.state?"warning":"unknown"} label={row.state??"Unknown"}/>}];
+ const serverColumns=[{id:"name",header:"Server",sortable:true,value:(row:VpnServerRow)=>row.name??"",accessor:(row:VpnServerRow)=><strong>{row.name??"—"}</strong>},{id:"mode",header:"Mode",sortable:true,value:(row:VpnServerRow)=>row.mode??"",accessor:(row:VpnServerRow)=>row.mode??"—"},{id:"port",header:"Port",sortable:true,value:(row:VpnServerRow)=>row.port??"",accessor:(row:VpnServerRow)=><code>{row.port??"—"}</code>},{id:"connections",header:"Connections",sortable:true,value:(row:VpnServerRow)=>row.connectionCount,accessor:(row:VpnServerRow)=>String(row.connectionCount)}];
+ const clientColumns=[{id:"name",header:"Client",sortable:true,value:(row:VpnClientRow)=>row.name??"",accessor:(row:VpnClientRow)=><strong>{row.name??"—"}</strong>},{id:"state",header:"State",sortable:true,value:(row:VpnClientRow)=>row.state??row.status??"",accessor:(row:VpnClientRow)=><Status state={row.status==="connected"?"online":row.status?"warning":"unknown"} label={row.state??row.status??"Unknown"}/>},{id:"address",header:"Virtual address",sortable:true,value:(row:VpnClientRow)=>row.virtualAddress??"",accessor:(row:VpnClientRow)=><code>{row.virtualAddress??row.virtualAddress6??"—"}</code>},{id:"remote",header:"Remote",value:(row:VpnClientRow)=>row.remoteHost??"",accessor:(row:VpnClientRow)=>row.remoteHost?(row.remoteHost+(row.remotePort?":"+row.remotePort:"")):"—"},{id:"since",header:"Connected since",sortable:true,value:(row:VpnClientRow)=>row.connectTime??"",accessor:(row:VpnClientRow)=>row.connectTime??"—"}];
+
+ const tunnelColumns=[{id:"name",header:"Tunnel",sortable:true,value:(row:WgTunnelRow)=>row.name??"",accessor:(row:WgTunnelRow)=><div className="alert-cell"><strong>{row.name??"—"}</strong><small>{row.description??""}</small></div>},{id:"state",header:"State",sortable:true,value:(row:WgTunnelRow)=>row.status??"",accessor:(row:WgTunnelRow)=><Status state={row.status==="up"?"online":row.status==="down"?"offline":"unknown"} label={row.status??"Unknown"}/>},{id:"port",header:"Listen port",sortable:true,value:(row:WgTunnelRow)=>row.listenPort??"",accessor:(row:WgTunnelRow)=><code>{row.listenPort??"—"}</code>},{id:"peers",header:"Peers",sortable:true,value:(row:WgTunnelRow)=>row.peerCount??-1,accessor:(row:WgTunnelRow)=>row.peerCount===null?"—":String(row.peerCount)},{id:"rx",header:"Received",sortable:true,value:(row:WgTunnelRow)=>row.transferRx??-1,accessor:(row:WgTunnelRow)=>bytesLabel(row.transferRx)},{id:"tx",header:"Sent",sortable:true,value:(row:WgTunnelRow)=>row.transferTx??-1,accessor:(row:WgTunnelRow)=>bytesLabel(row.transferTx)}];
+ const peerColumns=[{id:"tunnel",header:"Tunnel",sortable:true,value:(row:WgPeerRow)=>row.tunnel??"",accessor:(row:WgPeerRow)=><strong>{row.tunnel??"—"}</strong>},{id:"endpoint",header:"Endpoint",sortable:true,value:(row:WgPeerRow)=>row.endpoint??"",accessor:(row:WgPeerRow)=><code>{row.endpoint??"—"}</code>},{id:"allowed",header:"Allowed IPs",value:(row:WgPeerRow)=>row.allowedIps.join(" "),accessor:(row:WgPeerRow)=>row.allowedIps.length>0?<code>{row.allowedIps.join(", ")}</code>:"—"},{id:"handshake",header:"Latest handshake",sortable:true,value:(row:WgPeerRow)=>row.latestHandshakeAt??"",accessor:(row:WgPeerRow)=>timeLabel(row.latestHandshakeAt)},{id:"rx",header:"Received",sortable:true,value:(row:WgPeerRow)=>row.transferRx??-1,accessor:(row:WgPeerRow)=>bytesLabel(row.transferRx)},{id:"tx",header:"Sent",sortable:true,value:(row:WgPeerRow)=>row.transferTx??-1,accessor:(row:WgPeerRow)=>bytesLabel(row.transferTx)},{id:"description",header:"Description",value:(row:WgPeerRow)=>row.description??"",accessor:(row:WgPeerRow)=>row.description??"—"}];
+ const refresh=()=>{ipsec.refresh();servers.refresh();clients.refresh();tunnels.refresh();peers.refresh();};
+ const busy=ipsec.loading||servers.loading||clients.loading||tunnels.loading||peers.loading;
+ return <><div className="page-heading"><div><h1>VPN</h1><p>Tunnel and peer state reported by this firewall</p></div><button className="secondary-button" onClick={refresh} disabled={busy}>{busy?"Refreshing…":"Refresh"}</button></div>
+  <ReadNotices states={[ipsec,servers,clients,tunnels,peers]} device={device} what="this site's VPN status"/>
+  <ListToolbar search={query} onSearch={setQuery} placeholder="Search VPN status"/>
+  <ReadPanel title="IPsec security associations" state={ipsec} rows={ipsecRows} columns={ipsecColumns} search={query} searchableText={row=>[row.remoteId??"",row.remoteHost??"",row.localId??"",row.encryption??"",row.integrity??"",row.state??""].join(" ")} emptyTitle="No IPsec associations reported" emptyDescription="This firewall returned no IPsec security association records in this read." disabled={device.enabled===false} disabledTitle="Status read unavailable"/>
+  <ReadPanel title="OpenVPN servers" state={servers} rows={serverRows} columns={serverColumns} search={query} searchableText={row=>[row.name??"",row.mode??"",row.port??""].join(" ")} emptyTitle="No OpenVPN servers reported" emptyDescription="This firewall returned no OpenVPN server records in this read." disabled={device.enabled===false} disabledTitle="Status read unavailable"/>
+  <ReadPanel title="OpenVPN clients" state={clients} rows={clientRows} columns={clientColumns} search={query} searchableText={row=>[row.name??"",row.state??"",row.status??"",row.virtualAddress??"",row.remoteHost??""].join(" ")} emptyTitle="No OpenVPN clients reported" emptyDescription="This firewall returned no OpenVPN client records in this read." disabled={device.enabled===false} disabledTitle="Status read unavailable"/>
+  <ReadPanel title="WireGuard tunnels" state={tunnels} rows={tunnelRows} columns={tunnelColumns} search={query} searchableText={row=>[row.name??"",row.description??"",row.status??"",row.listenPort??""].join(" ")} emptyTitle="No WireGuard tunnels reported" emptyDescription="This firewall returned no WireGuard tunnel records in this read." disabled={device.enabled===false} disabledTitle="Status read unavailable"/>
+  <ReadPanel title="WireGuard peers" state={peers} rows={peerRows} columns={peerColumns} search={query} searchableText={row=>[row.tunnel??"",row.endpoint??"",row.allowedIps.join(" "),row.description??""].join(" ")} emptyTitle="No WireGuard peers reported" emptyDescription="This firewall returned no WireGuard peer records in this read." disabled={device.enabled===false} disabledTitle="Status read unavailable"/>
+  <p className="preview-footnote">VPN status is read on demand and is available to any signed-in operator, unlike configuration pages. Public keys, preshared keys, management-socket paths, and IPsec Security Parameter Indexes are excluded: they are not needed to display tunnel state. Nothing on this page connects, disconnects, restarts, or reconfigures a tunnel.</p>
  </>;
 }
 function LiveDevicePage({page,device,query,setQuery}:{page:Page;device:Device;query:string;setQuery:(s:string)=>void}){
  if(page==="interfaces")return <InterfacesLive device={device} query={query} setQuery={setQuery}/>;
  if(page==="gateways")return <GatewaysLive device={device} query={query} setQuery={setQuery}/>;
+ if(page==="rules")return <RulesLive device={device} query={query} setQuery={setQuery}/>;
  if(page==="aliases")return <AliasesLive device={device} query={query} setQuery={setQuery}/>;
+ if(page==="nat")return <NatLive device={device} query={query} setQuery={setQuery}/>;
+ if(page==="routing")return <RoutingLive device={device} query={query} setQuery={setQuery}/>;
+ if(page==="dhcp")return <DhcpLive device={device} query={query} setQuery={setQuery}/>;
+ if(page==="dns")return <DnsLive device={device} query={query} setQuery={setQuery}/>;
+ if(page==="certificates")return <CertificatesLive device={device} query={query} setQuery={setQuery}/>;
+ if(page==="vpn")return <VpnLive device={device} query={query} setQuery={setQuery}/>;
  return <ServicesLive device={device} query={query} setQuery={setQuery}/>;
 }
 function DataPage({page,query,setQuery,onAdd,device}:{page:Page;query:string;setQuery:(s:string)=>void;onAdd:()=>void;device:Device|null}){
- const livePage=page==="interfaces"||page==="gateways"||page==="services"||page==="aliases";
+ const livePage=page==="interfaces"||page==="gateways"||page==="services"||page==="rules"||page==="aliases"||page==="nat"||page==="routing"||page==="dhcp"||page==="dns"||page==="certificates"||page==="vpn";
  if(device&&!device.isDemo&&livePage)return <LiveDevicePage page={page} device={device} query={query} setQuery={setQuery}/>;
  const rows=mockRows[page]??[];
  const [statusFilter,setStatusFilter]=useState("all");

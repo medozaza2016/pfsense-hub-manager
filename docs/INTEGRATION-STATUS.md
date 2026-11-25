@@ -167,14 +167,70 @@ DEC-042 replaced the illustrative fixtures on Overview, Monitoring, Interfaces, 
 
 Still unverified after this session: a CE comparison and page-by-page visual acceptance against the approved mockup. The background polling failure, cache-hit, and pruning paths that this line previously listed are now exercised (closeout section 19): a read inside the interval returned `cacheHit: true` with no new `poll_runs` row, a repeated `tls` failure produced one `device-poll:<deviceId>` alert that auto-resolved on the next successful collection, and lowering `retentionDays` pruned 40 aged rows with a `polling.history_pruned` audit event. Backoff widening beyond the configured interval, a prune batch at the 5,000-row limit, the 24 h repeat timer, failure classes other than TLS, fleet concurrency above one device, and the browser form submission remain unexercised.
 
-## Page-scoped configuration reads, November 23, 2026
+## Page-scoped reads, November 23, 2026 (DEC-047, DEC-048)
 
-DEC-047 adds a second, fixed upstream allowlist for on-demand configuration views, separate from the eight polled status operations. The first entry is Aliases:
+The operator granted `pfsense_hub` every remaining read-only GET needed by the site pages. The manager exposes them through two fixed namespaces, both GET-only, both with the device resolved from `managed_devices` and the upstream path a compile-time constant:
 
-- Manager route: `GET /api/v1/devices/:deviceId/configuration/aliases`, GET only, administrator-only, device resolved from `managed_devices`, upstream path a compile-time constant.
-- Upstream: `GET /api/v2/firewall/aliases`, privilege `api-v2-firewall-aliases-get`.
-- Retained fields: `name`, `type`, `descr` → `description`, `address` → `entries`. `id`, `detail`, `tracker`, and undocumented fields are dropped by construction. Caps: 2,000 aliases, 200 entries per alias, 31/200/256 characters; withheld data is flagged, and `entryCount` still reports the firewall's count.
-- Cache: 60 s success / 10 s failure per device, single-flight, invalidated when the device profile changes.
-- Evidence: these reads do not write `poll_runs` and do not affect capability verdicts, metrics, alerting, or retention.
+- `GET /api/v1/devices/:deviceId/configuration/:area` — administrator-only, 15 areas.
+- `GET /api/v1/devices/:deviceId/telemetry/:area` — any authenticated caller, 6 status/version areas.
 
-**Not yet verified on a firewall.** The `pfsense_hub` account holds only the eight status GET privileges, so the first live call is expected to be answered `502 FIREWALL_PERMISSION_DENIED` (the firewall refuses the read; the manager reports it as an upstream failure, not as a manager `403`) and the page will name `api-v2-firewall-aliases-get`. The privilege is listed in the pinned OpenAPI export (`docs/API-MATRIX.generated.md`), which is a candidate and not proof of runtime support. To close this item: confirm the route and response schema on the installed REST API package, grant exactly this privilege to `pfsense_hub`, test both allowed and denied access, then record the release, architecture, package version, HTTP status, sanitized field evidence, and rollback here. No write method on this path is enabled, and the eight-operation polling contract is unchanged.
+Each area has its own short-lived cache (60 s success / 10 s failure, single-flight, invalidated on profile change). None of these reads writes `poll_runs`, so none can change a capability verdict, metric, alert, or retention decision, and nothing is persisted.
+
+### Configuration areas and privileges
+
+| Manager area | Upstream endpoint | Privilege granted |
+|---|---|---|
+| `aliases` | `/api/v2/firewall/aliases` | `api-v2-firewall-aliases-get` |
+| `interfaces` | `/api/v2/interfaces` | `api-v2-interfaces-get` |
+| `rules` | `/api/v2/firewall/rules` | `api-v2-firewall-rules-get` |
+| `nat-port-forwards` | `/api/v2/firewall/nat/port_forwards` | `api-v2-firewall-nat-port-forwards-get` |
+| `nat-outbound` | `/api/v2/firewall/nat/outbound/mappings` | `api-v2-firewall-nat-outbound-mappings-get` |
+| `nat-one-to-one` | `/api/v2/firewall/nat/one_to_one/mappings` | `api-v2-firewall-nat-one-to-one-mappings-get` |
+| `static-routes` | `/api/v2/routing/static_routes` | `api-v2-routing-static-routes-get` |
+| `dhcp-servers` | `/api/v2/services/dhcp_servers` | `api-v2-services-dhcp-servers-get` |
+| `dhcp-address-pools` | `/api/v2/services/dhcp_server/address_pools` | `api-v2-services-dhcp-server-address-pools-get` |
+| `dhcp-static-mappings` | `/api/v2/services/dhcp_server/static_mappings` | `api-v2-services-dhcp-server-static-mappings-get` |
+| `dns-settings` | `/api/v2/services/dns_resolver/settings` | `api-v2-services-dns-resolver-settings-get` |
+| `dns-host-overrides` | `/api/v2/services/dns_resolver/host_overrides` | `api-v2-services-dns-resolver-host-overrides-get` |
+| `dns-domain-overrides` | `/api/v2/services/dns_resolver/domain_overrides` | `api-v2-services-dns-resolver-domain-overrides-get` |
+| `certificates` | `/api/v2/system/certificates` | `api-v2-system-certificates-get` |
+| `certificate-authorities` | `/api/v2/system/certificate_authorities` | `api-v2-system-certificate-authorities-get` |
+
+### Telemetry areas and privileges
+
+| Manager area | Upstream endpoint | Privilege granted |
+|---|---|---|
+| `ipsec-sas` | `/api/v2/status/ipsec/sas` | `api-v2-status-ipsec-sas-get` |
+| `openvpn-servers` | `/api/v2/status/openvpn/servers` | `api-v2-status-openvpn-servers-get` |
+| `openvpn-clients` | `/api/v2/status/openvpn/clients` | `api-v2-status-openvpn-clients-get` |
+| `wireguard-tunnels` | `/api/v2/status/wireguard/tunnels` | `api-v2-status-wireguard-tunnels-get` |
+| `wireguard-peers` | `/api/v2/status/wireguard/peers` | `api-v2-status-wireguard-peers-get` |
+| `restapi-version` | `/api/v2/system/restapi/version` | `api-v2-system-restapi-version-get` |
+
+### What the grant proves, and what it does not
+
+The privilege inventory shows that an ACL entry exists for each route. It does **not** prove that the installed REST API package answers the route, that the response matches the pinned schema on this release, or that pfSense CE behaves the same way. Every area therefore remains **granted but runtime-unverified** until the following steps are recorded for a named firewall:
+
+1. Record the installed REST API package version and confirm the route is present in the firewall's own API documentation for that package.
+2. As an administrator, call the manager route for the area and record the HTTP status, `meta.cacheHit`, `data.count`, and `data.truncated`.
+3. Compare the displayed fields with the firewall's own page, and confirm that the fields listed as excluded in `API-SPECIFICATION.md` are absent from the manager response (in particular: no certificate or private key PEM, no WireGuard public/preshared keys, no OpenVPN `mgmt` socket path, no IPsec SPI, no DNS `custom_options`).
+4. As a `user` account, call a `configuration/*` route (expect `403 ADMINISTRATOR_REQUIRED`) and a `telemetry/*` route (expect `200`). Record both.
+5. Temporarily remove one privilege from `pfsense_hub`, confirm the page answers `502 FIREWALL_PERMISSION_DENIED` naming that privilege, then re-grant it. That re-grant is the rollback for this step.
+6. Record release, architecture, package version, endpoint, HTTP status, and the sanitized field evidence here. Update the per-area status only after that record exists.
+
+| Area group | Granted | Runtime verification |
+|---|---|---|
+| aliases, interfaces, rules, NAT (3), static routes | Yes | **Pending** |
+| DHCP (3), DNS (3), certificates (2) | Yes | **Pending** |
+| IPsec, OpenVPN (2), WireGuard (2) status | Yes | **Pending** |
+| REST API package version | Yes | **Pending** — expected to fill the long-standing "package version not recorded" gap once it answers |
+
+### Known per-device differences to look for
+
+- WireGuard status endpoints declare the `pfSense-pkg-WireGuard` package. A firewall without it, or an older package, may answer `404`; the page then shows `FIREWALL_ENDPOINT_UNSUPPORTED` rather than an empty table pretending there are no tunnels.
+- `dns-settings` returns an object, not a list. A release that returns a list is rejected as `FIREWALL_INVALID_RESPONSE` rather than coerced.
+- DHCP address pools and static mappings carry a `parent_id`; a release that omits it yields `null` for the interface column instead of a guessed interface name.
+- pfSense CE parity is entirely unverified. Do not record an area as supported on CE without repeating the steps above on the CE firewall.
+
+No write method on any of these paths is enabled, the eight-operation polling contract is unchanged, and no read model is persisted. Removing an area is a code change (delete its registry entry in `configuration-routes.ts` and its allowlist entry in `client.ts`), which also removes its route rather than leaving a disabled one reachable.
+

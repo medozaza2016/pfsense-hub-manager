@@ -23,21 +23,7 @@ An operation being documented or appearing in the firewall permission inventory 
 3. **Implemented**, supported by a specific manager adapter capability.
 4. **Enabled**, explicitly allowed by manager policy and firewall permissions.
 
-The current manager milestone is read-only. The dedicated `pfsense_hub` firewall API account currently has only the eight endpoint/method privileges listed below. It does not automatically gain access to other operations in the full OpenAPI specification. When a feature adds an endpoint, update both sides deliberately: grant the firewall account only the exact required endpoint/method privilege, and update the manager backend's fixed route/method allowlist, device capability metadata, and caller authorization. The backend must enforce its own endpoint and capability allowlist. The frontend is not a security boundary. Do not implement a generic proxy that accepts arbitrary upstream paths, HTTP methods, or payloads.
-
-## Adding a future endpoint
-
-Use this sequence for every new integration operation:
-
-1. Select the feature and exact endpoint/method from the OpenAPI export.
-2. Verify the route and schema against the actual target firewall, recording pfSense edition/release, architecture, and installed REST API package version. A documented route is not proof of runtime support.
-3. Review the operation's security impact and obtain feature approval. For the current read-only milestone, only GET operations may be considered.
-4. Add only the required firewall-side permission to the dedicated service account. Do not grant broad permissions or write privileges for convenience.
-5. Update manager-side authentication/authorization and the backend allowlist, including device capability declarations and user/role checks. Firewall permission and manager permission are separate gates, both must allow the operation.
-6. Add sanitized contract fixtures and tests for success, malformed responses, denied permissions, timeouts, and per-device compatibility.
-7. Update this reference and the integration status with the test evidence. Keep unsupported devices or versions explicitly marked unsupported.
-
-Never automatically expand the service account's permissions or the manager's allowlist merely because the OpenAPI export changes.
+The current manager milestone is read-only. The dedicated `pfsense_hub` firewall API account holds the eight status GET privileges plus the 20 page-scoped GET privileges listed under "Approved page-scoped reads" below; it holds no write, apply, reboot, halt, or command privilege. Nothing is enabled automatically because a privilege exists: the manager backend's fixed route/method allowlist, its capability metadata, and the caller's role must all allow an operation. The backend enforces its own endpoint and capability allowlist. The frontend is not a security boundary. Do not implement a generic proxy that accepts arbitrary upstream paths, HTTP methods, or payloads.
 
 ## Adding a future endpoint
 
@@ -50,6 +36,7 @@ Use this sequence for every new integration operation:
 5. Update manager-side authentication/authorization and the backend allowlist, including device capability declarations and user/role checks. Firewall permission and manager permission are separate gates, both must allow the operation.
 6. Add sanitized contract fixtures and tests for success, malformed responses, denied permissions, timeouts, and per-device compatibility.
 7. Update this reference and the integration status with the test evidence. Keep unsupported devices or versions explicitly marked unsupported.
+8. Record "privilege granted" and "runtime verified" separately. A grant on the firewall proves only that the ACL entry exists; until the route and schema have answered on that profile, the area stays marked unverified and the UI keeps naming what to check.
 
 Never automatically expand the firewall account's permissions or the manager's allowlist merely because the OpenAPI export changes.
 
@@ -90,15 +77,47 @@ These eight GET operations previously returned HTTP 200 on the recorded Plus fir
 
 The pfSense CE profile remains unverified. Do not claim Plus/CE compatibility until independently tested.
 
-### Approved page-scoped configuration reads (DEC-047)
+### Approved page-scoped reads (DEC-047, DEC-048)
 
-These are read-only GETs on a separate, fixed allowlist. They are **not** part of the eight-operation polling set, are never called by the health snapshot, and do not count as capability evidence.
+These are read-only GETs on fixed allowlists. They are **not** part of the eight-operation polling set, are never called by the health snapshot, and do not count as capability evidence. Two manager namespaces serve them: `configuration/*` (administrator-only) and `telemetry/*` (any authenticated caller).
 
-| Method | Endpoint | Privilege | Status |
-|---|---|---|---|
-| GET | `/api/v2/firewall/aliases` | `api-v2-firewall-aliases-get` | Manager route implemented; runtime access not yet verified |
+Configuration areas:
 
-The entry above appears in the pinned OpenAPI export (`docs/API-MATRIX.generated.md`), which is a candidate rather than proof: the route, method, response schema, and package compatibility must be confirmed against the installed REST API package on each firewall profile before the operation is reported as supported. The `pfsense_hub` account currently holds only the eight status GET privileges, so this read returns `403` until an operator grants exactly this privilege and records the test in [INTEGRATION-STATUS.md](../INTEGRATION-STATUS.md). Write methods on the same path (`PUT`, `DELETE`) remain prohibited.
+| Method | Endpoint | Privilege |
+|---|---|---|
+| GET | `/api/v2/firewall/aliases` | `api-v2-firewall-aliases-get` |
+| GET | `/api/v2/interfaces` | `api-v2-interfaces-get` |
+| GET | `/api/v2/firewall/rules` | `api-v2-firewall-rules-get` |
+| GET | `/api/v2/firewall/nat/port_forwards` | `api-v2-firewall-nat-port-forwards-get` |
+| GET | `/api/v2/firewall/nat/outbound/mappings` | `api-v2-firewall-nat-outbound-mappings-get` |
+| GET | `/api/v2/firewall/nat/one_to_one/mappings` | `api-v2-firewall-nat-one-to-one-mappings-get` |
+| GET | `/api/v2/routing/static_routes` | `api-v2-routing-static-routes-get` |
+| GET | `/api/v2/services/dhcp_servers` | `api-v2-services-dhcp-servers-get` |
+| GET | `/api/v2/services/dhcp_server/address_pools` | `api-v2-services-dhcp-server-address-pools-get` |
+| GET | `/api/v2/services/dhcp_server/static_mappings` | `api-v2-services-dhcp-server-static-mappings-get` |
+| GET | `/api/v2/services/dns_resolver/settings` | `api-v2-services-dns-resolver-settings-get` |
+| GET | `/api/v2/services/dns_resolver/host_overrides` | `api-v2-services-dns-resolver-host-overrides-get` |
+| GET | `/api/v2/services/dns_resolver/domain_overrides` | `api-v2-services-dns-resolver-domain-overrides-get` |
+| GET | `/api/v2/system/certificates` | `api-v2-system-certificates-get` |
+| GET | `/api/v2/system/certificate_authorities` | `api-v2-system-certificate-authorities-get` |
+
+VPN status areas:
+
+| Method | Endpoint | Privilege |
+|---|---|---|
+| GET | `/api/v2/status/ipsec/sas` | `api-v2-status-ipsec-sas-get` |
+| GET | `/api/v2/status/openvpn/servers` | `api-v2-status-openvpn-servers-get` |
+| GET | `/api/v2/status/openvpn/clients` | `api-v2-status-openvpn-clients-get` |
+| GET | `/api/v2/status/wireguard/tunnels` | `api-v2-status-wireguard-tunnels-get` |
+| GET | `/api/v2/status/wireguard/peers` | `api-v2-status-wireguard-peers-get` |
+
+System version read (used by the Compatibility page):
+
+| Method | Endpoint | Privilege |
+|---|---|---|
+| GET | `/api/v2/system/restapi/version` | `api-v2-system-restapi-version-get` |
+
+All 21 privileges have been granted to `pfsense_hub` by the operator. **Granted is not verified.** Each entry appears in the pinned OpenAPI export (`docs/API-MATRIX.generated.md`), which is a candidate rather than proof: the route, method, response schema, and package compatibility must still be confirmed against the installed REST API package on each firewall profile, and the result recorded in [INTEGRATION-STATUS.md](../INTEGRATION-STATUS.md). A firewall that does not expose a route (for example WireGuard without `pfSense-pkg-WireGuard`) is reported as unverified rather than as an empty result. Write methods on these paths (`PUT`, `DELETE`, `PATCH`, `POST`) remain prohibited and are not granted.
 
 ## High-risk operations, excluded from initial scope
 

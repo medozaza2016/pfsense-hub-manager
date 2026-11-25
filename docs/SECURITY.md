@@ -1,7 +1,7 @@
 # Security Design and Current Controls
 
 ## Current security posture
-The first firewall integration is intentionally read-only. The manager authenticates using a dedicated pfSense local account and API key. The account is not an administrator and has only the eight GET endpoint privileges documented in INTEGRATION-STATUS.md.
+The first firewall integration is intentionally read-only. The manager authenticates using a dedicated pfSense local account and API key. The account is not a pfSense administrator and holds GET privileges only: the eight status endpoints used by the health poll plus the 21 page-scoped read endpoints listed below. It holds no POST, PUT, PATCH, DELETE, apply, reboot, halt, or command privilege. The page-scoped privileges were granted by the operator on November 23, 2026; the routes and response schemas have **not** yet been verified at runtime, so the pages report what to check rather than claiming success.
 
 This is a development-stage configuration, not a completed production security review.
 
@@ -24,6 +24,20 @@ The pfsense_hub account is a regular local user, not an administrator. Its effec
 - /api/v2/diagnostics/arp_table
 - /api/v2/firewall/states
 - /api/v2/firewall/states/size
+
+Page-scoped reads the account may also perform, all GET and all on-demand rather than polled:
+
+- /api/v2/firewall/aliases, /api/v2/firewall/rules
+- /api/v2/interfaces
+- /api/v2/firewall/nat/port_forwards, /api/v2/firewall/nat/outbound/mappings, /api/v2/firewall/nat/one_to_one/mappings
+- /api/v2/routing/static_routes
+- /api/v2/services/dhcp_servers, /api/v2/services/dhcp_server/address_pools, /api/v2/services/dhcp_server/static_mappings
+- /api/v2/services/dns_resolver/settings, /api/v2/services/dns_resolver/host_overrides, /api/v2/services/dns_resolver/domain_overrides
+- /api/v2/system/certificates, /api/v2/system/certificate_authorities
+- /api/v2/status/ipsec/sas, /api/v2/status/openvpn/servers, /api/v2/status/openvpn/clients, /api/v2/status/wireguard/tunnels, /api/v2/status/wireguard/peers
+- /api/v2/system/restapi/version
+
+These reads reach the manager through fixed, compile-time route maps. There is no caller-supplied URL, path, method, or body, and no generic upstream proxy. `configuration/*` manager routes are administrator-only; `telemetry/*` routes (VPN state only) follow the ordinary authenticated telemetry policy. Firewall responses are rebuilt field by field, so certificate and private-key PEM, WireGuard public and preshared keys, IPsec SPIs, OpenVPN management-socket paths, and free-form DNS directives are never returned to a browser or written to a log. None of these reads is persisted, and none writes `poll_runs`.
 
 Do not grant POST, PUT, PATCH, or DELETE privileges for the initial read-only milestone. Do not add broad WebConfigurator privileges merely to make the restricted account's GUI display pages.
 

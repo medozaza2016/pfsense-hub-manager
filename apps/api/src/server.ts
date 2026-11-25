@@ -9,7 +9,7 @@ import { PfSenseProvider } from "./pfsense/provider.js";
 import { ObservationCache } from "./pfsense/observation-cache.js";
 import { PollScheduler } from "./pfsense/poll-scheduler.js";
 import { registerObservationRoutes } from "./pfsense/observation-routes.js";
-import { registerConfigurationRoutes, type AliasReadResult } from "./pfsense/configuration-routes.js";
+import { registerPageReadRoutes, type PageReadCacheKey, type PageReadResult } from "./pfsense/configuration-routes.js";
 import type { SiteSnapshot } from "./pfsense/observations.js";
 import { DeviceRepository } from "./devices/device-repository.js";
 import { registerDeviceAdminRoutes } from "./devices/admin-routes.js";
@@ -45,15 +45,24 @@ const observationCache = new ObservationCache<SiteSnapshot>({
   failureTtlMs: collectionLimits.failureCacheTtlMs,
   maxEntries: 64
 });
-// Configuration reads have their own cache and their own lifetimes (DEC-047):
-// they are not part of the health snapshot, and they never feed capability
-// evidence. A successful read is reused for one minute; a failed one only
-// briefly, so an operator who has just granted the privilege sees the change.
-const configurationCache = new ObservationCache<AliasReadResult>({
-  successTtlMs: 60_000,
-  failureTtlMs: 10_000,
-  maxEntries: 64
-});
+// Page-scoped reads have their own caches and their own lifetimes (DEC-047,
+// DEC-048): they are not part of the health snapshot, and they never feed
+// capability evidence. Each area gets an independent short-lived cache so one
+// slow area cannot evict another. A successful read is reused for one minute; a
+// failed one only briefly, so an operator who has just granted the privilege
+// sees the change.
+const pageReadCaches = new Map<PageReadCacheKey, ObservationCache<PageReadResult>>();
+function pageReadCache(key: PageReadCacheKey): ObservationCache<PageReadResult> {
+  const existing = pageReadCaches.get(key);
+  if (existing) return existing;
+  const created = new ObservationCache<PageReadResult>({
+    successTtlMs: 60_000,
+    failureTtlMs: 10_000,
+    maxEntries: 64
+  });
+  pageReadCaches.set(key, created);
+  return created;
+}
 await provider.ensureDevice();
 const hostSystem = createHostSystemService(config);
 const app = Fastify({
@@ -143,7 +152,9 @@ app.addHook("preHandler", async (request, reply) => {
     || (path.startsWith("/api/v1/devices/") && (request.method !== "GET" || path.endsWith("/connection-test")))
     // Page-scoped configuration reads (DEC-047) reveal firewall configuration
     // rather than telemetry, so they stay administrator-only until a decision
-    // records a wider role policy.
+    // records a wider role policy. The `telemetry/*` page reads (DEC-048) are
+    // status only, so they follow the ordinary authenticated telemetry policy
+    // and are deliberately not matched here.
     || (path.startsWith("/api/v1/devices/") && path.includes("/configuration/"));
   if (adminOnly) await requireAdmin(request, reply);
 });
@@ -549,14 +560,14 @@ app.get("/api/v1/devices/:deviceId", async (request, reply) => {
   return { data: device };
 });
 await registerObservationRoutes(app, { provider, devices, pool, cache: observationCache });
-await registerConfigurationRoutes(app, { factory: clientFactory, devices, cache: configurationCache });
+await registerPageReadRoutes(app, { factory: clientFactory, devices, cache: pageReadCache });
 await registerDeviceAdminRoutes(app, {
   devices,
   clientFactory,
   pool,
   onDeviceChanged: deviceId => {
     observationCache.invalidate(deviceId);
-    configurationCache.invalidate(deviceId);
+    for (const cache of pageReadCaches.values()) cache.invalidate(deviceId);
   }
 });
 await registerHostSystemRoutes(app, { service: hostSystem, pool });
